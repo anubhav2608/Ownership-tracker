@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* Design tokens. Components use the semantic names (bg-surface, text-muted, …),
+   so light and dark mode only differ here. */
+:root {
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --surface-2: #f1f1ee;
+  --line: #e4e4e0;
+  --fg: #1c1c1a;
+  --muted: #6b6b66;
+  --accent: #0f766e;
+  --accent-fg: #ffffff;
+  --accent-soft: #e3f2ef;
+  --warn: #a15c07;
+  --warn-soft: #fdf1dc;
+  --danger: #b42318;
+  --danger-soft: #fdeceb;
+  --info: #3451b2;
+  --info-soft: #e9edfb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121211;
+    --surface: #1b1b19;
+    --surface-2: #242422;
+    --line: #2f2f2c;
+    --fg: #ededeb;
+    --muted: #9b9b95;
+    --accent: #2dd4bf;
+    --accent-fg: #0b1f1d;
+    --accent-soft: #11302c;
+    --warn: #f5b454;
+    --warn-soft: #33260f;
+    --danger: #f87171;
+    --danger-soft: #3a1714;
+    --info: #93a8f5;
+    --info-soft: #1c2440;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+}

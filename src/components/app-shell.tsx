@@ -1,0 +1,117 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  Boxes,
+  Inbox,
+  LayoutDashboard,
+  Plus,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { cn } from "@/lib/format";
+
+const nav: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/items", label: "Items", icon: Boxes },
+  { href: "/inbox", label: "Inbox", icon: Inbox },
+  { href: "/settings", label: "Settings", icon: Settings },
+];
+
+export function Logo() {
+  return (
+    <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+      <span className="flex size-7 items-center justify-center rounded-lg bg-accent text-sm text-accent-fg">
+        O
+      </span>
+      Ownership
+    </Link>
+  );
+}
+
+export function AppShell({
+  inboxBadge,
+  inboxDot,
+  children,
+}: {
+  inboxBadge: ReactNode;
+  inboxDot: ReactNode;
+  children: ReactNode;
+}) {
+  const pathname = usePathname();
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`);
+
+  return (
+    <div className="flex min-h-screen">
+      {/* Desktop sidebar */}
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-surface px-3 py-5 md:flex">
+        <div className="px-2">
+          <Logo />
+        </div>
+        <Link
+          href="/add"
+          className="mt-6 flex h-9 items-center justify-center gap-2 rounded-lg bg-accent text-sm font-medium text-accent-fg hover:opacity-90"
+        >
+          <Plus className="size-4" /> Add record
+        </Link>
+        <nav className="mt-6 space-y-0.5">
+          {nav.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm",
+                isActive(href)
+                  ? "bg-surface-2 font-medium text-fg"
+                  : "text-muted hover:bg-surface-2 hover:text-fg",
+              )}
+            >
+              <Icon className="size-4" />
+              {label}
+              {href === "/inbox" && inboxBadge}
+            </Link>
+          ))}
+        </nav>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile top bar */}
+        <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-line bg-surface px-4 md:hidden">
+          <Logo />
+          <Link
+            href="/add"
+            aria-label="Add record"
+            className="flex size-9 items-center justify-center rounded-lg bg-accent text-accent-fg"
+          >
+            <Plus className="size-5" />
+          </Link>
+        </header>
+
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-24 md:px-8 md:py-8">
+          {children}
+        </main>
+
+        {/* Mobile bottom nav */}
+        <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-line bg-surface md:hidden">
+          {nav.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "relative flex flex-col items-center gap-1 py-2.5 text-[11px]",
+                isActive(href) ? "text-accent" : "text-muted",
+              )}
+            >
+              <Icon className="size-5" />
+              {label}
+              {href === "/inbox" && inboxDot}
+            </Link>
+          ))}
+        </nav>
+      </div>
+    </div>
+  );
+}
