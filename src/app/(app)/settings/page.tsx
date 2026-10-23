@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { ForwardingAddress } from "@/components/copy-button";
 import { PageHeader, SectionCard } from "@/components/layout-bits";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/mock-data";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { AddSender, DangerZone } from "./settings-actions";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -51,7 +53,17 @@ export default async function SettingsPage() {
               <p className="font-medium">{user.name}</p>
               <p className="text-muted-foreground">{user.email}</p>
             </div>
-            <Button variant="outline">Log out</Button>
+            {isSupabaseConfigured ? (
+              <form action="/auth/signout" method="post">
+                <Button type="submit" variant="outline">
+                  Log out
+                </Button>
+              </form>
+            ) : (
+              <Button asChild variant="outline">
+                <Link href="/">Leave demo</Link>
+              </Button>
+            )}
           </div>
         </SectionCard>
 

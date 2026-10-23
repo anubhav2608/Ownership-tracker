@@ -1,0 +1,5 @@
+<!-- {{ .RedirectTo }} is <origin>/auth/confirm?next=<path>, set by the login action. -->
+<h2>Welcome to Ownership</h2>
+<p>Confirm your email to finish creating your account. The link works once and expires in an hour.</p>
+<p><a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email">Confirm and sign in</a></p>
+<p>If you didn't sign up, you can ignore this email.</p>

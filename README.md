@@ -3,9 +3,9 @@
 One place to find what you bought, retrieve its records, and track what happens to it
 while you own it.
 
-This is the **UI prototype** for the MVP in the product spec: every screen is built and
-clickable on fictional sample data. Supabase (auth, Postgres, private storage), the
-Resend inbound webhook and the extraction pipeline come next.
+Status: every screen is built and clickable on fictional sample data. The Supabase
+schema, row level security, private storage and sign-in are in place; screens move from
+sample data to Supabase queries next, then the Resend inbound webhook and extraction.
 
 ## Run it
 
@@ -14,13 +14,76 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. "View demo" on the landing page goes straight to the dashboard.
+Open http://localhost:3000. Without Supabase settings the app runs as an open **demo** on
+sample data; "View demo" on the landing page goes straight to the dashboard.
+
+## Supabase
+
+### Connect a hosted project
+
+1. Create a project at supabase.com. In **Project settings → API**, copy the project URL
+   and publishable key into `.env.local` (start from `.env.example`).
+2. Apply the schema:
+   ```bash
+   npx supabase login
+   npx supabase link --project-ref <your-project-ref>
+   npx supabase db push
+   ```
+3. **Authentication → URL configuration:** set Site URL to your production URL and add
+   `http://localhost:3000/**` and your Vercel URLs (e.g. `https://*-<team>.vercel.app/**`)
+   to the redirect URLs. Sign-in emails send people back to these.
+4. **Authentication → Email templates:** paste `supabase/templates/magic_link.html` into
+   "Magic Link" and `confirmation.html` into "Confirm signup". (`npx supabase config push`
+   can push `supabase/config.toml`, including templates, instead.)
+5. Optional, Google sign-in: create an OAuth client in Google Cloud, then enable Google
+   under **Authentication → Sign In / Providers**.
+6. On Vercel, set the same `NEXT_PUBLIC_SUPABASE_*` variables for each environment.
+
+### Local stack (needs Docker)
+
+```bash
+npm run db:start     # Postgres, Auth, Storage and Studio; prints URL and keys
+npm run db:reset     # re-apply migrations
+npm run db:test      # pgTAP security tests
+```
+
+No Docker? `npm run db:test:local` runs the migrations and tests on any Postgres with pgTAP,
+using a small stand-in for Supabase's auth and storage schemas (`scripts/db/`).
+
+After changing the schema, regenerate types with `npm run db:types` (linked project).
+
+### What's in the database
+
+| Table | Holds |
+| --- | --- |
+| `profiles` | Display name and the private forwarding token (created on signup) |
+| `verified_senders` | Addresses allowed to forward mail in; signup email is verified automatically |
+| `imports` | Every forwarded email / upload: status, stage, attempts, error, extracted fields, match candidates |
+| `orders` | Purchases (merchant, ref, date, total, refund state) |
+| `items` | Physical items; several per order; searchable by name, brand, model and identifiers |
+| `warranties` | One per item, only with evidence from a source (or entered by the user) |
+| `service_events`, `service_event_parts` | Service history with parts, labour and total cost |
+| `documents`, `document_links` | Stored files and what they belong to (order, item or service event) |
+
+Security model:
+
+- Row level security on every table: users only ever see and change their own rows.
+  Signed-out visitors can read nothing.
+- Links between records use (id, user_id) foreign keys, so a record can't be attached to
+  another user's item even with a known id.
+- Users can't verify senders, set their forwarding token, or change import status
+  themselves; the server does that. Retrying uses the `retry_import()` function.
+- Files live in the private `documents` bucket under `<user_id>/`; storage policies limit
+  each user to their own folder. Raw inbound mail goes to `inbound-raw`, which only the
+  server can access.
+- `supabase/tests/database/security.test.sql` checks all of the above (46 assertions).
 
 ## Stack
 
 Next.js 16 (App Router, TypeScript) · Tailwind CSS 4 · shadcn/ui (Radix, new-york style)
-· lucide icons · sonner toasts. `components.json` is set up, so `npx shadcn@latest add <name>`
-works where `ui.shadcn.com` is reachable.
+· Supabase (`@supabase/ssr`) · Zod · lucide icons · sonner toasts.
+`components.json` is set up, so `npx shadcn@latest add <name>` works where
+`ui.shadcn.com` is reachable.
 
 ## Screens
 
@@ -50,7 +113,9 @@ src/
     badges.tsx          status, warranty, import and field-provenance badges
     layout-bits.tsx     PageHeader, SectionCard, DetailRow
     document-list.tsx   confirm-delete.tsx   copy-button.tsx   app-shell.tsx
+  proxy.ts              refreshes the Supabase session; sends signed-out users to /login
   lib/
+    supabase/           browser + server clients, proxy helper, generated database types
     types.ts            domain model: Order, Item, StoredDocument, ServiceEvent, ImportRecord
     mock-data.ts        fictional sample data + async getters (swap for Supabase queries)
     format.ts           money / date formatting (locale and currency in one place)
@@ -69,4 +134,5 @@ variants) live in `src/app/globals.css`, with a dark set that follows the system
 - Cache Components is on (Next 16 default). Request-time data goes through the async
   getters in `lib/mock-data.ts`, which call `connection()`. Keep that pattern when the
   Supabase queries replace them.
-- Actions are simulated: they update local state or show a toast. Nothing persists yet.
+- Screens still read sample data and actions are simulated (local state or a toast);
+  sign-in and the database are real once Supabase is configured.
