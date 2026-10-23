@@ -1,170 +1,184 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Bell, CheckCircle2, RotateCcw, ShieldCheck, Wrench } from "lucide-react";
-import { InboxStatusBadge } from "@/components/inbox-bits";
-import { CategoryIcon, StatusBadge, WarrantyBadge } from "@/components/item-bits";
-import { Card, CardHeader, EmptyState, LinkButton, PageHeader } from "@/components/ui";
-import { daysUntil, formatDate, formatMoney, relativeDays } from "@/lib/format";
-import { getCurrentUser, getInbox, getItems, getReminders } from "@/lib/mock-data";
+import { ArrowRight, CheckCircle2, Wrench } from "lucide-react";
+import { ImportStatusBadge, OrderStatusBadge } from "@/components/badges";
+import { PageHeader, SectionCard } from "@/components/layout-bits";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { formatDate, formatMoney } from "@/lib/format";
+import {
+  getCurrentUser,
+  getDocuments,
+  getImports,
+  getItems,
+  getOrders,
+  getServiceEvents,
+} from "@/lib/mock-data";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-const reminderIcons = { warranty: ShieldCheck, return: RotateCcw, service: Wrench };
-
 export default async function DashboardPage() {
-  const [currentUser, items, inbox, reminders] = await Promise.all([
+  const [user, items, orders, documents, events, imports] = await Promise.all([
     getCurrentUser(),
     getItems(),
-    getInbox(),
-    getReminders(),
+    getOrders(),
+    getDocuments(),
+    getServiceEvents(),
+    getImports(),
   ]);
-  const getItem = (id: string) => items.find((i) => i.id === id);
-  const active = items.filter((i) => i.status === "active");
-  const covered = active.filter((i) => i.warranty && daysUntil(i.warranty.expiresOn) >= 0);
-  const totalValue = active.reduce((sum, i) => sum + i.purchase.price, 0);
-  const attention = inbox.filter((r) => r.status !== "processing");
-  const upcoming = [...reminders]
-    .filter((r) => daysUntil(r.dueOn) >= 0)
-    .sort((a, b) => a.dueOn.localeCompare(b.dueOn));
-  const recent = [...items]
-    .sort((a, b) => b.purchase.date.localeCompare(a.purchase.date))
+
+  const owned = items.filter((i) => i.status === "owned");
+  const maintenance = events.reduce((sum, e) => sum + e.totalCost, 0);
+  const attention = imports.filter(
+    (r) => r.status === "needs_review" || r.status === "failed",
+  );
+  const recentOrders = [...orders]
+    .sort((a, b) => b.orderDate.localeCompare(a.orderDate))
     .slice(0, 5);
+  const recentEvents = [...events].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4);
+  const itemName = (id: string) => items.find((i) => i.id === id)?.name;
 
   const stats = [
-    { label: "Items owned", value: active.length },
-    { label: "Under warranty", value: covered.length },
-    { label: "Total value", value: formatMoney(totalValue) },
-    { label: "Need your review", value: attention.length, warn: attention.length > 0 },
+    { label: "Items owned", value: owned.length, href: "/items" },
+    { label: "Purchases", value: orders.length, href: "/purchases" },
+    { label: "Documents stored", value: documents.length },
+    { label: "Maintenance recorded", value: formatMoney(maintenance) },
   ];
 
   return (
     <>
       <PageHeader
-        title={`Hi, ${currentUser.name}`}
-        description="Here's what needs your attention."
-        action={<LinkButton href="/add">Add record</LinkButton>}
+        title={`Hi, ${user.name}`}
+        description="Your purchases, documents and service history in one place."
+        action={
+          <Button asChild>
+            <Link href="/add">Add record</Link>
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {stats.map((s) => (
-          <Card key={s.label} className="p-4">
-            <p className="text-xs text-muted">{s.label}</p>
-            <p
-              className={`mt-1 text-2xl font-semibold tabular-nums ${s.warn ? "text-warn" : ""}`}
-            >
-              {s.value}
-            </p>
-          </Card>
-        ))}
+        {stats.map((s) => {
+          const body = (
+            <>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">{s.value}</p>
+            </>
+          );
+          return (
+            <Card key={s.label} className="gap-0 p-4">
+              {s.href ? (
+                <Link href={s.href} className="block">
+                  {body}
+                </Link>
+              ) : (
+                body
+              )}
+            </Card>
+          );
+        })}
       </div>
+
+      <SectionCard
+        className="mt-6"
+        title={`Imports needing you${attention.length ? ` (${attention.length})` : ""}`}
+        action={
+          <Link href="/imports" className="text-xs font-medium text-primary">
+            All imports
+          </Link>
+        }
+      >
+        {attention.length === 0 ? (
+          <Empty className="py-10">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <CheckCircle2 />
+              </EmptyMedia>
+              <EmptyTitle>Nothing to review</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ul className="divide-y">
+            {attention.map((r) => (
+              <li key={r.id}>
+                <Link
+                  href={`/imports/${r.id}`}
+                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-accent"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{r.title}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {r.error?.message ?? r.reviewReasons?.[0]}
+                    </p>
+                  </div>
+                  <ImportStatusBadge status={r.status} />
+                  <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-5">
-        <Card className="min-w-0 lg:col-span-3">
-          <CardHeader
-            title="Needs attention"
-            action={
-              <Link href="/inbox" className="text-xs font-medium text-accent">
-                Open inbox
-              </Link>
-            }
-          />
-          {attention.length === 0 ? (
-            <EmptyState icon={<CheckCircle2 className="size-6" />} title="All caught up" />
-          ) : (
-            <ul className="divide-y divide-line">
-              {attention.map((r) => (
-                <li key={r.id}>
-                  <Link
-                    href={`/inbox/${r.id}`}
-                    className="flex items-center gap-3 px-5 py-3.5 hover:bg-surface-2"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{r.subject}</p>
-                      <p className="truncate text-xs text-muted">{r.reason}</p>
-                    </div>
-                    <InboxStatusBadge status={r.status} />
-                    <ArrowRight className="size-4 text-muted" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card className="min-w-0 lg:col-span-2">
-          <CardHeader title="Coming up" />
-          {upcoming.length === 0 ? (
-            <EmptyState icon={<Bell className="size-6" />} title="No upcoming reminders" />
-          ) : (
-            <ul className="divide-y divide-line">
-              {upcoming.map((r) => {
-                const item = getItem(r.itemId);
-                const Icon = reminderIcons[r.kind];
-                const soon = daysUntil(r.dueOn) <= 7;
-                return (
-                  <li key={r.id}>
-                    <Link
-                      href={`/items/${r.itemId}`}
-                      className="flex items-start gap-3 px-5 py-3.5 hover:bg-surface-2"
-                    >
-                      <Icon className={`mt-0.5 size-4 ${soon ? "text-warn" : "text-muted"}`} />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{r.label}</p>
-                        <p className="truncate text-xs text-muted">{item?.name}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-xs font-medium ${soon ? "text-warn" : ""}`}>
-                          {relativeDays(r.dueOn)}
-                        </p>
-                        <p className="text-xs text-muted">{formatDate(r.dueOn)}</p>
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Card>
-      </div>
-
-      <Card className="mt-6">
-        <CardHeader
-          title="Recently added"
+        <SectionCard
+          className="lg:col-span-3"
+          title="Recent purchases"
           action={
-            <Link href="/items" className="text-xs font-medium text-accent">
-              All items
+            <Link href="/purchases" className="text-xs font-medium text-primary">
+              All purchases
             </Link>
           }
-        />
-        <ul className="divide-y divide-line">
-          {recent.map((item) => (
-            <li key={item.id}>
-              <Link
-                href={`/items/${item.id}`}
-                className="flex items-center gap-3 px-5 py-3 hover:bg-surface-2"
-              >
-                <CategoryIcon category={item.category} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{item.name}</p>
-                  <p className="truncate text-xs text-muted">
-                    {item.purchase.merchant} · {formatDate(item.purchase.date)}
+        >
+          <ul className="divide-y">
+            {recentOrders.map((o) => {
+              const count = items.filter((i) => i.orderId === o.id).length;
+              return (
+                <li key={o.id}>
+                  <Link
+                    href={`/purchases/${o.id}`}
+                    className="flex items-center gap-3 px-5 py-3 hover:bg-accent"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{o.merchant}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {formatDate(o.orderDate)} · {count} item{count === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    <OrderStatusBadge status={o.status} />
+                    <p className="text-right text-sm tabular-nums">{formatMoney(o.total)}</p>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </SectionCard>
+
+        <SectionCard className="lg:col-span-2" title="Recent service">
+          <ul className="divide-y">
+            {recentEvents.map((e) => (
+              <li key={e.id}>
+                <Link
+                  href={`/items/${e.itemId}`}
+                  className="flex items-start gap-3 px-5 py-3 hover:bg-accent"
+                >
+                  <Wrench className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{e.workPerformed}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {itemName(e.itemId)} · {formatDate(e.date)}
+                    </p>
+                  </div>
+                  <p className="text-sm tabular-nums">
+                    {e.totalCost ? formatMoney(e.totalCost) : "Free"}
                   </p>
-                </div>
-                <div className="hidden sm:block">
-                  {item.status === "active" ? (
-                    <WarrantyBadge item={item} />
-                  ) : (
-                    <StatusBadge status={item.status} />
-                  )}
-                </div>
-                <p className="w-24 text-right text-sm tabular-nums">
-                  {formatMoney(item.purchase.price)}
-                </p>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </Card>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      </div>
     </>
   );
 }

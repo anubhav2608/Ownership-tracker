@@ -1,17 +1,17 @@
 import { Suspense } from "react";
 import { AppShell } from "@/components/app-shell";
-import { getInbox } from "@/lib/mock-data";
+import { getImports } from "@/lib/mock-data";
 
 async function InboxCount({ variant }: { variant: "badge" | "dot" }) {
-  const inbox = await getInbox();
-  const count = inbox.filter((r) => r.status !== "processing").length;
+  const imports = await getImports();
+  const count = imports.filter((r) => r.status === "needs_review" || r.status === "failed").length;
   if (count === 0) return null;
   return variant === "badge" ? (
-    <span className="ml-auto rounded-full bg-warn-soft px-1.5 text-xs font-medium text-warn">
+    <span className="ml-auto rounded-full bg-warning-soft px-1.5 text-xs font-medium text-warning">
       {count}
     </span>
   ) : (
-    <span className="absolute top-1.5 left-1/2 ml-2 size-2 rounded-full bg-warn" />
+    <span className="absolute top-1.5 left-1/2 ml-2 size-2 rounded-full bg-warning" />
   );
 }
 

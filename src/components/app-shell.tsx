@@ -7,23 +7,26 @@ import {
   Inbox,
   LayoutDashboard,
   Plus,
+  Receipt,
   Settings,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const nav: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/items", label: "Items", icon: Boxes },
-  { href: "/inbox", label: "Inbox", icon: Inbox },
+  { href: "/purchases", label: "Purchases", icon: Receipt },
+  { href: "/imports", label: "Imports", icon: Inbox },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Logo() {
   return (
     <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-      <span className="flex size-7 items-center justify-center rounded-lg bg-accent text-sm text-accent-fg">
+      <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-sm text-primary-foreground">
         O
       </span>
       Ownership
@@ -47,16 +50,15 @@ export function AppShell({
   return (
     <div className="flex min-h-screen">
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-surface px-3 py-5 md:flex">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card px-3 py-5 md:flex">
         <div className="px-2">
           <Logo />
         </div>
-        <Link
-          href="/add"
-          className="mt-6 flex h-9 items-center justify-center gap-2 rounded-lg bg-accent text-sm font-medium text-accent-fg hover:opacity-90"
-        >
-          <Plus className="size-4" /> Add record
-        </Link>
+        <Button asChild className="mt-6">
+          <Link href="/add">
+            <Plus /> Add record
+          </Link>
+        </Button>
         <nav className="mt-6 space-y-0.5">
           {nav.map(({ href, label, icon: Icon }) => (
             <Link
@@ -65,13 +67,13 @@ export function AppShell({
               className={cn(
                 "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm",
                 isActive(href)
-                  ? "bg-surface-2 font-medium text-fg"
-                  : "text-muted hover:bg-surface-2 hover:text-fg",
+                  ? "bg-accent font-medium text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )}
             >
               <Icon className="size-4" />
               {label}
-              {href === "/inbox" && inboxBadge}
+              {href === "/imports" && inboxBadge}
             </Link>
           ))}
         </nav>
@@ -79,15 +81,13 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-line bg-surface px-4 md:hidden">
+        <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-card px-4 md:hidden">
           <Logo />
-          <Link
-            href="/add"
-            aria-label="Add record"
-            className="flex size-9 items-center justify-center rounded-lg bg-accent text-accent-fg"
-          >
-            <Plus className="size-5" />
-          </Link>
+          <Button asChild size="icon" aria-label="Add record">
+            <Link href="/add">
+              <Plus className="size-5" />
+            </Link>
+          </Button>
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-24 md:px-8 md:py-8">
@@ -95,19 +95,19 @@ export function AppShell({
         </main>
 
         {/* Mobile bottom nav */}
-        <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-line bg-surface md:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden">
           {nav.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
               className={cn(
                 "relative flex flex-col items-center gap-1 py-2.5 text-[11px]",
-                isActive(href) ? "text-accent" : "text-muted",
+                isActive(href) ? "text-primary" : "text-muted-foreground",
               )}
             >
               <Icon className="size-5" />
               {label}
-              {href === "/inbox" && inboxDot}
+              {href === "/imports" && inboxDot}
             </Link>
           ))}
         </nav>

@@ -1,0 +1,317 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { AlertCircle, Ban, Copy, Link2, Loader2, RotateCw } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { ConfirmDelete } from "@/components/confirm-delete";
+import { SectionCard } from "@/components/layout-bits";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { formatDate, formatMoney } from "@/lib/format";
+import type { ImportError, ImportRecord, Item, ServiceEvent } from "@/lib/types";
+
+// Prototype: actions confirm with a toast. Real handlers call the import API.
+
+function DiscardButton({ label = "Delete import" }: { label?: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="ghost" onClick={() => setOpen(true)}>
+        {label}
+      </Button>
+      <ConfirmDelete
+        open={open}
+        onOpenChange={setOpen}
+        title="Delete this import?"
+        description="The forwarded message or uploaded file is removed. No records were created from it."
+        onConfirm={() => {
+          toast.success("Import deleted");
+          router.push("/imports");
+        }}
+      />
+    </>
+  );
+}
+
+export function ProcessingPanel() {
+  return (
+    <Alert>
+      <Loader2 className="animate-spin" />
+      <AlertTitle>Processing</AlertTitle>
+      <AlertDescription>
+        We&rsquo;re reading this now. You can leave this page; it will show up under
+        &ldquo;Needs you&rdquo; if anything needs checking.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+export function FailedPanel({
+  error,
+  attempts,
+  from,
+}: {
+  error: ImportError;
+  attempts: number;
+  from?: string;
+}) {
+  const [retrying, setRetrying] = useState(false);
+  const unverified = error.code === "SENDER_NOT_VERIFIED";
+
+  return (
+    <SectionCard title="What went wrong">
+      <div className="space-y-4 px-5 py-4">
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertTitle>{unverified ? "Sender not verified" : "We couldn't read this"}</AlertTitle>
+          <AlertDescription>{error.message}</AlertDescription>
+        </Alert>
+        <p className="font-mono text-xs text-muted-foreground">
+          {error.code} · failed at {error.stage.replace("_", " ")} · attempt {attempts}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {unverified && from ? (
+            <Button
+              onClick={() => toast.success(`${from} verified. Import queued again.`)}
+            >
+              Verify {from} and import
+            </Button>
+          ) : (
+            error.retryable && (
+              <Button
+                disabled={retrying}
+                onClick={() => {
+                  setRetrying(true);
+                  toast.success(`Retry queued (attempt ${attempts + 1})`);
+                }}
+              >
+                <RotateCw /> {retrying ? "Retry queued" : "Retry"}
+              </Button>
+            )
+          )}
+          {!unverified && (
+            <>
+              <Button asChild variant="outline">
+                <Link href="/add?tab=upload">Upload a better copy</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/add?tab=manual">Enter manually</Link>
+              </Button>
+            </>
+          )}
+          <DiscardButton />
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+export function DuplicatePanel({ duplicateOf }: { duplicateOf?: ImportRecord }) {
+  return (
+    <SectionCard title="Duplicate">
+      <div className="space-y-4 px-5 py-4">
+        <Alert>
+          <Copy />
+          <AlertTitle>Already imported</AlertTitle>
+          <AlertDescription>
+            This is the same message we imported on{" "}
+            {duplicateOf ? formatDate(duplicateOf.receivedAt) : "an earlier date"}, so nothing
+            new was created.
+          </AlertDescription>
+        </Alert>
+        <div className="flex flex-wrap gap-2">
+          {duplicateOf && (
+            <Button asChild variant="outline">
+              <Link href={`/imports/${duplicateOf.id}`}>View original import</Link>
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => toast("Imported as a separate record for review")}
+          >
+            It&rsquo;s different, import anyway
+          </Button>
+          <DiscardButton />
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+export function UnsupportedPanel() {
+  return (
+    <SectionCard title="Not imported">
+      <div className="space-y-4 px-5 py-4">
+        <Alert>
+          <Ban />
+          <AlertTitle>This doesn&rsquo;t look like a receipt</AlertTitle>
+          <AlertDescription>
+            We import order confirmations, invoices, refund notices and service receipts.
+            Promotions and newsletters are skipped.
+          </AlertDescription>
+        </Alert>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => toast("Sent to review as a receipt")}>
+            It is a receipt, review it
+          </Button>
+          <DiscardButton />
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+export function ImportedPanel({
+  record,
+  orderMerchant,
+  createdItems,
+  serviceEvent,
+  items,
+}: {
+  record: ImportRecord;
+  orderMerchant?: string;
+  createdItems: Item[];
+  serviceEvent?: ServiceEvent;
+  items: { id: string; name: string }[];
+}) {
+  const [relinking, setRelinking] = useState(false);
+  const match = record.candidates?.[0];
+  const linkedItem = items.find((i) => i.id === (serviceEvent?.itemId ?? match?.itemId));
+
+  return (
+    <SectionCard title="Created from this import">
+      <ul className="divide-y">
+        {record.result?.orderId && (
+          <li className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
+            <span>
+              Purchase from <span className="font-medium">{orderMerchant}</span>
+            </span>
+            <Link href={`/purchases/${record.result.orderId}`} className="text-primary hover:underline">
+              View
+            </Link>
+          </li>
+        )}
+        {createdItems.map((i) => (
+          <li key={i.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
+            <span>
+              Item <span className="font-medium">{i.name}</span>
+            </span>
+            <Link href={`/items/${i.id}`} className="text-primary hover:underline">
+              View
+            </Link>
+          </li>
+        ))}
+        {serviceEvent && (
+          <li className="px-5 py-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span>
+                Service event{" "}
+                <span className="font-medium">{serviceEvent.workPerformed}</span>,{" "}
+                {formatMoney(serviceEvent.totalCost)}
+              </span>
+              <Link href={`/items/${serviceEvent.itemId}`} className="text-primary hover:underline">
+                View
+              </Link>
+            </div>
+            {linkedItem && (
+              <div className="mt-3 rounded-md bg-muted px-3 py-2.5 text-xs">
+                <p>
+                  Linked to <span className="font-medium">{linkedItem.name}</span> because:
+                </p>
+                <ul className="mt-1 list-disc pl-4 text-muted-foreground">
+                  {match?.evidence.map((ev) => <li key={ev}>{ev}</li>)}
+                </ul>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="mt-1 h-auto px-0 text-xs"
+                  onClick={() => setRelinking(true)}
+                >
+                  <Link2 /> Wrong item? Move it
+                </Button>
+              </div>
+            )}
+          </li>
+        )}
+      </ul>
+
+      {relinking && (
+        <RelinkDialog
+          items={items}
+          currentId={linkedItem?.id}
+          onClose={() => setRelinking(false)}
+        />
+      )}
+    </SectionCard>
+  );
+}
+
+function RelinkDialog({
+  items,
+  currentId,
+  onClose,
+}: {
+  items: { id: string; name: string }[];
+  currentId?: string;
+  onClose: () => void;
+}) {
+  const [target, setTarget] = useState("");
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Move service event</DialogTitle>
+          <DialogDescription>
+            Choose the item this service was actually for. Its history and cost totals
+            update on both items.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-2">
+          <Label htmlFor="relink">Item</Label>
+          <NativeSelect
+            id="relink"
+            wrapperClassName="w-full"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+          >
+            <NativeSelectOption value="">Choose an item…</NativeSelectOption>
+            {items
+              .filter((i) => i.id !== currentId)
+              .map((i) => (
+                <NativeSelectOption key={i.id} value={i.id}>
+                  {i.name}
+                </NativeSelectOption>
+              ))}
+          </NativeSelect>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!target}
+            onClick={() => {
+              toast.success(`Moved to ${items.find((i) => i.id === target)?.name}`);
+              onClose();
+            }}
+          >
+            Move
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

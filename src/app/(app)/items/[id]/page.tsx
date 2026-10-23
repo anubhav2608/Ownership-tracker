@@ -1,22 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Download, FileText, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Info, ShieldCheck, ShieldQuestion } from "lucide-react";
 import {
   CategoryIcon,
+  FieldStateBadge,
+  ItemStatusBadge,
+  OrderStatusBadge,
   SourceLabel,
-  StatusBadge,
   WarrantyBadge,
-} from "@/components/item-bits";
-import { Badge, buttonClass, Card, CardHeader } from "@/components/ui";
-import {
-  daysUntil,
-  formatDate,
-  formatMoney,
-  fractionElapsed,
-  relativeDays,
-} from "@/lib/format";
-import { getItem } from "@/lib/mock-data";
+} from "@/components/badges";
+import { DocumentList } from "@/components/document-list";
+import { DetailRow, SectionCard } from "@/components/layout-bits";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { formatDate, formatMoney, fractionElapsed } from "@/lib/format";
+import { getDocuments, getItem, getItems, getOrder, getServiceEvents } from "@/lib/mock-data";
+import { ItemActions } from "./item-actions";
 import { ServiceHistory } from "./service-history";
 
 export async function generateMetadata(props: PageProps<"/items/[id]">): Promise<Metadata> {
@@ -29,16 +29,20 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
   const item = await getItem(id);
   if (!item) notFound();
 
-  const { purchase, warranty } = item;
-  const returnOpen = item.returnWindowEndsOn && daysUntil(item.returnWindowEndsOn) >= 0;
-
-  const elapsed = warranty ? fractionElapsed(purchase.date, warranty.expiresOn) : 0;
+  const [order, documents, events, allItems] = await Promise.all([
+    item.orderId ? getOrder(item.orderId) : undefined,
+    getDocuments(item.documentIds),
+    getServiceEvents(item.id),
+    getItems(),
+  ]);
+  const siblings = allItems.filter((i) => i.orderId === item.orderId && i.id !== item.id);
+  const { warranty } = item;
 
   return (
     <>
       <Link
         href="/items"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" /> Items
       </Link>
@@ -47,118 +51,140 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
         <CategoryIcon category={item.category} size="lg" />
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold tracking-tight">{item.name}</h1>
-          <p className="mt-0.5 text-sm text-muted">
-            {item.brand}
-            {item.model && ` · ${item.model}`}
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {[item.brand, item.model].filter(Boolean).join(" · ")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <StatusBadge status={item.status} />
+            <ItemStatusBadge status={item.status} />
             <WarrantyBadge item={item} />
           </div>
         </div>
-        <select
-          defaultValue={item.status}
-          aria-label="Item status"
-          className="h-9 w-full rounded-lg border border-line bg-surface px-3 text-sm sm:w-auto"
-        >
-          <option value="active">Mark as: Active</option>
-          <option value="returned">Mark as: Returned</option>
-          <option value="sold">Mark as: Sold</option>
-          <option value="disposed">Mark as: Disposed</option>
-        </select>
+        <ItemActions itemName={item.name} status={item.status} />
       </div>
 
-      {returnOpen && (
-        <div className="mb-6 flex items-center gap-3 rounded-xl border border-warn/30 bg-warn-soft px-4 py-3 text-sm text-warn">
-          <RotateCcw className="size-4 shrink-0" />
-          Return window closes {relativeDays(item.returnWindowEndsOn!)} (
-          {formatDate(item.returnWindowEndsOn!)}).
-        </div>
-      )}
-
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-1">
-          <Card>
-            <CardHeader title="Purchase" />
+        <div className="min-w-0 space-y-6">
+          <SectionCard title="Purchase">
             <dl className="space-y-3 px-5 py-4 text-sm">
-              <Row label="Merchant" value={purchase.merchant} />
-              <Row label="Date" value={formatDate(purchase.date)} />
-              <Row label="Price" value={formatMoney(purchase.price)} />
-              {purchase.orderId && <Row label="Order ID" value={purchase.orderId} mono />}
-              {item.serialNumber && <Row label="Serial no." value={item.serialNumber} mono />}
-              <div className="pt-1">
-                <SourceLabel source={purchase.source} />
-              </div>
-            </dl>
-          </Card>
-
-          <Card>
-            <CardHeader title="Invoice" />
-            <div className="px-5 py-4">
-              {purchase.invoiceFile ? (
-                <div className="flex items-center gap-3 rounded-lg border border-line p-3">
-                  <FileText className="size-8 shrink-0 text-muted" strokeWidth={1.5} />
-                  <p className="min-w-0 flex-1 truncate text-sm">{purchase.invoiceFile}</p>
-                  <button className={buttonClass("ghost", "px-2")} aria-label="Download invoice">
-                    <Download className="size-4" />
-                  </button>
-                </div>
-              ) : (
-                <p className="text-sm text-muted">
-                  No invoice attached.{" "}
-                  <Link href="/add?tab=upload" className="font-medium text-accent">
-                    Upload one
+              {order && (
+                <DetailRow label="Merchant">
+                  <Link href={`/purchases/${order.id}`} className="text-primary hover:underline">
+                    {order.merchant}
                   </Link>
+                </DetailRow>
+              )}
+              <DetailRow label="Date">{formatDate(item.purchaseDate)}</DetailRow>
+              <DetailRow label="Price">
+                <span className="inline-flex items-center gap-2">
+                  {item.price.state !== "confirmed" && (
+                    <FieldStateBadge state={item.price.state} confidence={item.price.confidence} />
+                  )}
+                  {item.price.value !== null ? formatMoney(item.price.value) : "—"}
+                </span>
+              </DetailRow>
+              {order?.orderRef && (
+                <DetailRow label="Order ref." mono>
+                  {order.orderRef}
+                </DetailRow>
+              )}
+              {item.identifiers.map((idf) => (
+                <DetailRow key={idf.label} label={idf.label} mono>
+                  {idf.value}
+                </DetailRow>
+              ))}
+              {order && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <SourceLabel source={order.source} />
+                  <OrderStatusBadge status={order.status} />
+                </div>
+              )}
+              {siblings.length > 0 && (
+                <p className="border-t pt-3 text-xs text-muted-foreground">
+                  Same order:{" "}
+                  {siblings.map((s, i) => (
+                    <span key={s.id}>
+                      {i > 0 && ", "}
+                      <Link href={`/items/${s.id}`} className="text-primary hover:underline">
+                        {s.name}
+                      </Link>
+                    </span>
+                  ))}
                 </p>
               )}
-            </div>
-          </Card>
+            </dl>
+          </SectionCard>
 
-          <Card>
-            <CardHeader title="Warranty" />
+          <SectionCard title="Warranty">
             <div className="px-5 py-4 text-sm">
               {warranty ? (
                 <>
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="size-4 text-accent" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ShieldCheck className="size-4 text-success" />
                     <span className="font-medium">
                       {warranty.months} months, {warranty.provider}
                     </span>
-                    {warranty.extended && <Badge tone="info">Extended</Badge>}
+                    <FieldStateBadge state={warranty.state} />
                   </div>
-                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-surface-2">
-                    <div
-                      className={`h-full rounded-full ${elapsed >= 1 ? "bg-muted" : elapsed > 0.9 ? "bg-warn" : "bg-accent"}`}
-                      style={{ width: `${elapsed * 100}%` }}
-                    />
-                  </div>
-                  <div className="mt-2 flex justify-between text-xs text-muted">
-                    <span>{formatDate(purchase.date)}</span>
+                  <Progress
+                    className="mt-4 h-1.5"
+                    value={fractionElapsed(item.purchaseDate, warranty.expiresOn) * 100}
+                    aria-label="Warranty period elapsed"
+                  />
+                  <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                    <span>{formatDate(item.purchaseDate)}</span>
                     <span>Ends {formatDate(warranty.expiresOn)}</span>
                   </div>
+                  {warranty.evidence && (
+                    <p className="mt-4 flex gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                      <Info className="mt-px size-3.5 shrink-0" />
+                      <span>Source: {warranty.evidence}</span>
+                    </p>
+                  )}
                 </>
               ) : (
-                <p className="text-muted">No warranty recorded.</p>
+                <div className="flex gap-3">
+                  <ShieldQuestion className="size-5 shrink-0 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">No warranty on record</p>
+                    <p className="mt-1 text-muted-foreground">
+                      None of this item&rsquo;s documents mention a warranty. If it has one,
+                      upload the warranty card or add it yourself.
+                    </p>
+                    <Button variant="outline" size="sm" className="mt-3">
+                      Add warranty
+                    </Button>
+                  </div>
+                </div>
               )}
             </div>
-          </Card>
+          </SectionCard>
+
+          <SectionCard
+            title={`Documents (${documents.length})`}
+            action={
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/add?tab=upload">Upload</Link>
+              </Button>
+            }
+          >
+            <DocumentList documents={documents} />
+          </SectionCard>
+
+          {item.notes && (
+            <SectionCard title="Notes">
+              <p className="px-5 py-4 text-sm text-muted-foreground">{item.notes}</p>
+            </SectionCard>
+          )}
         </div>
 
-        <div className="lg:col-span-2">
-          <ServiceHistory initial={item.services} />
+        <div className="min-w-0 lg:col-span-2">
+          <ServiceHistory
+            initial={events}
+            itemId={item.id}
+            showOdometer={item.category === "Vehicle"}
+          />
         </div>
       </div>
     </>
-  );
-}
-
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex justify-between gap-4">
-      <dt className="text-muted">{label}</dt>
-      <dd className={`text-right font-medium ${mono ? "font-mono text-xs leading-5" : ""}`}>
-        {value}
-      </dd>
-    </div>
   );
 }

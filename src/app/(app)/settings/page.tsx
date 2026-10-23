@@ -1,97 +1,61 @@
 import type { Metadata } from "next";
-import { CheckCircle2, Plus } from "lucide-react";
-import { CopyButton } from "@/components/copy-button";
-import { Button, Card, CardHeader, inputClass, PageHeader } from "@/components/ui";
+import { CheckCircle2 } from "lucide-react";
+import { ForwardingAddress } from "@/components/copy-button";
+import { PageHeader, SectionCard } from "@/components/layout-bits";
+import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/mock-data";
+import { AddSender, DangerZone } from "./settings-actions";
 
 export const metadata: Metadata = { title: "Settings" };
 
-const notificationPrefs = [
-  { id: "processed", label: "A forwarded record is saved", on: true },
-  { id: "review", label: "A record needs my review", on: true },
-  { id: "return", label: "Return window closes in 2 days", on: true },
-  { id: "warranty", label: "Warranty expires in 30 days", on: true },
-  { id: "service", label: "Service is due", on: false },
-];
-
 export default async function SettingsPage() {
-  const currentUser = await getCurrentUser();
+  const user = await getCurrentUser();
   return (
     <div className="max-w-2xl">
       <PageHeader title="Settings" />
 
       <div className="space-y-6">
-        <Card>
-          <CardHeader title="Forwarding address" />
-          <div className="p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <code className="flex-1 truncate rounded-lg bg-surface-2 px-3 py-2.5 font-mono text-sm">
-                {currentUser.forwardingAddress}
-              </code>
-              <CopyButton value={currentUser.forwardingAddress} />
-            </div>
-            <Button variant="ghost" className="mt-3 h-8 px-2 text-xs text-muted">
+        <SectionCard title="Forwarding address">
+          <div className="space-y-3 p-5">
+            <ForwardingAddress address={user.forwardingAddress} />
+            <p className="text-xs text-muted-foreground">
+              Generating a new address stops the old one from accepting mail.
+            </p>
+            <Button variant="outline" size="sm">
               Generate a new address
             </Button>
           </div>
-        </Card>
+        </SectionCard>
 
-        <Card>
-          <CardHeader title="Verified senders" />
+        <SectionCard title="Verified senders">
           <div className="p-5">
-            <p className="text-sm text-muted">
-              We only accept forwarded mail from these addresses.
+            <p className="text-sm text-muted-foreground">
+              We only import mail forwarded from these addresses. Anything else is held
+              under Imports without being read.
             </p>
             <ul className="mt-4 space-y-2">
-              {currentUser.verifiedSenders.map((s) => (
+              {user.verifiedSenders.map((s) => (
                 <li key={s} className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="size-4 text-accent" />
+                  <CheckCircle2 className="size-4 text-success" />
                   {s}
                 </li>
               ))}
             </ul>
-            <div className="mt-4 flex gap-2">
-              <input type="email" placeholder="Add another email address" className={inputClass} />
-              <Button variant="secondary">
-                <Plus className="size-4" /> Add
-              </Button>
-            </div>
+            <AddSender />
           </div>
-        </Card>
+        </SectionCard>
 
-        <Card>
-          <CardHeader title="Notify me when" />
-          <ul className="divide-y divide-line">
-            {notificationPrefs.map((p) => (
-              <li key={p.id}>
-                <label className="flex cursor-pointer items-center justify-between gap-4 px-5 py-3 text-sm">
-                  {p.label}
-                  <input
-                    type="checkbox"
-                    defaultChecked={p.on}
-                    className="size-4 accent-[var(--accent)]"
-                  />
-                </label>
-              </li>
-            ))}
-          </ul>
-        </Card>
-
-        <Card>
-          <CardHeader title="Account" />
+        <SectionCard title="Account">
           <div className="flex flex-wrap items-center justify-between gap-3 p-5 text-sm">
             <div>
-              <p className="font-medium">{currentUser.name}</p>
-              <p className="text-muted">{currentUser.email}</p>
+              <p className="font-medium">{user.name}</p>
+              <p className="text-muted-foreground">{user.email}</p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="secondary">Export all data</Button>
-              <Button variant="ghost" className="text-danger">
-                Log out
-              </Button>
-            </div>
+            <Button variant="outline">Log out</Button>
           </div>
-        </Card>
+        </SectionCard>
+
+        <DangerZone />
       </div>
     </div>
   );

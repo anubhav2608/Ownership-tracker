@@ -1,57 +1,100 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-/* Design tokens. Components use the semantic names (bg-surface, text-muted, …),
-   so light and dark mode only differ here. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+/* shadcn/ui theme tokens (neutral base, teal primary) plus status colours
+   used for import states, confidence and warranty badges. */
 :root {
-  --bg: #f7f7f5;
-  --surface: #ffffff;
-  --surface-2: #f1f1ee;
-  --line: #e4e4e0;
-  --fg: #1c1c1a;
-  --muted: #6b6b66;
-  --accent: #0f766e;
-  --accent-fg: #ffffff;
-  --accent-soft: #e3f2ef;
-  --warn: #a15c07;
-  --warn-soft: #fdf1dc;
-  --danger: #b42318;
-  --danger-soft: #fdeceb;
-  --info: #3451b2;
-  --info-soft: #e9edfb;
+  --radius: 0.625rem;
+  --background: oklch(0.985 0.002 100);
+  --foreground: oklch(0.205 0.005 100);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.205 0.005 100);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.205 0.005 100);
+  --primary: oklch(0.51 0.09 186);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.96 0.003 100);
+  --secondary-foreground: oklch(0.205 0.005 100);
+  --muted: oklch(0.96 0.003 100);
+  --muted-foreground: oklch(0.5 0.008 100);
+  --accent: oklch(0.955 0.004 100);
+  --accent-foreground: oklch(0.205 0.005 100);
+  --destructive: oklch(0.55 0.2 27);
+  --border: oklch(0.91 0.004 100);
+  --input: oklch(0.91 0.004 100);
+  --ring: oklch(0.51 0.09 186);
+
+  --success: oklch(0.51 0.09 186);
+  --success-soft: oklch(0.95 0.03 186);
+  --warning: oklch(0.55 0.13 65);
+  --warning-soft: oklch(0.96 0.045 85);
+  --danger: oklch(0.55 0.2 27);
+  --danger-soft: oklch(0.96 0.025 27);
+  --info: oklch(0.5 0.15 265);
+  --info-soft: oklch(0.95 0.025 265);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #121211;
-    --surface: #1b1b19;
-    --surface-2: #242422;
-    --line: #2f2f2c;
-    --fg: #ededeb;
-    --muted: #9b9b95;
-    --accent: #2dd4bf;
-    --accent-fg: #0b1f1d;
-    --accent-soft: #11302c;
-    --warn: #f5b454;
-    --warn-soft: #33260f;
-    --danger: #f87171;
-    --danger-soft: #3a1714;
-    --info: #93a8f5;
-    --info-soft: #1c2440;
+    --background: oklch(0.17 0.003 100);
+    --foreground: oklch(0.94 0.003 100);
+    --card: oklch(0.21 0.003 100);
+    --card-foreground: oklch(0.94 0.003 100);
+    --popover: oklch(0.23 0.003 100);
+    --popover-foreground: oklch(0.94 0.003 100);
+    --primary: oklch(0.78 0.12 182);
+    --primary-foreground: oklch(0.2 0.03 186);
+    --secondary: oklch(0.26 0.003 100);
+    --secondary-foreground: oklch(0.94 0.003 100);
+    --muted: oklch(0.26 0.003 100);
+    --muted-foreground: oklch(0.68 0.008 100);
+    --accent: oklch(0.27 0.004 100);
+    --accent-foreground: oklch(0.94 0.003 100);
+    --destructive: oklch(0.7 0.17 25);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.78 0.12 182);
+
+    --success: oklch(0.78 0.12 182);
+    --success-soft: oklch(0.3 0.05 186);
+    --warning: oklch(0.8 0.13 75);
+    --warning-soft: oklch(0.3 0.05 70);
+    --danger: oklch(0.72 0.16 25);
+    --danger-soft: oklch(0.3 0.06 25);
+    --info: oklch(0.75 0.11 265);
+    --info-soft: oklch(0.3 0.06 265);
   }
 }
 
 @theme inline {
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-line: var(--line);
-  --color-fg: var(--fg);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
-  --color-accent-fg: var(--accent-fg);
-  --color-accent-soft: var(--accent-soft);
-  --color-warn: var(--warn);
-  --color-warn-soft: var(--warn-soft);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-info: var(--info);
@@ -60,7 +103,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
-body {
-  background: var(--bg);
-  color: var(--fg);
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }

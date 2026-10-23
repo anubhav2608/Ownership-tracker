@@ -2,109 +2,144 @@
 
 import Link from "next/link";
 import { Boxes, Search } from "lucide-react";
-import { useMemo, useState } from "react";
-import { CategoryIcon, StatusBadge, WarrantyBadge } from "@/components/item-bits";
-import { Card, EmptyState, inputClass } from "@/components/ui";
-import { cn, formatDate, formatMoney } from "@/lib/format";
+import { useState } from "react";
+import { CategoryIcon, ItemStatusBadge, WarrantyBadge } from "@/components/badges";
+import { Card } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatDate, formatMoney } from "@/lib/format";
 import type { Item } from "@/lib/types";
 
-const filters = ["Active", "Past", "All"] as const;
-type Filter = (typeof filters)[number];
+export interface ItemRow {
+  item: Item;
+  merchant?: string;
+  serviceCount: number;
+}
 
-export function ItemsList({ items }: { items: Item[] }) {
+type Scope = "owned" | "past" | "all";
+
+export function ItemsList({ rows }: { rows: ItemRow[] }) {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("Active");
-  const [category, setCategory] = useState("All");
+  const [scope, setScope] = useState<Scope>("owned");
+  const [category, setCategory] = useState("all");
+  const [merchant, setMerchant] = useState("all");
 
-  const categories = ["All", ...new Set(items.map((i) => i.category))];
+  const categories = [...new Set(rows.map((r) => r.item.category))].sort();
+  const merchants = [...new Set(rows.map((r) => r.merchant).filter(Boolean))].sort() as string[];
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return items.filter((i) => {
-      if (filter === "Active" && i.status !== "active") return false;
-      if (filter === "Past" && i.status === "active") return false;
-      if (category !== "All" && i.category !== category) return false;
-      if (!q) return true;
-      return [i.name, i.brand, i.model, i.purchase.merchant, i.serialNumber]
-        .filter(Boolean)
-        .some((s) => s!.toLowerCase().includes(q));
-    });
-  }, [items, query, filter, category]);
+  const q = query.trim().toLowerCase();
+  const visible = rows.filter(({ item, merchant: m }) => {
+    if (scope === "owned" && item.status !== "owned") return false;
+    if (scope === "past" && item.status === "owned") return false;
+    if (category !== "all" && item.category !== category) return false;
+    if (merchant !== "all" && m !== merchant) return false;
+    if (!q) return true;
+    const haystack = [
+      item.name,
+      item.brand,
+      item.model,
+      m,
+      ...item.identifiers.map((i) => i.value),
+    ];
+    return haystack.some((s) => s?.toLowerCase().includes(q));
+  });
 
   return (
     <>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="relative flex-1">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
-          <input
+          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name, brand, merchant or serial number"
-            className={cn(inputClass, "pl-9")}
+            placeholder="Search name, brand, merchant, serial or registration"
+            className="pl-9"
+            aria-label="Search items"
           />
         </div>
-        <div className="flex gap-2">
-          <div className="flex rounded-lg border border-line bg-surface p-0.5">
-            {filters.map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-sm",
-                  filter === f ? "bg-surface-2 font-medium" : "text-muted",
-                )}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-          <select
+        <div className="flex flex-wrap gap-2">
+          <Tabs value={scope} onValueChange={(v) => setScope(v as Scope)}>
+            <TabsList>
+              <TabsTrigger value="owned">Owned</TabsTrigger>
+              <TabsTrigger value="past">Past</TabsTrigger>
+              <TabsTrigger value="all">All</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <NativeSelect
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className={cn(inputClass, "w-auto")}
             aria-label="Category"
           >
+            <NativeSelectOption value="all">All categories</NativeSelectOption>
             {categories.map((c) => (
-              <option key={c}>{c}</option>
+              <NativeSelectOption key={c} value={c}>
+                {c}
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
+          <NativeSelect
+            value={merchant}
+            onChange={(e) => setMerchant(e.target.value)}
+            aria-label="Merchant"
+          >
+            <NativeSelectOption value="all">All merchants</NativeSelectOption>
+            {merchants.map((m) => (
+              <NativeSelectOption key={m} value={m}>
+                {m}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
         </div>
       </div>
 
-      <Card>
+      <Card className="gap-0 overflow-hidden py-0">
         {visible.length === 0 ? (
-          <EmptyState icon={<Boxes className="size-6" />} title="No items match">
-            Try a different search or filter.
-          </EmptyState>
+          <Empty className="py-12">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Boxes />
+              </EmptyMedia>
+              <EmptyTitle>No items match</EmptyTitle>
+              <EmptyDescription>Try a different search or filter.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <ul className="divide-y divide-line">
-            {visible.map((item) => (
+          <ul className="divide-y">
+            {visible.map(({ item, merchant: m, serviceCount }) => (
               <li key={item.id}>
                 <Link
                   href={`/items/${item.id}`}
-                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-surface-2"
+                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-accent"
                 >
                   <CategoryIcon category={item.category} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{item.name}</p>
-                    <p className="truncate text-xs text-muted">
-                      {item.brand} · {item.purchase.merchant} · {formatDate(item.purchase.date)}
+                    <p className="truncate text-xs text-muted-foreground">
+                      {[item.brand, m, formatDate(item.purchaseDate)].filter(Boolean).join(" · ")}
                     </p>
                   </div>
                   <div className="hidden items-center gap-2 sm:flex">
-                    {item.services.length > 0 && (
-                      <span className="text-xs text-muted">
-                        {item.services.length} service{item.services.length > 1 && "s"}
+                    {serviceCount > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {serviceCount} service{serviceCount > 1 && "s"}
                       </span>
                     )}
-                    {item.status === "active" ? (
+                    {item.status === "owned" ? (
                       <WarrantyBadge item={item} />
                     ) : (
-                      <StatusBadge status={item.status} />
+                      <ItemStatusBadge status={item.status} />
                     )}
                   </div>
                   <p className="w-24 text-right text-sm tabular-nums">
-                    {formatMoney(item.purchase.price)}
+                    {item.price.value !== null ? formatMoney(item.price.value) : "—"}
                   </p>
                 </Link>
               </li>
@@ -112,6 +147,9 @@ export function ItemsList({ items }: { items: Item[] }) {
           </ul>
         )}
       </Card>
+      <p className="mt-3 text-xs text-muted-foreground">
+        {visible.length} of {rows.length} items
+      </p>
     </>
   );
 }

@@ -39,7 +39,3 @@ export function relativeDays(iso: string) {
   if (d === -1) return "yesterday";
   return d > 0 ? `in ${d} days` : `${-d} days ago`;
 }
-
-export function cn(...classes: (string | false | null | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
-}

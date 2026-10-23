@@ -1,31 +1,32 @@
-import { Bell, FileSearch, Mail, ShieldCheck, Wrench } from "lucide-react";
-import { LinkButton } from "@/components/ui";
+import Link from "next/link";
+import { FileSearch, History, Mail, Search, ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const features = [
   {
     icon: Mail,
-    title: "Forward, don't type",
-    body: "Forward order confirmations and invoices to your private address. We pull out the merchant, price, date and warranty.",
+    title: "Forward only what you choose",
+    body: "Each account gets a private address. Forward a receipt and we turn it into a record. We never ask for access to your inbox.",
   },
   {
     icon: FileSearch,
-    title: "Paper receipts too",
-    body: "Upload a PDF or photo. We read it, and ask you to check anything we're not sure about.",
+    title: "Uploads work too",
+    body: "PDFs and photos of paper receipts are read, and anything we're unsure of waits for you to check.",
+  },
+  {
+    icon: Search,
+    title: "Every retailer in one list",
+    body: "Search purchases from every store by item, brand, merchant, serial or registration number.",
+  },
+  {
+    icon: History,
+    title: "Full service history",
+    body: "Repairs, parts replaced and costs for each item, from home appliances to your car.",
   },
   {
     icon: ShieldCheck,
-    title: "Warranty at a glance",
-    body: "See what's still covered, and get the invoice in two taps when something breaks.",
-  },
-  {
-    icon: Wrench,
-    title: "Full service history",
-    body: "Every repair, service and installation for an item, in one timeline.",
-  },
-  {
-    icon: Bell,
-    title: "Reminders that matter",
-    body: "Return windows, warranty expiry and service due dates, before they pass.",
+    title: "Warranty, with its source",
+    body: "We show a warranty only when a document backs it, and link you to that document.",
   },
 ];
 
@@ -34,40 +35,40 @@ export default function Landing() {
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 md:px-8">
       <header className="flex h-16 items-center justify-between">
         <span className="flex items-center gap-2 font-semibold">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-accent text-sm text-accent-fg">
+          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-sm text-primary-foreground">
             O
           </span>
           Ownership
         </span>
-        <LinkButton href="/login" variant="ghost">
-          Log in
-        </LinkButton>
+        <Button asChild variant="ghost">
+          <Link href="/login">Log in</Link>
+        </Button>
       </header>
 
       <section className="py-16 md:py-24">
         <h1 className="max-w-2xl text-4xl font-semibold tracking-tight md:text-5xl">
-          Everything you own, with the paperwork attached.
+          What you bought, and everything that happened to it since.
         </h1>
-        <p className="mt-5 max-w-xl text-lg text-muted">
-          Purchases, invoices, warranties and service history for your gadgets,
-          appliances and vehicles, built from the emails you already get.
+        <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+          Invoices, warranties, refunds and service records are scattered across retailer
+          apps, email and WhatsApp. Keep them in one searchable place instead.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <LinkButton href="/login?mode=signup" className="h-11 px-5">
-            Get started free
-          </LinkButton>
-          <LinkButton href="/dashboard" variant="secondary" className="h-11 px-5">
-            View demo
-          </LinkButton>
+          <Button asChild size="lg">
+            <Link href="/login?mode=signup">Get started free</Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/dashboard">View demo</Link>
+          </Button>
         </div>
       </section>
 
       <section className="grid gap-4 pb-20 sm:grid-cols-2 lg:grid-cols-3">
         {features.map(({ icon: Icon, title, body }) => (
-          <div key={title} className="rounded-xl border border-line bg-surface p-5">
-            <Icon className="size-5 text-accent" />
+          <div key={title} className="rounded-xl border bg-card p-5">
+            <Icon className="size-5 text-primary" />
             <h2 className="mt-3 font-medium">{title}</h2>
-            <p className="mt-1 text-sm text-muted">{body}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{body}</p>
           </div>
         ))}
       </section>
