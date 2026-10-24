@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { MailCheck } from "lucide-react";
+import { Suspense } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { signInWithEmail, signInWithGoogle } from "./actions";
 
@@ -25,14 +27,7 @@ const errors: Record<string, string> = {
   oauth: "Google sign-in didn't complete. Please try again.",
 };
 
-export default async function LoginPage(props: PageProps<"/login">) {
-  const params = await props.searchParams;
-  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
-  const signup = one(params.mode) === "signup";
-  const sent = one(params.sent);
-  const error = errors[one(params.error) ?? ""];
-  const next = one(params.next) ?? (signup ? "/onboarding" : "/dashboard");
-
+export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
@@ -42,93 +37,124 @@ export default async function LoginPage(props: PageProps<"/login">) {
           </span>
           Ownership
         </Link>
-        <div className="rounded-xl border bg-card p-6">
-          {sent ? (
-            <div className="text-center">
-              <MailCheck className="mx-auto size-10 text-primary" strokeWidth={1.5} />
-              <h1 className="mt-4 text-xl font-semibold">Check your email</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                We sent a sign-in link to <span className="font-medium text-foreground">{sent}</span>.
-                It works once and expires in an hour.
-              </p>
-              <Button asChild variant="ghost" className="mt-4">
-                <Link href={`/login${signup ? "?mode=signup" : ""}`}>Use a different email</Link>
-              </Button>
-            </div>
-          ) : (
-            <>
-              <h1 className="text-xl font-semibold">
-                {signup ? "Create your account" : "Welcome back"}
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {signup
-                  ? "Start tracking what you own in a couple of minutes."
-                  : "Log in to see your items and imports."}
-              </p>
+        <Suspense fallback={<LoginCardSkeleton />}>
+          <LoginCard searchParams={searchParams} />
+        </Suspense>
+      </div>
+    </div>
+  );
+}
 
-              {error && (
-                <Alert variant="destructive" className="mt-4">
-                  <AlertTitle>Couldn&rsquo;t sign you in</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+async function LoginCard({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
+  const params = await searchParams;
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const signup = one(params.mode) === "signup";
+  const sent = one(params.sent);
+  const error = errors[one(params.error) ?? ""];
+  const next = one(params.next) ?? (signup ? "/onboarding" : "/dashboard");
 
-              {isSupabaseConfigured ? (
-                <>
-                  <form action={signInWithGoogle} className="mt-6">
-                    <input type="hidden" name="next" value={next} />
-                    <Button type="submit" variant="outline" className="w-full">
-                      <GoogleIcon /> Continue with Google
-                    </Button>
-                  </form>
-                  <Divider />
-                  <form action={signInWithEmail} className="space-y-4">
-                    <input type="hidden" name="next" value={next} />
-                    <input type="hidden" name="mode" value={signup ? "signup" : "login"} />
-                    <div className="grid gap-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        required
-                        autoComplete="email"
-                        placeholder="you@example.com"
-                      />
-                    </div>
-                    <Button type="submit" className="w-full">
-                      Email me a sign-in link
-                    </Button>
-                  </form>
-                </>
-              ) : (
-                <>
-                  <Alert className="mt-6">
-                    <AlertTitle>Demo mode</AlertTitle>
-                    <AlertDescription>
-                      Supabase isn&rsquo;t configured, so this opens the app with sample data.
-                    </AlertDescription>
-                  </Alert>
-                  <Button asChild className="mt-4 w-full">
-                    <Link href={signup ? "/onboarding" : "/dashboard"}>Continue to the demo</Link>
+  return (
+    <>
+      <div className="rounded-xl border bg-card p-6">
+        {sent ? (
+          <div className="text-center">
+            <MailCheck className="mx-auto size-10 text-primary" strokeWidth={1.5} />
+            <h1 className="mt-4 text-xl font-semibold">Check your email</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              We sent a sign-in link to <span className="font-medium text-foreground">{sent}</span>.
+              It works once and expires in an hour.
+            </p>
+            <Button asChild variant="ghost" className="mt-4">
+              <Link href={`/login${signup ? "?mode=signup" : ""}`}>Use a different email</Link>
+            </Button>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-xl font-semibold">
+              {signup ? "Create your account" : "Welcome back"}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {signup
+                ? "Start tracking what you own in a couple of minutes."
+                : "Log in to see your items and imports."}
+            </p>
+
+            {error && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertTitle>Couldn&rsquo;t sign you in</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {isSupabaseConfigured ? (
+              <>
+                <form action={signInWithGoogle} className="mt-6">
+                  <input type="hidden" name="next" value={next} />
+                  <Button type="submit" variant="outline" className="w-full">
+                    <GoogleIcon /> Continue with Google
                   </Button>
-                </>
-              )}
-            </>
-          )}
-        </div>
-        {!sent && (
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {signup ? "Already have an account? " : "New here? "}
-            <Link
-              href={signup ? "/login" : "/login?mode=signup"}
-              className="font-medium text-primary"
-            >
-              {signup ? "Log in" : "Create an account"}
-            </Link>
-          </p>
+                </form>
+                <Divider />
+                <form action={signInWithEmail} className="space-y-4">
+                  <input type="hidden" name="next" value={next} />
+                  <input type="hidden" name="mode" value={signup ? "signup" : "login"} />
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      placeholder="you@example.com"
+                    />
+                  </div>
+                  <Button type="submit" className="w-full">
+                    Email me a sign-in link
+                  </Button>
+                </form>
+              </>
+            ) : (
+              <>
+                <Alert className="mt-6">
+                  <AlertTitle>Demo mode</AlertTitle>
+                  <AlertDescription>
+                    Supabase isn&rsquo;t configured, so this opens the app with sample data.
+                  </AlertDescription>
+                </Alert>
+                <Button asChild className="mt-4 w-full">
+                  <Link href={signup ? "/onboarding" : "/dashboard"}>Continue to the demo</Link>
+                </Button>
+              </>
+            )}
+          </>
         )}
       </div>
+      {!sent && (
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          {signup ? "Already have an account? " : "New here? "}
+          <Link
+            href={signup ? "/login" : "/login?mode=signup"}
+            className="font-medium text-primary"
+          >
+            {signup ? "Log in" : "Create an account"}
+          </Link>
+        </p>
+      )}
+    </>
+  );
+}
+
+function LoginCardSkeleton() {
+  return (
+    <div className="rounded-xl border bg-card p-6" aria-busy="true">
+      <Skeleton className="h-6 w-40" />
+      <Skeleton className="mt-2 h-4 w-56" />
+      <Skeleton className="mt-6 h-9 w-full" />
+      <Skeleton className="my-5 h-px w-full" />
+      <Skeleton className="h-4 w-12" />
+      <Skeleton className="mt-2 h-9 w-full" />
+      <Skeleton className="mt-4 h-9 w-full" />
     </div>
   );
 }
