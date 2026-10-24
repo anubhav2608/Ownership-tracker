@@ -80,7 +80,10 @@ Security model:
 - Manual purchases and service events are saved by `create_manual_purchase()` and
   `create_manual_service_event()`: one transaction each, running under the caller's row
   level security. Saving from an import attaches its documents and marks it imported.
-- `supabase/tests/database/*.test.sql` check all of the above (63 assertions).
+- Editing a service event (`update_service_event()`) replaces its fields and parts in one
+  transaction. Deleting a purchase, item or service event also removes the import it came
+  from and any stored documents no longer attached to anything.
+- `supabase/tests/database/*.test.sql` check all of the above (74 assertions).
 
 ## Stack
 
@@ -138,7 +141,10 @@ variants) live in `src/app/globals.css`, with a dark set that follows the system
 
 - Cache Components is on (Next 16 default). Request-time data goes through `lib/data.ts`;
   the server Supabase client calls `connection()` before it starts.
-- Real today: sign-in, reading your data, uploading / opening / deleting documents, and
-  saving manual purchases and service events (from Add record, or from a queued import).
-  Still simulated (toast only): editing and deleting records, the item page's service
-  dialog, reviewing extracted imports and retrying them.
+- Real today: sign-in, reading your data, uploading / opening / deleting documents,
+  manual purchases and service events (from Add record, or from a queued import), and
+  editing and deleting purchases, items, warranties and service events.
+  Still simulated (toast only): reviewing extracted imports and retrying them, and the
+  Settings actions (new forwarding address, adding senders, export, account deletion).
+- Pages stay mounted after navigation (React Activity), so form fields use `useId()` for
+  their ids: a hidden page's `id="merchant"` would otherwise capture another form's label.

@@ -619,6 +619,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      update_service_event: {
+        Args: { event: Json; event_id: string };
+        Returns: undefined;
+      };
     };
     Enums: {
       document_kind:

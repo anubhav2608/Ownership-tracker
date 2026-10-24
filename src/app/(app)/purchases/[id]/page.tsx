@@ -44,7 +44,7 @@ async function PurchaseDetail({ params }: Pick<PageProps<"/purchases/[id]">, "pa
             <OrderStatusBadge status={order.status} />
           </div>
         </div>
-        <OrderActions merchant={order.merchant} itemCount={orderItems.length} />
+        <OrderActions order={order} itemCount={orderItems.length} />
       </div>
 
       {order.status !== "completed" && (

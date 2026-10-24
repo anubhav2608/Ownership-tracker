@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +14,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatMoney } from "@/lib/format";
 import type { ServiceEvent } from "@/lib/types";
 
 interface PartRow {
@@ -35,9 +34,11 @@ export function ServiceEventDialog({
   itemId: string;
   event?: ServiceEvent;
   showOdometer: boolean;
-  onSave: (event: ServiceEvent) => void;
+  /** Resolves to true once saved; the dialog stays open on failure. */
+  onSave: (event: ServiceEvent) => Promise<boolean>;
   onClose: () => void;
 }) {
+  const fid = useId();
   const [parts, setParts] = useState<PartRow[]>(
     event?.parts.map((p) => ({
       key: nextKey++,
@@ -46,19 +47,26 @@ export function ServiceEventDialog({
     })) ?? [],
   );
   const [labour, setLabour] = useState(event?.labourCost?.toString() ?? "");
+  const [saving, setSaving] = useState(false);
 
   const partsTotal = parts.reduce((s, p) => s + (Number(p.cost) || 0), 0);
-  const total = partsTotal + (Number(labour) || 0);
+  const computedTotal = partsTotal + (Number(labour) || 0);
+  // Receipts often include tax or fees, so keep a total that differs from parts + labour.
+  const [totalOverride, setTotalOverride] = useState<string | null>(
+    event && event.totalCost !== computedTotal ? String(event.totalCost) : null,
+  );
+  const total = totalOverride === null ? computedTotal : Number(totalOverride) || 0;
 
   function updatePart(key: number, patch: Partial<PartRow>) {
     setParts((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
   }
 
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
     const odometer = data.get("odometer") as string | null;
-    onSave({
+    setSaving(true);
+    const saved = await onSave({
       id: event?.id ?? crypto.randomUUID(),
       itemId,
       date: data.get("date") as string,
@@ -73,6 +81,7 @@ export function ServiceEventDialog({
       notes: (data.get("notes") as string) || undefined,
       documentId: event?.documentId,
     });
+    if (!saved) setSaving(false);
   }
 
   return (
@@ -87,14 +96,14 @@ export function ServiceEventDialog({
           </DialogHeader>
 
           <div className="grid gap-2">
-            <Label htmlFor="work">Work performed</Label>
-            <Input id="work" name="work" required defaultValue={event?.workPerformed} placeholder="e.g. Periodic service, brake pads replaced" />
+            <Label htmlFor={`${fid}-work`}>Work performed</Label>
+            <Input id={`${fid}-work`} name="work" required defaultValue={event?.workPerformed} placeholder="e.g. Periodic service, brake pads replaced" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="date">Date</Label>
+              <Label htmlFor={`${fid}-date`}>Date</Label>
               <Input
-                id="date"
+                id={`${fid}-date`}
                 name="date"
                 type="date"
                 required
@@ -102,13 +111,13 @@ export function ServiceEventDialog({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="provider">Provider</Label>
-              <Input id="provider" name="provider" required defaultValue={event?.provider} placeholder="Service centre or technician" />
+              <Label htmlFor={`${fid}-provider`}>Provider</Label>
+              <Input id={`${fid}-provider`} name="provider" required defaultValue={event?.provider} placeholder="Service centre or technician" />
             </div>
             {showOdometer && (
               <div className="grid gap-2">
-                <Label htmlFor="odometer">Odometer (km)</Label>
-                <Input id="odometer" name="odometer" type="number" min="0" defaultValue={event?.odometerKm} />
+                <Label htmlFor={`${fid}-odometer`}>Odometer (km)</Label>
+                <Input id={`${fid}-odometer`} name="odometer" type="number" min="0" defaultValue={event?.odometerKm} />
               </div>
             )}
           </div>
@@ -156,27 +165,34 @@ export function ServiceEventDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="labour">Labour cost</Label>
-              <Input id="labour" type="number" min="0" value={labour} onChange={(e) => setLabour(e.target.value)} />
+              <Label htmlFor={`${fid}-labour`}>Labour cost</Label>
+              <Input id={`${fid}-labour`} type="number" min="0" value={labour} onChange={(e) => setLabour(e.target.value)} />
             </div>
             <div className="grid gap-2">
-              <span className="text-sm font-medium">Total</span>
-              <p className="flex h-9 items-center text-sm font-semibold tabular-nums">
-                {formatMoney(total)}
-              </p>
+              <Label htmlFor={`${fid}-total`}>Total paid</Label>
+              <Input
+                id={`${fid}-total`}
+                type="number"
+                min="0"
+                step="0.01"
+                value={totalOverride ?? String(computedTotal)}
+                onChange={(e) => setTotalOverride(e.target.value)}
+              />
             </div>
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea id="notes" name="notes" rows={2} defaultValue={event?.notes} />
+            <Label htmlFor={`${fid}-notes`}>Notes</Label>
+            <Textarea id={`${fid}-notes`} name="notes" rows={2} defaultValue={event?.notes} />
           </div>
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

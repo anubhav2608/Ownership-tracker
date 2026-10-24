@@ -16,7 +16,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { ItemStatus } from "@/lib/types";
+import { deleteItem, setItemStatus } from "@/lib/record-actions";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
+import type { Item, ItemStatus } from "@/lib/types";
+import { ItemEditDialog } from "./item-edit-dialog";
 
 const statuses: { value: ItemStatus; label: string }[] = [
   { value: "owned", label: "Owned" },
@@ -25,11 +28,37 @@ const statuses: { value: ItemStatus; label: string }[] = [
   { value: "disposed", label: "Disposed" },
 ];
 
-// Prototype: actions update local state and confirm with a toast.
-export function ItemActions({ itemName, status }: { itemName: string; status: ItemStatus }) {
+// In demo mode (no Supabase) actions only confirm with a toast.
+export function ItemActions({ item }: { item: Item }) {
   const router = useRouter();
-  const [current, setCurrent] = useState(status);
+  const [current, setCurrent] = useState(item.status);
+  const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+
+  async function changeStatus(value: string) {
+    const status = value as ItemStatus;
+    const previous = current;
+    setCurrent(status);
+    if (isSupabaseConfigured) {
+      const result = await setItemStatus(item.id, status);
+      if (!result.ok) {
+        setCurrent(previous);
+        return void toast.error(result.message);
+      }
+      router.refresh();
+    }
+    toast.success(`Marked as ${statuses.find((s) => s.value === status)?.label.toLowerCase()}`);
+  }
+
+  async function remove() {
+    if (isSupabaseConfigured) {
+      const result = await deleteItem(item.id);
+      if (!result.ok) return void toast.error(result.message);
+    }
+    toast.success(`Deleted ${item.name}`);
+    router.push("/items");
+    router.refresh();
+  }
 
   return (
     <>
@@ -40,18 +69,12 @@ export function ItemActions({ itemName, status }: { itemName: string; status: It
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuItem onSelect={() => toast("Editing opens the item form")}>
+          <DropdownMenuItem onSelect={() => setEditing(true)}>
             <Pencil /> Edit details
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-xs text-muted-foreground">Status</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={current}
-            onValueChange={(v) => {
-              setCurrent(v as ItemStatus);
-              toast.success(`Marked as ${v}`);
-            }}
-          >
+          <DropdownMenuRadioGroup value={current} onValueChange={changeStatus}>
             {statuses.map((s) => (
               <DropdownMenuRadioItem key={s.value} value={s.value}>
                 {s.label}
@@ -65,15 +88,14 @@ export function ItemActions({ itemName, status }: { itemName: string; status: It
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {editing && <ItemEditDialog item={item} onClose={() => setEditing(false)} />}
+
       <ConfirmDelete
         open={confirming}
         onOpenChange={setConfirming}
-        title={`Delete ${itemName}?`}
-        description="Its service history is deleted too. The purchase and its documents stay, so you can re-link them later."
-        onConfirm={() => {
-          toast.success(`Deleted ${itemName}`);
-          router.push("/items");
-        }}
+        title={`Delete ${item.name}?`}
+        description="Its warranty and service history are deleted too. The purchase and its documents stay."
+        onConfirm={remove}
       />
     </>
   );

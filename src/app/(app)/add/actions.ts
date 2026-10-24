@@ -152,14 +152,17 @@ const serviceSchema = z.object({
   workPerformed: z.string().trim().min(1).max(500),
   provider: z.string().trim().max(200).optional(),
   totalCost: money,
+  labourCost: money.optional(),
   odometerKm: z.number().int().nonnegative().max(10_000_000).optional(),
   notes: z.string().trim().max(2000).optional(),
-  parts: z.array(z.string().trim().min(1).max(200)).max(50),
+  parts: z.array(z.object({ name: z.string().trim().min(1).max(200), cost: money.optional() })).max(50),
   importId: z.uuid().optional(),
 });
 
+export type ServiceEventInput = z.input<typeof serviceSchema>;
+
 /** Saves a service event (and its replaced parts) on one of the user's items. */
-export async function createServiceEvent(input: z.input<typeof serviceSchema>): Promise<SaveResult> {
+export async function createServiceEvent(input: ServiceEventInput): Promise<SaveResult> {
   const parsed = serviceSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: "Please fill in the item, date, work and cost." };
   const e = parsed.data;
@@ -172,10 +175,11 @@ export async function createServiceEvent(input: z.input<typeof serviceSchema>): 
       work_performed: e.workPerformed,
       provider: e.provider ?? null,
       total_cost: e.totalCost,
+      labour_cost: e.labourCost ?? null,
       odometer_km: e.odometerKm ?? null,
       notes: e.notes ?? null,
       import_id: e.importId ?? null,
-      parts: e.parts.map((name) => ({ name })),
+      parts: e.parts.map((part) => ({ name: part.name, cost: part.cost ?? null })),
     },
   });
   if (error) return saveFailed("create_manual_service_event", error);

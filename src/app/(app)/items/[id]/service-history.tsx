@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { FileText, MoreHorizontal, Pencil, Plus, Trash2, Wrench } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -22,9 +23,12 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { ServiceEvent } from "@/lib/types";
+import { createServiceEvent } from "@/app/(app)/add/actions";
+import { deleteServiceEvent, updateServiceEvent } from "@/lib/record-actions";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { ServiceEventDialog } from "./service-event-dialog";
 
-// Local state only for the prototype; saving goes to Supabase later.
+// Keeps a local copy so changes show at once; the server refresh then confirms them.
 export function ServiceHistory({
   initial,
   itemId,
@@ -34,6 +38,7 @@ export function ServiceHistory({
   itemId: string;
   showOdometer: boolean;
 }) {
+  const router = useRouter();
   const [events, setEvents] = useState(initial);
   const [editing, setEditing] = useState<ServiceEvent | "new" | null>(null);
   const [deleting, setDeleting] = useState<ServiceEvent | null>(null);
@@ -45,14 +50,53 @@ export function ServiceHistory({
     0,
   );
 
-  function save(event: ServiceEvent) {
+  function failed(message: string) {
+    toast.error(message);
+    return false;
+  }
+
+  async function save(event: ServiceEvent) {
+    const isNew = editing === "new";
+    let saved = event;
+    if (isSupabaseConfigured) {
+      const fields = {
+        serviceDate: event.date,
+        workPerformed: event.workPerformed,
+        provider: event.provider || undefined,
+        totalCost: event.totalCost,
+        labourCost: event.labourCost,
+        odometerKm: event.odometerKm,
+        notes: event.notes,
+        parts: event.parts,
+      };
+      if (isNew) {
+        const result = await createServiceEvent({ itemId, ...fields });
+        if (!result.ok) return failed(result.message);
+        saved = { ...event, id: result.id };
+      } else {
+        const result = await updateServiceEvent(event.id, fields);
+        if (!result.ok) return failed(result.message);
+      }
+      router.refresh();
+    }
     setEvents((prev) =>
-      prev.some((e) => e.id === event.id)
-        ? prev.map((e) => (e.id === event.id ? event : e))
-        : [...prev, event],
+      prev.some((e) => e.id === saved.id)
+        ? prev.map((e) => (e.id === saved.id ? saved : e))
+        : [...prev, saved],
     );
-    toast.success(editing === "new" ? "Service event added" : "Service event updated");
+    toast.success(isNew ? "Service event added" : "Service event updated");
     setEditing(null);
+    return true;
+  }
+
+  async function remove(event: ServiceEvent) {
+    if (isSupabaseConfigured) {
+      const result = await deleteServiceEvent(event.id);
+      if (!result.ok) return void toast.error(result.message);
+      router.refresh();
+    }
+    setEvents((prev) => prev.filter((e) => e.id !== event.id));
+    toast.success("Service event deleted");
   }
 
   return (
@@ -176,9 +220,8 @@ export function ServiceHistory({
         title="Delete this service event?"
         description={deleting ? `${deleting.workPerformed}, ${formatDate(deleting.date)}.` : ""}
         onConfirm={() => {
-          setEvents((prev) => prev.filter((e) => e.id !== deleting?.id));
+          if (deleting) void remove(deleting);
           setDeleting(null);
-          toast.success("Service event deleted");
         }}
       />
     </SectionCard>

@@ -45,6 +45,8 @@ export interface Identifier {
 
 export interface Warranty {
   months: number;
+  /** Defaults to the purchase date when not stated. */
+  startsOn?: string;
   expiresOn: string;
   provider: string;
   state: Exclude<FieldState, "missing">;

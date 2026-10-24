@@ -20,6 +20,7 @@ import { formatDate, formatMoney, fractionElapsed } from "@/lib/format";
 import { getDocuments, getItem, getItems, getOrder, getServiceEvents } from "@/lib/data";
 import { ItemActions } from "./item-actions";
 import { ServiceHistory } from "./service-history";
+import { WarrantyActions } from "./warranty-actions";
 
 export async function generateMetadata(props: PageProps<"/items/[id]">): Promise<Metadata> {
   const { id } = await props.params;
@@ -55,7 +56,7 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
             <WarrantyBadge item={item} />
           </div>
         </div>
-        <ItemActions itemName={item.name} status={item.status} />
+        <ItemActions item={item} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -110,7 +111,14 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
             </dl>
           </SectionCard>
 
-          <SectionCard title="Warranty">
+          <SectionCard
+            title="Warranty"
+            action={
+              warranty && (
+                <WarrantyActions itemId={item.id} purchaseDate={item.purchaseDate} warranty={warranty} />
+              )
+            }
+          >
             <div className="px-5 py-4 text-sm">
               {warranty ? (
                 <>
@@ -123,11 +131,13 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
                   </div>
                   <Progress
                     className="mt-4 h-1.5"
-                    value={fractionElapsed(item.purchaseDate, warranty.expiresOn) * 100}
+                    value={
+                      fractionElapsed(warranty.startsOn ?? item.purchaseDate, warranty.expiresOn) * 100
+                    }
                     aria-label="Warranty period elapsed"
                   />
                   <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-                    <span>{formatDate(item.purchaseDate)}</span>
+                    <span>{formatDate(warranty.startsOn ?? item.purchaseDate)}</span>
                     <span>Ends {formatDate(warranty.expiresOn)}</span>
                   </div>
                   {warranty.evidence && (
@@ -146,9 +156,9 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
                       None of this item&rsquo;s documents mention a warranty. If it has one,
                       upload the warranty card or add it yourself.
                     </p>
-                    <Button variant="outline" size="sm" className="mt-3">
-                      Add warranty
-                    </Button>
+                    <div className="mt-3">
+                      <WarrantyActions itemId={item.id} purchaseDate={item.purchaseDate} />
+                    </div>
                   </div>
                 </div>
               )}

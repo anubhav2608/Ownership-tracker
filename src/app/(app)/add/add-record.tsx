@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { FileUp, Mail, Paperclip, PencilLine, Plus, X } from "lucide-react";
-import { useRef, useState, type DragEvent, type FormEvent } from "react";
+import { type DragEvent, type FormEvent, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ForwardingAddress } from "@/components/copy-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -228,6 +228,7 @@ function ManualTab({
   fromImport?: FromImport;
 }) {
   const router = useRouter();
+  const fid = useId();
   const [kind, setKind] = useState<ManualKind>("purchase");
   const [lines, setLines] = useState<LineRow[]>(() => [newLine()]);
   const [serviceItem, setServiceItem] = useState("");
@@ -308,7 +309,8 @@ function ManualTab({
         parts: text(form, "parts")
           .split(",")
           .map((p) => p.trim())
-          .filter(Boolean),
+          .filter(Boolean)
+          .map((name) => ({ name })),
         importId,
       });
       if (!result.ok) {
@@ -322,8 +324,8 @@ function ManualTab({
 
   const fileField = (label: string) =>
     fromImport ? null : (
-      <Field id="file" label={label} optional>
-        <Input id="file" name="file" type="file" accept=".pdf,image/*" />
+      <Field id={`${fid}-file`} label={label} optional>
+        <Input id={`${fid}-file`} name="file" type="file" accept=".pdf,image/*" />
       </Field>
     );
 
@@ -348,14 +350,14 @@ function ManualTab({
       {kind === "purchase" ? (
         <form onSubmit={savePurchase} className="grid gap-6">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="merchant" label="Bought from">
-              <Input id="merchant" name="merchant" required placeholder="Store or website" />
+            <Field id={`${fid}-merchant`} label="Bought from">
+              <Input id={`${fid}-merchant`} name="merchant" required placeholder="Store or website" />
             </Field>
-            <Field id="date" label="Purchase date">
-              <Input id="date" name="date" type="date" required />
+            <Field id={`${fid}-date`} label="Purchase date">
+              <Input id={`${fid}-date`} name="date" type="date" required />
             </Field>
-            <Field id="ref" label="Order reference" optional>
-              <Input id="ref" name="ref" />
+            <Field id={`${fid}-ref`} label="Order reference" optional>
+              <Input id={`${fid}-ref`} name="ref" />
             </Field>
             {fileField("Invoice")}
           </div>
@@ -424,9 +426,9 @@ function ManualTab({
         </form>
       ) : (
         <form onSubmit={saveService} className="grid gap-4 sm:grid-cols-2">
-          <Field id="svc-item" label="Item serviced" className="sm:col-span-2">
+          <Field id={`${fid}-svc-item`} label="Item serviced" className="sm:col-span-2">
             <NativeSelect
-              id="svc-item"
+              id={`${fid}-svc-item`}
               required
               wrapperClassName="w-full"
               value={serviceItem}
@@ -442,29 +444,29 @@ function ManualTab({
               ))}
             </NativeSelect>
           </Field>
-          <Field id="svc-work" label="Work performed" className="sm:col-span-2">
-            <Input id="svc-work" name="work" required placeholder="e.g. AC servicing, filter cleaned" />
+          <Field id={`${fid}-svc-work`} label="Work performed" className="sm:col-span-2">
+            <Input id={`${fid}-svc-work`} name="work" required placeholder="e.g. AC servicing, filter cleaned" />
           </Field>
-          <Field id="svc-date" label="Date">
-            <Input id="svc-date" name="date" type="date" required />
+          <Field id={`${fid}-svc-date`} label="Date">
+            <Input id={`${fid}-svc-date`} name="date" type="date" required />
           </Field>
-          <Field id="svc-provider" label="Provider">
-            <Input id="svc-provider" name="provider" required placeholder="e.g. Urban Company" />
+          <Field id={`${fid}-svc-provider`} label="Provider">
+            <Input id={`${fid}-svc-provider`} name="provider" required placeholder="e.g. Urban Company" />
           </Field>
-          <Field id="svc-parts" label="Parts replaced" optional>
-            <Input id="svc-parts" name="parts" placeholder="Comma-separated" />
+          <Field id={`${fid}-svc-parts`} label="Parts replaced" optional>
+            <Input id={`${fid}-svc-parts`} name="parts" placeholder="Comma-separated" />
           </Field>
-          <Field id="svc-cost" label="Total cost">
-            <Input id="svc-cost" name="cost" type="number" min="0" step="0.01" required />
+          <Field id={`${fid}-svc-cost`} label="Total cost">
+            <Input id={`${fid}-svc-cost`} name="cost" type="number" min="0" step="0.01" required />
           </Field>
           {isVehicle && (
-            <Field id="svc-odo" label="Odometer (km)" optional>
-              <Input id="svc-odo" name="odometer" type="number" min="0" />
+            <Field id={`${fid}-svc-odo`} label="Odometer (km)" optional>
+              <Input id={`${fid}-svc-odo`} name="odometer" type="number" min="0" />
             </Field>
           )}
           {fileField("Receipt")}
-          <Field id="svc-notes" label="Notes" optional className="sm:col-span-2">
-            <Textarea id="svc-notes" name="notes" rows={2} />
+          <Field id={`${fid}-svc-notes`} label="Notes" optional className="sm:col-span-2">
+            <Textarea id={`${fid}-svc-notes`} name="notes" rows={2} />
           </Field>
           <div className="flex justify-end sm:col-span-2">
             <Button type="submit" disabled={saving}>

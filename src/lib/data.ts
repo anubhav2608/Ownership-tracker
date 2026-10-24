@@ -176,6 +176,7 @@ async function toItems(rows: Row<"items">[]): Promise<Item[]> {
       identifiers: r.identifiers as unknown as Item["identifiers"],
       warranty: w && {
         months: w.months,
+        startsOn: w.starts_on,
         expiresOn: w.expires_on,
         provider: w.provider ?? "",
         state: w.state === "missing" ? "confirmed" : w.state,
