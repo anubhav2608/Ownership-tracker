@@ -160,6 +160,9 @@ export function FailedPanel({
         <p className="font-mono text-xs text-muted-foreground">
           {error.code} · failed at {error.stage.replace("_", " ")} · attempt {attempts}
         </p>
+        {error.detail && (
+          <p className="font-mono text-xs break-words text-muted-foreground">Details: {error.detail}</p>
+        )}
         <div className="flex flex-wrap gap-2">
           {unverified && from ? (
             <Button

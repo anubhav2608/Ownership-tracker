@@ -5,7 +5,7 @@ import type { Identifier } from "@/lib/types";
 import { bodyLines, parseRawEmail } from "./email";
 import { matchItems, type MatchableItem } from "./match";
 import { parseDocument, type Extraction } from "./parse";
-import { extractPdfText } from "./pdf-text";
+import { extractPdfText, PdfFileError } from "./pdf-text";
 
 // Reads an import's documents: an uploaded file, or a forwarded email and its
 // attachments. Shared by the "Read" action (as the signed-in user) and the
@@ -24,11 +24,18 @@ export interface Outcome {
   extracted?: Json;
   review_reasons?: string[];
   candidates?: Json;
-  error?: { code: string; message: string; stage: ImportStage; retryable: boolean };
+  error?: { code: string; message: string; stage: ImportStage; retryable: boolean; detail?: string };
 }
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const EMAIL = "message/rfc822";
+
+/** An unexpected error while reading: retryable, with the reason kept for diagnosis. */
+export function readingCrashed(e: unknown, what: "file" | "email"): Outcome {
+  const outcome = failure("EXTRACTION_ERROR", `Something went wrong while reading this ${what}. Try again.`, true);
+  outcome.error!.detail = (e instanceof Error ? `${e.name}: ${e.message}` : String(e)).slice(0, 300);
+  return outcome;
+}
 
 export const failure = (
   code: string,
@@ -122,7 +129,8 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
       try {
         lines = (await extractPdfText(await download(db, doc.storage_path))).lines;
       } catch (e) {
-        if (e instanceof DownloadError) throw e;
+        // Only a bad file is the user's to fix; anything else is our failure and can be retried.
+        if (!(e instanceof PdfFileError)) throw e;
         problems.add("PDF_UNREADABLE");
         continue;
       }
@@ -204,11 +212,9 @@ async function review(db: Db, userId: string, x: Extraction, text: string): Prom
   };
 }
 
-class DownloadError extends Error {}
-
 async function download(db: Db, path: string): Promise<Uint8Array> {
   const { data, error } = await db.storage.from("documents").download(path);
-  if (error || !data) throw new DownloadError(`download failed: ${error?.message}`);
+  if (error || !data) throw new Error(`downloading ${path} failed: ${error?.message ?? "no data"}`);
   return new Uint8Array(await data.arrayBuffer());
 }
 

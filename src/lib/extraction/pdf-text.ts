@@ -18,10 +18,26 @@ const SAME_LINE = 3;
 /** A horizontal gap wider than this separates table columns. */
 const COLUMN_GAP = 12;
 
-export async function extractPdfText(data: Uint8Array): Promise<PdfText> {
+/** The file itself can't be read (damaged, not a PDF, password-protected), as opposed to the reader failing. */
+export class PdfFileError extends Error {}
+const FILE_ERRORS = new Set(["InvalidPDFException", "PasswordException", "MissingPDFException", "FormatError"]);
+
+async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  // Run pdfjs's worker code in this process. Otherwise pdfjs imports it by file
+  // path at runtime, which some setups (bundlers, Windows paths) can't resolve.
+  const global = globalThis as { pdfjsWorker?: unknown };
+  global.pdfjsWorker ??= await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+  return pdfjs;
+}
+
+export async function extractPdfText(data: Uint8Array): Promise<PdfText> {
+  const pdfjs = await loadPdfjs();
   const task = pdfjs.getDocument({ data, useSystemFonts: false, disableFontFace: true, verbosity: 0 });
-  const doc = await task.promise;
+  const doc = await task.promise.catch(async (e: Error) => {
+    await task.destroy();
+    throw FILE_ERRORS.has(e?.name) ? new PdfFileError(e.message) : e;
+  });
 
   const lines: string[] = [];
   try {

@@ -10,6 +10,8 @@ service events can also be entered by hand. Without Supabase settings the app ru
 
 ## Run it
 
+Needs Node.js 20.9 or newer (`node -v`).
+
 ```bash
 npm install
 npm run dev

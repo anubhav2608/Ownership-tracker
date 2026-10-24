@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Resend } from "resend";
 import { bodyOnlyEmail, emailAddress, parseRawEmail } from "@/lib/extraction/email";
-import { failure, isVerifiedSender, readImport, unverifiedSender, type Outcome } from "@/lib/extraction/read-import";
+import { isVerifiedSender, readImport, readingCrashed, unverifiedSender, type Outcome } from "@/lib/extraction/read-import";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 // Stores one forwarded email for one user (spec §4A, §4B): the message itself,
@@ -157,7 +157,7 @@ export async function readStoredEmail(db: Db, userId: string, importId: string):
     outcome = await readImport(db, userId, importId);
   } catch (e) {
     console.error("[inbound] reading failed:", e);
-    outcome = failure("EXTRACTION_ERROR", "Something went wrong while reading this email. Try again.", true);
+    outcome = readingCrashed(e, "email");
   }
   await recordOutcome(db, userId, importId, outcome);
   return outcome.status;

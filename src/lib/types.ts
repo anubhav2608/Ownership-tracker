@@ -134,6 +134,8 @@ export interface ImportError {
   message: string;
   stage: ImportStage;
   retryable: boolean;
+  /** Technical reason for an unexpected failure, to help diagnose it. */
+  detail?: string;
 }
 
 export interface ExtractedLine {

@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { failure, readImport, type Outcome } from "@/lib/extraction/read-import";
+import { readImport, readingCrashed, type Outcome } from "@/lib/extraction/read-import";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -88,7 +88,7 @@ export async function processImport(importId: string): Promise<ProcessResult> {
     outcome = await readImport(supabase, userId, importId);
   } catch (e) {
     console.error("[imports] reading failed:", e);
-    outcome = failure("EXTRACTION_ERROR", "Something went wrong while reading this file. Try again.", true);
+    outcome = readingCrashed(e, "file");
   }
 
   const { error: recordError } = await supabase.rpc("record_import_result", {
