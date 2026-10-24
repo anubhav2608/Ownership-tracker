@@ -17,6 +17,7 @@ import { formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { processImport } from "../imports/actions";
 import { createPurchase, createServiceEvent } from "./actions";
 import { uploadFile } from "./upload-file";
 
@@ -90,7 +91,7 @@ function UploadTab({ userId }: { userId: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState<"uploading" | "reading" | null>(null);
 
   async function importFiles() {
     if (!isSupabaseConfigured) {
@@ -99,7 +100,7 @@ function UploadTab({ userId }: { userId: string }) {
       return;
     }
 
-    setUploading(true);
+    setBusy("uploading");
     const results = await Promise.all(
       files.map((f) =>
         uploadFile(userId, f).catch(() => ({
@@ -109,18 +110,31 @@ function UploadTab({ userId }: { userId: string }) {
         })),
       ),
     );
-    setUploading(false);
 
-    const imported = results.filter((r) => r.ok);
+    const imported = results.flatMap((r) => (r.ok ? [r.importId] : []));
     const duplicates = results.filter((r) => !r.ok && r.reason === "duplicate");
     for (const r of results) if (!r.ok && r.reason !== "duplicate") toast.error(r.message);
     if (duplicates.length) {
       toast(`${duplicates.length} file${duplicates.length > 1 ? "s were" : " was"} already uploaded, skipped`);
     }
-    if (imported.length === 0) return;
+    if (imported.length === 0) {
+      setBusy(null);
+      return;
+    }
 
-    toast.success(`${imported.length} file${imported.length > 1 ? "s" : ""} uploaded`);
-    router.push(imported.length === 1 && imported[0].ok ? `/imports/${imported[0].importId}` : "/imports");
+    // Read each file now; whatever it finds waits for review, nothing is saved yet.
+    setBusy("reading");
+    const read = await Promise.all(imported.map((id) => processImport(id).catch(() => null)));
+    setBusy(null);
+    setFiles([]);
+
+    const toReview = read.filter((r) => r?.ok && r.status === "needs_review").length;
+    toast.success(
+      toReview === imported.length
+        ? `${imported.length} file${imported.length > 1 ? "s" : ""} read. Check the details and save.`
+        : `${imported.length} file${imported.length > 1 ? "s" : ""} uploaded. ${imported.length - toReview} couldn't be read automatically.`,
+    );
+    router.push(imported.length === 1 ? `/imports/${imported[0]}` : "/imports");
   }
 
   function addFiles(list: FileList | null) {
@@ -187,8 +201,12 @@ function UploadTab({ userId }: { userId: string }) {
             ))}
           </ul>
           <div className="mt-4 flex justify-end">
-            <Button onClick={importFiles} disabled={uploading}>
-              {uploading ? "Uploading…" : `Import ${files.length} file${files.length > 1 ? "s" : ""}`}
+            <Button onClick={importFiles} disabled={busy !== null}>
+              {busy === "uploading"
+                ? "Uploading…"
+                : busy === "reading"
+                  ? "Reading…"
+                  : `Import ${files.length} file${files.length > 1 ? "s" : ""}`}
             </Button>
           </div>
         </>

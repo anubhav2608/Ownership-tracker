@@ -92,22 +92,44 @@ const categoryValues = {
 const money = z.number().nonnegative().max(1e10);
 const isoDate = z.iso.date();
 
+/** Where values came from: fields left out were entered or confirmed by the user. */
+const fieldMeta = z
+  .record(
+    z.string(),
+    z.object({ state: z.enum(["missing", "extracted", "confirmed"]), confidence: z.number().min(0).max(1).optional() }),
+  )
+  .optional();
+
 const purchaseSchema = z.object({
   merchant: z.string().trim().min(1).max(200),
   orderDate: isoDate,
   orderRef: z.string().trim().max(100).optional(),
   importId: z.uuid().optional(),
+  /** Defaults to the sum of item prices; differs when there's shipping or a discount. */
+  total: money.optional(),
+  fieldMeta,
   items: z
     .array(
       z.object({
         name: z.string().trim().min(1).max(200),
         category: z.enum(Object.keys(categoryValues) as [keyof typeof categoryValues]),
         price: money.optional(),
+        fieldMeta,
+        /** Only when a document states one; "extracted" warranties need the quoted evidence. */
+        warranty: z
+          .object({
+            months: z.number().int().min(1).max(240),
+            state: z.enum(["extracted", "confirmed"]),
+            evidence: z.string().trim().max(500).optional(),
+          })
+          .optional(),
       }),
     )
     .min(1)
     .max(50),
 });
+
+export type PurchaseInput = z.input<typeof purchaseSchema>;
 
 export type SaveResult = { ok: true; id: string } | { ok: false; message: string };
 
@@ -123,7 +145,7 @@ function saveFailed(where: string, error: { message: string; code?: string }): S
 }
 
 /** Saves a purchase and its items in one transaction; attaches the import's documents if given. */
-export async function createPurchase(input: z.input<typeof purchaseSchema>): Promise<SaveResult> {
+export async function createPurchase(input: PurchaseInput): Promise<SaveResult> {
   const parsed = purchaseSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: "Please fill in the merchant, date and item names." };
   const p = parsed.data;
@@ -135,10 +157,14 @@ export async function createPurchase(input: z.input<typeof purchaseSchema>): Pro
       order_date: p.orderDate,
       order_ref: p.orderRef ?? null,
       import_id: p.importId ?? null,
+      total: p.total ?? null,
+      field_meta: p.fieldMeta ?? {},
       items: p.items.map((i) => ({
         name: i.name,
         category: categoryValues[i.category],
         price: i.price ?? null,
+        field_meta: i.fieldMeta ?? {},
+        warranty: i.warranty ?? null,
       })),
     },
   });

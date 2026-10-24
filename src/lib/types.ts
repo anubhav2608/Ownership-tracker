@@ -170,8 +170,11 @@ export interface ImportRecord {
     date?: Tracked<string>;
     total?: Tracked<number>;
     warrantyMonths?: Tracked<number>;
+    /** The words on the document that state the warranty. */
+    warrantyEvidence?: Tracked<string>;
     provider?: Tracked<string>;
     workPerformed?: Tracked<string>;
+    labourCost?: Tracked<number>;
   };
   lines?: ExtractedLine[];
   parts?: ExtractedLine[];

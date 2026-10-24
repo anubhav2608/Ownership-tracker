@@ -581,6 +581,10 @@ export type Database = {
         Args: { import_id: string; result: Json };
         Returns: undefined;
       };
+      record_import_result: {
+        Args: { import_id: string; outcome: Json };
+        Returns: undefined;
+      };
       regenerate_forwarding_token: {
         Args: Record<PropertyKey, never>;
         Returns: string;
@@ -618,6 +622,10 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      start_import_processing: {
+        Args: { import_id: string };
+        Returns: boolean;
       };
       update_service_event: {
         Args: { event: Json; event_id: string };

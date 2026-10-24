@@ -3,10 +3,10 @@
 One place to find what you bought, retrieve its records, and track what happens to it
 while you own it.
 
-Status: signed-in users see their own data from Supabase. Uploading documents and entering
-purchases and service events by hand are real, including turning an uploaded invoice into
-a purchase with the file attached. Next: extraction from uploaded PDFs, then the Resend
-inbound webhook. Without Supabase settings the app runs as a demo on fictional sample data.
+Status: signed-in users see their own data from Supabase. Uploaded PDFs are read
+automatically (text layer only; scans and photos need OCR, which comes later), checked, and
+wait for your review before anything is saved. Purchases and service events can also be
+entered by hand. Next: the Resend inbound webhook. Without Supabase settings the app runs as a demo on fictional sample data.
 
 ## Run it
 
@@ -47,6 +47,8 @@ npm run db:start     # Postgres, Auth, Storage and Studio; prints URL and keys
 npm run db:reset     # re-apply migrations
 npm run db:test      # pgTAP security tests
 ```
+
+Extraction, validation and matching have unit tests on fictional documents: `npm test`.
 
 No Docker? `npm run db:test:local` runs the migrations and tests on any Postgres with pgTAP,
 using a small stand-in for Supabase's auth and storage schemas (`scripts/db/`).
@@ -126,6 +128,8 @@ src/
     types.ts            domain model: Order, Item, StoredDocument, ServiceEvent, ImportRecord
     data.ts             data access: Supabase when configured, otherwise the sample data
     mock-data.ts        fictional sample data for demo mode
+    extraction/         PDF text (pdfjs), parsing with merchant templates, validation,
+                        service-item matching; tests generate fictional PDFs with pdf-lib
     format.ts           money / date formatting (locale and currency in one place)
     utils.ts            cn()
 ```
@@ -142,9 +146,14 @@ variants) live in `src/app/globals.css`, with a dark set that follows the system
 - Cache Components is on (Next 16 default). Request-time data goes through `lib/data.ts`;
   the server Supabase client calls `connection()` before it starts.
 - Real today: sign-in, reading your data, uploading / opening / deleting documents,
-  manual purchases and service events (from Add record, or from a queued import), and
-  editing and deleting purchases, items, warranties and service events.
-  Still simulated (toast only): reviewing extracted imports and retrying them, and the
-  Settings actions (new forwarding address, adding senders, export, account deletion).
+  reading uploaded PDFs, reviewing and saving what was read (or retrying), manual
+  purchases and service events, and editing and deleting purchases, items, warranties and
+  service events. Still simulated (toast only): the Settings actions (new forwarding address, adding senders, export, account deletion).
+- Reading runs in a server action as the signed-in user (`imports/actions.ts`); the
+  `start_import_processing` / `record_import_result` functions allow only the pipeline's
+  own status changes. Untouched extracted values are saved with `state: "extracted"` in
+  `field_meta`; a warranty is only stored when the document states it, with the quote.
+  A service receipt is never attached to an item unless you pick it (or a serial /
+  registration number makes it a clear match).
 - Pages stay mounted after navigation (React Activity), so form fields use `useId()` for
   their ids: a hidden page's `id="merchant"` would otherwise capture another form's label.

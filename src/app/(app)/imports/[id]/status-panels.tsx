@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Ban, Clock, Copy, Link2, Loader2, RotateCw } from "lucide-react";
-import { useState } from "react";
+import { AlertCircle, Ban, Clock, Copy, FileSearch, Link2, Loader2, RotateCw } from "lucide-react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { SectionCard } from "@/components/layout-bits";
@@ -22,11 +22,11 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { formatDate, formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { ImportError, ImportRecord, Item, ServiceEvent } from "@/lib/types";
-import { deleteImport } from "../actions";
+import { deleteImport, processImport, retryImport, type ProcessResult } from "../actions";
 
 // In demo mode (no Supabase) actions only confirm with a toast.
 
-function DiscardButton({ importId, label = "Delete import" }: { importId: string; label?: string }) {
+export function DiscardButton({ importId, label = "Delete import" }: { importId: string; label?: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -41,7 +41,7 @@ function DiscardButton({ importId, label = "Delete import" }: { importId: string
 
   return (
     <>
-      <Button variant="ghost" onClick={() => setOpen(true)}>
+      <Button type="button" variant="ghost" onClick={() => setOpen(true)}>
         {label}
       </Button>
       <ConfirmDelete
@@ -55,6 +55,26 @@ function DiscardButton({ importId, label = "Delete import" }: { importId: string
   );
 }
 
+/** Runs the reader (or a retry) and reloads the page with the outcome. */
+function useReader(importId: string) {
+  const router = useRouter();
+  const [reading, startReading] = useTransition();
+
+  // Stays "reading" until the refreshed page arrives, so the old panel doesn't flash back.
+  function run(action: (id: string) => Promise<ProcessResult>) {
+    startReading(async () => {
+      const result = await action(importId);
+      if (!result.ok) toast.error(result.message);
+      else if (result.status === "needs_review") toast.success("Read. Check the details and save.");
+      else if (result.status === "failed") toast.error("We couldn't read this file.");
+      else toast("This doesn't look like a receipt or invoice.");
+      router.refresh();
+    });
+  }
+
+  return { reading, run };
+}
+
 export function ProcessingPanel({
   importId,
   status,
@@ -62,7 +82,9 @@ export function ProcessingPanel({
   importId: string;
   status: "queued" | "processing";
 }) {
-  if (status === "queued") {
+  const { reading, run } = useReader(importId);
+
+  if (status === "queued" && !reading) {
     return (
       <SectionCard title="Waiting to be read">
         <div className="space-y-4 px-5 py-4">
@@ -70,12 +92,14 @@ export function ProcessingPanel({
             <Clock />
             <AlertTitle>Queued</AlertTitle>
             <AlertDescription>
-              Your file is stored privately (open it under Source). Automatic reading
-              isn&rsquo;t switched on yet, so enter the details yourself and this file is
-              attached to what you save.
+              Your file is stored privately (open it under Source). Read it to fill in the
+              details automatically; you&rsquo;ll check them before anything is saved.
             </AlertDescription>
           </Alert>
           <div className="flex flex-wrap gap-2">
+            <Button onClick={() => (isSupabaseConfigured ? run(processImport) : toast("Reading is simulated in the demo"))}>
+              <FileSearch /> Read this document
+            </Button>
             <Button asChild variant="outline">
               <Link href={`/add?tab=manual&import=${importId}`}>Enter the details manually</Link>
             </Button>
@@ -86,14 +110,21 @@ export function ProcessingPanel({
     );
   }
   return (
-    <Alert>
-      <Loader2 className="animate-spin" />
-      <AlertTitle>Processing</AlertTitle>
-      <AlertDescription>
-        We&rsquo;re reading this now. You can leave this page; it will show up under
-        &ldquo;Needs you&rdquo; if anything needs checking.
-      </AlertDescription>
-    </Alert>
+    <div className="space-y-4">
+      <Alert>
+        <Loader2 className="animate-spin" />
+        <AlertTitle>Processing</AlertTitle>
+        <AlertDescription>
+          We&rsquo;re reading this now. You can leave this page; it will show up under
+          &ldquo;Needs you&rdquo; if anything needs checking.
+        </AlertDescription>
+      </Alert>
+      {!reading && (
+        <Button asChild variant="outline">
+          <Link href={`/add?tab=manual&import=${importId}`}>Taking too long? Enter the details manually</Link>
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -109,6 +140,7 @@ export function FailedPanel({
   from?: string;
 }) {
   const [retrying, setRetrying] = useState(false);
+  const { reading, run } = useReader(importId);
   const unverified = error.code === "SENDER_NOT_VERIFIED";
 
   return (
@@ -132,13 +164,15 @@ export function FailedPanel({
           ) : (
             error.retryable && (
               <Button
-                disabled={retrying}
+                disabled={retrying || reading}
                 onClick={() => {
+                  if (isSupabaseConfigured) return run(retryImport);
                   setRetrying(true);
                   toast.success(`Retry queued (attempt ${attempts + 1})`);
                 }}
               >
-                <RotateCw /> {retrying ? "Retry queued" : "Retry"}
+                {reading ? <Loader2 className="animate-spin" /> : <RotateCw />}
+                {reading ? "Reading…" : retrying ? "Retry queued" : "Retry"}
               </Button>
             )
           )}
