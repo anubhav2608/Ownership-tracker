@@ -15,13 +15,18 @@ export async function GET(request: NextRequest) {
   const next = safeNextPath(searchParams.get("next"));
 
   const supabase = await createClient();
+  let failure = "link had no token_hash or code (expired links arrive with neither)";
   if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
     if (!error) return NextResponse.redirect(new URL(next, request.url));
+    failure = `verifyOtp: ${error.code ?? error.status} ${error.message}`;
   } else if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) return NextResponse.redirect(new URL(next, request.url));
+    failure = `exchangeCodeForSession: ${error.code ?? error.status} ${error.message}`;
   }
 
+  // Logged to the terminal running the app, to diagnose sign-in problems.
+  console.error("[auth/confirm] sign-in link failed:", failure);
   return NextResponse.redirect(new URL("/login?error=link", request.url));
 }
