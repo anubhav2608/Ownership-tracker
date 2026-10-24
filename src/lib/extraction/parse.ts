@@ -94,10 +94,11 @@ function findMerchant(lines: string[], text: string) {
   if (known) return { known, field: extracted(known.name, 0.95) };
 
   for (const line of lines) {
-    const m = line.match(/\b(?:sold by|seller|billed by|from)\s*[:-]\s*(.{3,60})$/i);
+    // "Sold By : Example Mobiles Pvt Ltd  Invoice Number : …": the name ends at the column gap.
+    const m = line.match(/\b(?:sold by|seller|billed by|from)\s*[:-]\s*(\S.{2,59}?)(?:\s{2,}|$)/i);
     if (m) return { field: extracted(cleanName(m[1]), 0.75) };
   }
-  const first = lines.find((l) => /[a-z]{3}/i.test(l) && !/invoice|receipt|order|page \d/i.test(l));
+  const first = lines.find((l) => /[a-z]{3}/i.test(l) && !/invoice|receipt|order|page \d/i.test(l) && !isTableHeader(l));
   return { field: first ? extracted(cleanName(first), 0.5) : missing<string>() };
 }
 
@@ -316,8 +317,14 @@ export function documentSections(lines: string[]) {
  * the last amount on the row). Numbered table rows are items even when they
  * mention tax; other lines are skipped if they look like totals or headers.
  */
-function findLines(lines: string[]): ExtractedLine[] {
+/** Warranty and return terms printed with the items: never part of an item's name. */
+const TERMS_LINE =
+  /\bwarranty\b|\bguarantee\b|\bnon[- ]?returnable\b|\b(returns?|replacement|exchange)\b.{0,40}\b(days?|by|till|until|before|window|policy|eligible|within|closes?)\b/i;
+
+/** Items, and the line each one's description starts on (to find terms printed under it). */
+function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] } {
   const items: ExtractedLine[] = [];
+  const starts: number[] = [];
   // A name waiting for its amounts: some invoices print the name, then tax
   // codes, then a row of amounts ("1  Rs 1799.00 … Rs 755.00").
   let pending: { text: string; at: number } | null = null;
@@ -361,6 +368,8 @@ function findLines(lines: string[]): ExtractedLine[] {
     const prices = moneyIn(raw);
     if (prices.length === 0) {
       if (!/[a-z]{3}/i.test(raw) && !/^\(.*\)$/.test(raw.trim())) continue;
+      // "1 Year Manufacturer Warranty" under a name belongs to the item but isn't its name.
+      if (TERMS_LINE.test(raw)) continue;
       pending = continuePending(pending, raw, i);
       continue;
     }
@@ -376,6 +385,7 @@ function findLines(lines: string[]): ExtractedLine[] {
             quantity: Number(qty?.[1] ?? 1) || 1,
             price: extracted(prices.at(-1)!, 0.8),
           });
+          starts.push(pending.at);
         }
       }
       pending = null;
@@ -400,9 +410,47 @@ function findLines(lines: string[]): ExtractedLine[] {
       quantity,
       price: extracted(prices.at(-1)!, confidence),
     });
+    starts.push(i);
     if (items.length >= 30) break;
   }
-  return items;
+  return { items, starts };
+}
+
+/** Where the items table ends: totals and payment summary. */
+const END_OF_TABLE =
+  /^\s*total\b|\b(sub ?total|grand total|order total|total amount|invoice (total|value)|net amount|amount payable|total payable)\b/i;
+
+/**
+ * Warranty and return terms per item: what's printed between an item and the
+ * next one (or the totals) is that item's; what's printed elsewhere (a footer)
+ * is the order's, and applies to items that state nothing of their own.
+ */
+function itemTerms(lines: string[], items: ExtractedLine[], starts: number[], orderDate: string | null) {
+  const owned = new Set<number>();
+  items.forEach((item, k) => {
+    let end = starts[k + 1] ?? lines.length;
+    for (let j = starts[k] + 1; j < end; j++) {
+      if (END_OF_TABLE.test(lines[j])) {
+        end = j;
+        break;
+      }
+    }
+    const segment = lines.slice(starts[k], end);
+    for (let j = starts[k]; j < end; j++) owned.add(j);
+    const warranty = findWarranty(segment);
+    if (warranty) {
+      item.warrantyMonths = warranty.months;
+      item.warrantyEvidence = warranty.evidence;
+    }
+    if (segment.some((l) => /\bnon[- ]?returnable\b|\bnot (eligible for )?returnable\b|\bno returns?\b/i.test(l))) {
+      item.nonReturnable = true;
+      return;
+    }
+    const returnBy = findReturnBy(segment, orderDate);
+    if (returnBy) item.returnBy = returnBy;
+  });
+  // The rest of the document: terms that apply to the whole order.
+  return lines.filter((_, j) => !owned.has(j));
 }
 
 // ── Putting it together ─────────────────────────────────────────────────
@@ -420,7 +468,7 @@ export function parseDocument(lines: string[]): ParseOutcome {
     return { ok: false, reason: "not_a_receipt" };
   }
 
-  const found = findLines(clean);
+  const { items: found, starts } = findLines(clean);
   const fields: ExtractedFields = { date, total };
   let lineItems: ExtractedLine[] = [];
   let parts: ExtractedLine[] = [];
@@ -437,9 +485,10 @@ export function parseDocument(lines: string[]): ParseOutcome {
     fields.merchant = merchant;
     Object.assign(fields, findRefs(clean, text, known));
     lineItems = found;
-    const returnBy = findReturnBy(clean, date.value);
+    const orderLevel = itemTerms(clean, lineItems, starts, date.value);
+    const returnBy = findReturnBy(orderLevel, date.value);
     if (returnBy) fields.returnBy = returnBy;
-    const warranty = findWarranty(clean);
+    const warranty = findWarranty(orderLevel);
     if (warranty) {
       fields.warrantyMonths = warranty.months;
       fields.warrantyEvidence = warranty.evidence;

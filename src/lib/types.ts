@@ -154,6 +154,12 @@ export interface ExtractedLine {
   name: Tracked<string>;
   quantity: number;
   price: Tracked<number>;
+  /** Stated for this item (under its name on the document), not for the whole order. */
+  warrantyMonths?: Tracked<number>;
+  warrantyEvidence?: Tracked<string>;
+  returnBy?: Tracked<string>;
+  /** The document says this item can't be returned. */
+  nonReturnable?: boolean;
 }
 
 export interface MatchCandidate {

@@ -18,7 +18,7 @@ import {
   getOrders,
   getServiceEvents,
 } from "@/lib/data";
-import type { Category, Item, Order, ServiceEvent } from "@/lib/types";
+import { ExpensesCard } from "./expenses-card";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -116,7 +116,30 @@ async function DashboardContent() {
         })}
       </div>
 
-      <ExpensesCard orders={orders} items={items} events={events} />
+      <ExpensesCard
+        today={new Date().toLocaleDateString("en-CA")}
+        orders={orders.map((o) => ({
+          id: o.id,
+          merchant: o.merchant,
+          date: o.orderDate,
+          spent: Math.max(0, o.total - (o.refundedAmount ?? 0)),
+        }))}
+        items={items.map((i) => ({
+          orderId: i.orderId,
+          category: i.category,
+          price: i.price.value,
+          returned: i.status === "returned",
+        }))}
+        events={events.map((e) => {
+          const item = items.find((i) => i.id === e.itemId);
+          return {
+            date: e.date,
+            cost: e.totalCost,
+            category: item?.category,
+            merchant: orders.find((o) => o.id === item?.orderId)?.merchant,
+          };
+        })}
+      />
 
       <SectionCard
         className="mt-6"
@@ -241,78 +264,5 @@ async function DashboardContent() {
         </SectionCard>
       </div>
     </>
-  );
-}
-
-/** What was spent: purchases (less refunds) plus maintenance, overall and recently, and by category. */
-function ExpensesCard({ orders, items, events }: { orders: Order[]; items: Item[]; events: ServiceEvent[] }) {
-  const now = new Date();
-  const month = now.toISOString().slice(0, 7);
-  const year = month.slice(0, 4);
-
-  const spent = (o: Order) => Math.max(0, o.total - (o.refundedAmount ?? 0));
-  const purchases = orders.reduce((s, o) => s + spent(o), 0);
-  const maintenance = events.reduce((s, e) => s + e.totalCost, 0);
-  const since = (prefix: string) =>
-    orders.filter((o) => o.orderDate.startsWith(prefix)).reduce((s, o) => s + spent(o), 0) +
-    events.filter((e) => e.date.startsWith(prefix)).reduce((s, e) => s + e.totalCost, 0);
-
-  // Purchases by item category, from item prices (returned items don't count).
-  const byCategory = new Map<Category, number>();
-  for (const i of items) {
-    if (i.price.value === null || i.status === "returned") continue;
-    byCategory.set(i.category, (byCategory.get(i.category) ?? 0) + i.price.value);
-  }
-  const categories = [...byCategory].sort((a, b) => b[1] - a[1]);
-  const top = categories[0]?.[1] ?? 0;
-
-  return (
-    <SectionCard className="mt-6" title="Total expenses">
-      <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <div className="min-w-0">
-          <p className="text-3xl font-semibold tracking-tight tabular-nums">{formatMoney(purchases + maintenance)}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {formatMoney(purchases)} on purchases · {formatMoney(maintenance)} on maintenance
-          </p>
-          <dl className="mt-4 grid grid-cols-2 gap-3">
-            {[
-              ["This month", since(month)],
-              [`In ${year}`, since(year)],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-lg border px-3 py-2">
-                <dt className="text-xs text-muted-foreground">{label}</dt>
-                <dd className="mt-0.5 text-sm font-medium tabular-nums">{formatMoney(value as number)}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-
-        <div className="min-w-0">
-          <p className="mb-3 text-xs font-medium text-muted-foreground">Purchases by category</p>
-          {categories.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Item prices will show up here.</p>
-          ) : (
-            <ul className="space-y-2.5" aria-label="Purchases by category">
-              {categories.map(([category, value]) => (
-                <li
-                  key={category}
-                  className="group grid grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-3 text-sm"
-                  title={`${category}: ${formatMoney(value)}`}
-                >
-                  <span className="truncate text-muted-foreground">{category}</span>
-                  <span className="h-2 rounded-full bg-muted">
-                    <span
-                      className="block h-2 rounded-full bg-primary transition-opacity group-hover:opacity-80"
-                      style={{ width: `${Math.max(2, (value / top) * 100)}%` }}
-                    />
-                  </span>
-                  <span className="text-right tabular-nums">{formatMoney(value)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </SectionCard>
   );
 }

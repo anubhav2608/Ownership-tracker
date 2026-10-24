@@ -189,8 +189,12 @@ variants) live in `src/app/globals.css`, with a dark set that follows the system
 - Emails can also be uploaded as saved `.eml` files. An email and its attachments are
   read together: the most complete document (usually the attached invoice) leads, and
   the others fill in what it lacks (order number, return-by date, warranty wording).
-- Items have a "Return by" date (read from the document when it states one, or a
-  return period counted from the order date; editable per item).
+- Warranty and "Return by" are per item. Terms printed under an item are that item's;
+  terms in the footer apply to the items that state none (a non-returnable item keeps
+  none). A return period is counted from the order date. Both can be set per item on
+  the review screen and in manual entry.
+- The dashboard's "Total expenses" shows this month by default, with filters for period
+  (or from/to dates), category and merchant.
 - Purchases, items and service events can have any number of documents attached, each
   with a type; anything else is filed as Miscellaneous (stored as `other`).
 - A purchase's order number and invoice number each identify it: no two purchases share

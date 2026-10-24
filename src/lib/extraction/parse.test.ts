@@ -182,9 +182,9 @@ describe("documents that aren't receipts", () => {
 });
 
 describe("return-by dates", () => {
-  const base = ["Order Confirmation", "Order Date: 15 Oct 2026", "Order Total: Rs. 1,499.00", "1  Hoodie  Rs. 1,499.00"];
+  const base = ["Order Confirmation", "Order Date: 15 Oct 2026", "1  Hoodie  Rs. 1,499.00", "Order Total: Rs. 1,499.00"];
 
-  it("reads a stated return deadline", () => {
+  it("reads a stated return deadline for the order", () => {
     for (const line of [
       "Return window closes on 25 Oct 2026",
       "Eligible for return till 25/10/2026",
@@ -196,13 +196,68 @@ describe("return-by dates", () => {
   });
 
   it("counts a return period from the order date, with lower confidence", () => {
-    const outcome = parseDocument([...base, "This item has a 10-day return policy"]);
+    const outcome = parseDocument([...base, "This order has a 10-day return policy"]);
     expect(outcome.ok && outcome.extraction.fields.returnBy).toMatchObject({ value: "2026-10-25", confidence: 0.6 });
   });
 
   it("finds none when the document doesn't say", () => {
     const outcome = parseDocument(base);
     expect(outcome.ok && outcome.extraction.fields.returnBy).toBeUndefined();
+  });
+});
+
+describe("warranty and returns per item", () => {
+  // Fictional: each item states its own terms under its name; the footer states one for the rest.
+  const outcome = parseDocument([
+    "Tax Invoice",
+    "Order Number: 404-1111111-2222222  Order Date: 01 Oct 2026",
+    "Sl. No  Description  Qty  Total Amount",
+    "1  Example Phone X1 (128 GB)  1  Rs. 24,999.00",
+    "1 Year Manufacturer Warranty for device and 6 months for in-box accessories",
+    "Return window closes on 08 Oct 2026",
+    "2  Example Silicone Case  1  Rs. 499.00",
+    "Warranty: 6 months",
+    "3  Example Screen Guard  1  Rs. 299.00",
+    "Non-returnable",
+    "Grand Total  Rs. 25,797.00",
+    "All products carry a 10 day replacement policy unless stated otherwise.",
+  ]);
+  if (!outcome.ok) throw new Error("fixture should parse");
+  const [phone, kase, guard] = outcome.extraction.lines;
+
+  it("gives each item the terms printed under it", () => {
+    expect(outcome.extraction.lines.map((l) => l.name.value)).toEqual([
+      "Example Phone X1 (128 GB)",
+      "Example Silicone Case",
+      "Example Screen Guard",
+    ]);
+    expect(phone.warrantyMonths?.value).toBe(12);
+    expect(phone.returnBy?.value).toBe("2026-10-08");
+    expect(kase.warrantyMonths?.value).toBe(6);
+    expect(kase.returnBy).toBeUndefined();
+    expect(guard.warrantyMonths).toBeUndefined();
+    expect(guard.nonReturnable).toBe(true);
+  });
+
+  it("reads the seller even when it shares a line with the invoice number", () => {
+    const o = parseDocument([
+      "Tax Invoice",
+      "Sold By : Example Mobiles Private Limited  Invoice Number : EXM-2026-0042",
+      "Order Date: 01 Oct 2026",
+      "Sl. No  Description  Qty  Total Amount",
+      "1  Example Phone X1  1  Rs. 24,999.00",
+      "Grand Total  Rs. 24,999.00",
+    ]);
+    expect(o.ok && o.extraction.fields.merchant?.value).toBe("Example Mobiles Private Limited");
+  });
+
+  it("keeps the footer's terms for the whole order", () => {
+    expect(outcome.extraction.fields.returnBy?.value).toBe("2026-10-11");
+    expect(outcome.extraction.fields.warrantyMonths).toBeUndefined();
+  });
+
+  it("keeps the evidence for each item's warranty", () => {
+    expect(kase.warrantyEvidence?.value).toBe('"Warranty: 6 months"');
   });
 });
 

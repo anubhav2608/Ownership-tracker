@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { guessCategory } from "@/lib/extraction/category";
-import { formatMoney } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
 import { CATEGORIES, type Category, type ExtractedLine, type FieldState, type ImportRecord, type Tracked } from "@/lib/types";
@@ -59,6 +59,12 @@ interface LineDraft {
   price: Draft;
   category: Category;
   target: "new" | "skip";
+  /** Per item: one order can mix warranties and return windows. */
+  warrantyMonths: Draft;
+  /** The document's words for this item's warranty (its own, or the order's). */
+  warrantyEvidence?: string;
+  returnBy: Draft;
+  nonReturnable?: boolean;
 }
 
 export function ReviewForm({ record, items }: { record: ImportRecord; items: ItemOption[] }) {
@@ -70,11 +76,20 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   const [fields, setFields] = useState<Record<string, Draft>>(() =>
     Object.fromEntries(Object.entries(f).map(([k, v]) => [k, toDraft(v)])),
   );
+  // Terms printed for the whole order fill in items that don't state their own.
   const [lines, setLines] = useState<LineDraft[]>(() =>
-    (record.lines ?? []).map((l) => ({ ...lineDraft(l), category: guessCategory(String(l.name.value ?? ""), f.merchant?.value), target: "new" })),
+    (record.lines ?? []).map((l) => ({
+      ...lineDraft(l),
+      category: guessCategory(String(l.name.value ?? ""), f.merchant?.value),
+      target: "new",
+      warrantyMonths: toDraft(l.warrantyMonths ?? f.warrantyMonths),
+      warrantyEvidence: (l.warrantyMonths ? l.warrantyEvidence?.value : f.warrantyEvidence?.value) ?? undefined,
+      // A non-returnable item doesn't take the order's return window.
+      returnBy: toDraft(l.returnBy ?? (l.nonReturnable ? undefined : f.returnBy)),
+      nonReturnable: l.nonReturnable,
+    })),
   );
   const [parts] = useState(() => (record.parts ?? []).map(lineDraft));
-  const [warrantyFor, setWarrantyFor] = useState(() => defaultWarrantyLine(record.lines ?? []));
   const [saving, setSaving] = useState(false);
   const [existing, setExisting] = useState<ExistingPurchase | null>(null);
 
@@ -110,8 +125,10 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   const lowConfidenceLeft = [...Object.values(fields), ...lines.flatMap((l) => [l.name, l.price])].some(
     (d) => d.state === "extracted" && (d.confidence ?? 1) < LOW_CONFIDENCE,
   );
-  const warranty = fields.warrantyMonths;
-  const warrantyEvidence = fields.warrantyEvidence?.value;
+  const orderTerms = [
+    f.warrantyMonths?.value && `a ${f.warrantyMonths.value}-month warranty`,
+    f.returnBy?.value && `returns until ${formatDate(f.returnBy.value)}`,
+  ].filter(Boolean);
 
   function done(message: string, href: string) {
     toast.success(message);
@@ -127,7 +144,6 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       toast.error("Keep at least one item, and give each kept item a name.");
       return;
     }
-    const months = number(warranty);
     const result = await createPurchase({
       merchant: fields.merchant.value,
       orderDate: fields.date.value,
@@ -143,7 +159,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
         order_date: fields.date,
         total: fields.total,
       }),
-      items: lines.flatMap((l, i) =>
+      items: lines.flatMap((l) =>
         l.target === "skip"
           ? []
           : [
@@ -151,14 +167,9 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
                 name: l.name.value,
                 category: l.category,
                 price: number(l.price),
-                returnBy: fields.returnBy?.value || undefined,
-                fieldMeta: meta({ name: l.name, price: l.price, return_by: fields.returnBy }),
-                warranty:
-                  months && (warrantyFor === "all" || warrantyFor === String(i))
-                    ? warranty?.state === "extracted" && warrantyEvidence
-                      ? { months, state: "extracted" as const, evidence: warrantyEvidence }
-                      : { months, state: "confirmed" as const, evidence: warrantyEvidence || "Entered by you" }
-                    : undefined,
+                returnBy: l.returnBy.value || undefined,
+                fieldMeta: meta({ name: l.name, price: l.price, return_by: l.returnBy }),
+                warranty: lineWarranty(l),
               },
             ],
       ),
@@ -252,47 +263,6 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
               <FieldInput fid={fid} label="Invoice number" name="invoiceRef" draft={fields.invoiceRef} onChange={setField} />
               <FieldInput fid={fid} label="Order date" name="date" type="date" draft={fields.date} onChange={setField} />
               <FieldInput fid={fid} label="Order total" name="total" type="number" draft={fields.total} onChange={setField} />
-              <FieldInput
-                fid={fid}
-                label="Return by"
-                name="returnBy"
-                type="date"
-                draft={fields.returnBy}
-                onChange={setField}
-                hint="Not found in this document. Applies to every item; change it per item later."
-              />
-              <FieldInput
-                fid={fid}
-                label="Warranty (months)"
-                name="warrantyMonths"
-                type="number"
-                draft={warranty}
-                onChange={setField}
-                hint="Not found in this document. Leave empty unless your documents state one; we only store warranties backed by a source."
-              />
-              {warranty?.value && lines.length > 0 && (
-                <div className="grid gap-2">
-                  <Label htmlFor={`${fid}-warranty-for`}>Warranty applies to</Label>
-                  <NativeSelect
-                    id={`${fid}-warranty-for`}
-                    wrapperClassName="w-full"
-                    value={warrantyFor}
-                    onChange={(e) => setWarrantyFor(e.target.value)}
-                  >
-                    {lines.map((l, i) => (
-                      <NativeSelectOption key={i} value={String(i)}>
-                        {l.name.value || `Item ${i + 1}`}
-                      </NativeSelectOption>
-                    ))}
-                    {lines.length > 1 && <NativeSelectOption value="all">Every item</NativeSelectOption>}
-                  </NativeSelect>
-                </div>
-              )}
-              {warrantyEvidence && (
-                <p className="text-xs text-muted-foreground sm:col-span-2">
-                  From the document: {warrantyEvidence}
-                </p>
-              )}
             </>
           )}
         </div>
@@ -309,9 +279,15 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
               ; this file will be attached.
             </p>
           )}
+          {orderTerms.length > 0 && (
+            <p className="border-b bg-muted/40 px-5 py-3 text-xs text-muted-foreground">
+              The document states {orderTerms.join(" and ")} for the whole order. It&rsquo;s filled in
+              for items that don&rsquo;t state their own; change any item below.
+            </p>
+          )}
           <ul className="divide-y">
             {lines.map((l, i) => (
-              <li key={i} className={cn("grid gap-3 p-5 sm:grid-cols-[1fr_11rem]", l.target === "skip" && "opacity-60")}>
+              <li key={i} className={cn("grid gap-3 p-5 sm:grid-cols-[1fr_13rem]", l.target === "skip" && "opacity-60")}>
                 <DraftInput id={`${fid}-line-${i}-name`} label="Item name" draft={l.name} onChange={(v) => updateLine(i, { name: confirmed(v) })} />
                 <DraftInput id={`${fid}-line-${i}-price`} label="Price" type="number" draft={l.price} onChange={(v) => updateLine(i, { price: confirmed(v) })} />
                 <div className="grid gap-2">
@@ -341,6 +317,36 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
                     <NativeSelectOption value="skip">Don&rsquo;t track this line</NativeSelectOption>
                   </NativeSelect>
                 </div>
+                <DraftInput
+                  id={`${fid}-line-${i}-warranty`}
+                  label="Warranty (months)"
+                  type="number"
+                  draft={l.warrantyMonths}
+                  onChange={(v) => updateLine(i, { warrantyMonths: confirmed(v) })}
+                />
+                <DraftInput
+                  id={`${fid}-line-${i}-return`}
+                  label="Return by"
+                  type="date"
+                  draft={l.returnBy}
+                  onChange={(v) => updateLine(i, { returnBy: confirmed(v) })}
+                />
+                {l.nonReturnable && !l.returnBy.value && (
+                  <p className="text-xs text-muted-foreground sm:col-span-2">
+                    The document marks this item as non-returnable.
+                  </p>
+                )}
+                {l.warrantyMonths.value && l.warrantyEvidence ? (
+                  <p className="text-xs text-muted-foreground sm:col-span-2">
+                    Warranty from the document: {l.warrantyEvidence}
+                  </p>
+                ) : (
+                  !l.warrantyMonths.value && (
+                    <p className="text-xs text-muted-foreground sm:col-span-2">
+                      No warranty found for this item. Leave it empty unless your documents state one.
+                    </p>
+                  )
+                )}
               </li>
             ))}
           </ul>
@@ -463,13 +469,16 @@ function lineDraft(l: ExtractedLine) {
   return { name: toDraft(l.name), price: toDraft(l.price) };
 }
 
-/** The warranty usually belongs to the main product: the most expensive line. */
-function defaultWarrantyLine(lines: ExtractedLine[]) {
-  let best = 0;
-  lines.forEach((l, i) => {
-    if ((l.price.value ?? 0) > (lines[best].price.value ?? 0)) best = i;
-  });
-  return String(best);
+/**
+ * A line's warranty as saved: "extracted" (with the document's words) until the
+ * user changes it, then "confirmed". None without a number of months.
+ */
+function lineWarranty(l: LineDraft) {
+  const months = number(l.warrantyMonths);
+  if (!months) return undefined;
+  return l.warrantyMonths.state === "extracted" && l.warrantyEvidence
+    ? { months, state: "extracted" as const, evidence: l.warrantyEvidence }
+    : { months, state: "confirmed" as const, evidence: l.warrantyEvidence || "Entered by you" };
 }
 
 function FieldInput({

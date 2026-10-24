@@ -249,10 +249,20 @@ interface LineRow {
   /** Once the user picks a category, typing the name no longer changes it. */
   categoryChosen?: boolean;
   price: string;
+  /** Per item: one order can mix warranties and return windows. */
+  warrantyMonths: string;
+  returnBy: string;
 }
 
 let nextKey = 0;
-const newLine = (): LineRow => ({ key: nextKey++, name: "", category: "Miscellaneous", price: "" });
+const newLine = (): LineRow => ({
+  key: nextKey++,
+  name: "",
+  category: "Miscellaneous",
+  price: "",
+  warrantyMonths: "",
+  returnBy: "",
+});
 
 const text = (form: FormData, name: string) => String(form.get(name) ?? "").trim();
 const optionalText = (form: FormData, name: string) => text(form, name) || undefined;
@@ -354,7 +364,10 @@ function ManualTab({
           name: l.name,
           category: l.category,
           price: optionalNumber(l.price),
-          returnBy: optionalText(form, "returnBy"),
+          returnBy: l.returnBy || undefined,
+          warranty: l.warrantyMonths
+            ? { months: Number(l.warrantyMonths), state: "confirmed" as const, evidence: "Entered by you" }
+            : undefined,
         })),
       };
       const result = await createPurchase(input);
@@ -459,9 +472,6 @@ function ManualTab({
             <Field id={`${fid}-invoice`} label="Invoice number" optional>
               <Input id={`${fid}-invoice`} name="invoice" />
             </Field>
-            <Field id={`${fid}-returnBy`} label="Return by" optional>
-              <Input id={`${fid}-returnBy`} name="returnBy" type="date" />
-            </Field>
             {fileField("Invoice and other documents")}
           </div>
 
@@ -511,6 +521,27 @@ function ManualTab({
                 >
                   <X />
                 </Button>
+                <div className="grid grid-cols-2 gap-2 sm:col-span-3 sm:grid-cols-[9rem_11rem]">
+                  <Input
+                    aria-label={`Item ${i + 1} warranty in months`}
+                    placeholder="Warranty (months)"
+                    type="number"
+                    min="1"
+                    max="240"
+                    step="1"
+                    value={l.warrantyMonths}
+                    onChange={(e) => update(l.key, { warrantyMonths: e.target.value })}
+                  />
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="shrink-0">Return by</span>
+                    <Input
+                      aria-label={`Item ${i + 1} return by`}
+                      type="date"
+                      value={l.returnBy}
+                      onChange={(e) => update(l.key, { returnBy: e.target.value })}
+                    />
+                  </label>
+                </div>
               </div>
             ))}
             <div className="flex items-center justify-between">
