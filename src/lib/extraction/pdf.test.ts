@@ -80,6 +80,51 @@ describe("extractPdfText + parseDocument", () => {
     ]);
   });
 
+  it("reads a fashion marketplace invoice with names above their amounts and a fee invoice", async () => {
+    // Fictional; laid out like marketplace invoices that print each item's name,
+    // then its tax code, then a row of amounts, followed by a second invoice
+    // for the platform fee in the same PDF.
+    const AMT = [40, 70, 160, 250, 330, 400, 460, 520];
+    const amounts = (cells: string[]): Row => cells.map((c, i) => [AMT[i], c] as [number, string]);
+    const pdf = await makePdf([
+      "Tax Invoice",
+      [[40, "Invoice Number: F0101XX000000001"], [400, "PacketID: 1000000001"]],
+      [[40, "Order Number: 1000001-2000002-3000003"], [400, "Invoice Date: 14 Sep 2026"]],
+      "Bill to / Ship to:",
+      "Asha Example",
+      "12 Example Street, Pune - 411001",
+      [[40, "Gross"], [160, "Other"], [250, "Taxable"], [400, "SGST/"]],
+      [[40, "Qty"], [100, "Discount"], [330, "CGST"], [460, "IGST"], [520, "Total Amount"]],
+      "FCX12345678 - Example Brand Girls Cotton Hoodie, Size: M",
+      "(9-10Y)",
+      "HSN: 61102000, 2.5% CGST, 2.5% SGST/UGST,",
+      amounts(["1", "Rs 1499.00", "Rs 600.00", "Rs 0.00", "Rs 856.19", "Rs 21.40", "Rs 21.41", "Rs 899.00"]),
+      "FCX87654321 - Example Brand Girls Denim Jacket, Size: S",
+      "HSN: 62034200, 2.5% CGST, 2.5% SGST/UGST,",
+      amounts(["1", "Rs 2499.00", "Rs 1000.00", "Rs 0.00", "Rs 1427.62", "Rs 35.69", "Rs 35.69", "Rs 1499.00"]),
+      [[40, "TOTAL"], [160, "Rs 3998.00"], [520, "Rs 2398.00"]],
+      "Tax Invoice",
+      [[40, "Invoice Number: F0101XX000000002"], [400, "Date: 14 Sep 2026"]],
+      "Platform Fee",
+      "HSN: 999799, 18.0% IGST",
+      amounts(["1.0", "Rs 20.00", "Rs 0.00", "Rs 0.00", "Rs 16.95", "Rs 3.05", "", "Rs 20.00"]),
+      [[40, "TOTAL"], [160, "Rs 20.00"], [520, "Rs 20.00"]],
+      "Questions? Visit www.myntra.com/contactus",
+    ]);
+    const outcome = parseDocument((await extractPdfText(pdf)).lines);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const x = outcome.extraction;
+    expect(x.fields.orderRef?.value).toBe("1000001-2000002-3000003");
+    expect(x.fields.date?.value).toBe("2026-09-14");
+    expect(x.fields.total?.value).toBe(2418);
+    expect(x.lines.map((l) => [l.name.value, l.price.value])).toEqual([
+      ["Example Brand Girls Cotton Hoodie, Size: M (9-10Y)", 899],
+      ["Example Brand Girls Denim Jacket, Size: S", 1499],
+    ]);
+    expect(x.reviewReasons[0]).toMatch(/fees/);
+  });
+
   it("finds no text in a scanned page", async () => {
     const { lines } = await extractPdfText(await scannedPdf());
     expect(lines).toEqual([]);

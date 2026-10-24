@@ -1,13 +1,21 @@
 // Domain model. Mirrors the planned Supabase tables: orders, items, documents,
 // service_events and imports are separate entities (spec §4A).
 
-export type Category =
-  | "Electronics"
-  | "Appliances"
-  | "Vehicle"
-  | "Furniture"
-  | "Accessories"
-  | "Home";
+export const CATEGORIES = [
+  "Electronics",
+  "Appliances",
+  "Vehicle",
+  "Furniture",
+  "Clothing",
+  "Accessories",
+  "Home",
+  "Other",
+] as const;
+
+export type Category = (typeof CATEGORIES)[number];
+
+/** Category names as stored in the database (enum item_category). */
+export const categoryValue = (c: Category) => c.toLowerCase() as Lowercase<Category>;
 
 export type RecordSource = "email" | "upload" | "manual";
 
@@ -180,6 +188,8 @@ export interface ImportRecord {
   };
   lines?: ExtractedLine[];
   parts?: ExtractedLine[];
+  /** The text read from the document, line by line, to show what extraction saw. */
+  text?: string[];
   candidates?: MatchCandidate[];
   /** What the import created, once saved. */
   result?: { orderId?: string; itemIds?: string[]; serviceEventId?: string };

@@ -147,7 +147,7 @@ describe("validation", () => {
     ]);
     expect(doc.fields.merchant?.value).toBe("Croma");
     expect(doc.reviewReasons).toContain(
-      "Items don't add up to the total. Check for shipping, discounts or a misread price.",
+      "Items don't add up to the total. Check for shipping, fees, discounts or a misread price.",
     );
   });
 

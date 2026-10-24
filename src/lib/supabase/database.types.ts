@@ -666,8 +666,10 @@ export type Database = {
         | "appliances"
         | "vehicle"
         | "furniture"
+        | "clothing"
         | "accessories"
-        | "home";
+        | "home"
+        | "other";
       item_status: "owned" | "returned" | "sold" | "disposed";
       order_status: "completed" | "refunded" | "partially_refunded";
       record_source: "email" | "upload" | "manual";
@@ -833,8 +835,10 @@ export const Constants = {
         "appliances",
         "vehicle",
         "furniture",
+        "clothing",
         "accessories",
         "home",
+        "other",
       ],
       item_status: ["owned", "returned", "sold", "disposed"],
       order_status: ["completed", "refunded", "partially_refunded"],

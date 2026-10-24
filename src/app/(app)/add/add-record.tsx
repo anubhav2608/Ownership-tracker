@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import type { Category } from "@/lib/types";
+import { CATEGORIES, type Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { processImport } from "../imports/actions";
 import { createPurchase, createServiceEvent } from "./actions";
@@ -24,7 +24,6 @@ import { uploadFile } from "./upload-file";
 export type AddTab = "forward" | "upload" | "manual";
 
 const MAX_MB = 10;
-const CATEGORIES: Category[] = ["Electronics", "Appliances", "Vehicle", "Furniture", "Accessories", "Home"];
 
 export function AddRecord({
   initialTab,

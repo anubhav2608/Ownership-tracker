@@ -259,8 +259,8 @@ export function UnsupportedPanel({ importId }: { importId: string }) {
           </AlertDescription>
         </Alert>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => toast("Sent to review as a receipt")}>
-            It is a receipt, review it
+          <Button asChild variant="outline">
+            <Link href={`/add?tab=manual&import=${importId}`}>It is a receipt: enter the details</Link>
           </Button>
           <DiscardButton importId={importId} />
         </div>

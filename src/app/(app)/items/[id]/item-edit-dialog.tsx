@@ -19,9 +19,8 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { updateItem } from "@/lib/record-actions";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import type { Category, Item } from "@/lib/types";
+import { CATEGORIES, type Category, type Item } from "@/lib/types";
 
-const CATEGORIES: Category[] = ["Electronics", "Appliances", "Vehicle", "Furniture", "Accessories", "Home"];
 
 interface IdentifierRow {
   key: number;

@@ -31,8 +31,10 @@ const categories: Record<Database["public"]["Enums"]["item_category"], Category>
   appliances: "Appliances",
   vehicle: "Vehicle",
   furniture: "Furniture",
+  clothing: "Clothing",
   accessories: "Accessories",
   home: "Home",
+  other: "Other",
 };
 
 const db = cache(createClient);
@@ -250,6 +252,7 @@ interface StoredExtraction {
   fields?: ImportRecord["fields"];
   lines?: ExtractedLine[];
   parts?: ExtractedLine[];
+  text?: string[];
 }
 
 interface StoredCandidate {
@@ -284,6 +287,7 @@ function toImport(r: Row<"imports">): ImportRecord {
     fields: extracted.fields,
     lines: extracted.lines,
     parts: extracted.parts,
+    text: extracted.text,
     candidates: (r.candidates as unknown as StoredCandidate[]).map((c) => ({
       itemId: c.item_id,
       score: c.score,

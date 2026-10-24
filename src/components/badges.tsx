@@ -16,6 +16,8 @@ import {
   Upload,
   WashingMachine,
   type LucideIcon,
+  Package,
+  Shirt,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { daysUntil } from "@/lib/format";
@@ -60,8 +62,10 @@ const categoryIcons: Record<Category, LucideIcon> = {
   Appliances: WashingMachine,
   Vehicle: Car,
   Furniture: Armchair,
+  Clothing: Shirt,
   Accessories: Headphones,
   Home: Home,
+  Other: Package,
 };
 
 export function CategoryIcon({

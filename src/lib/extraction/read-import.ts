@@ -29,6 +29,7 @@ export interface Outcome {
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const EMAIL = "message/rfc822";
+const MAX_TEXT_LINES = 400;
 
 /** An unexpected error while reading: retryable, with the reason kept for diagnosis. */
 export function readingCrashed(e: unknown, what: "file" | "email"): Outcome {
@@ -115,6 +116,8 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
 
   const problems = new Set<Problem>();
   let best: { extraction: Extraction; text: string } | undefined;
+  // The text we found, kept so the import page can show what was read.
+  let seen: string[] = [];
 
   for (const doc of ordered) {
     let lines: string[];
@@ -140,6 +143,7 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
       continue;
     }
 
+    if (seen.length === 0) seen = lines;
     const parsed = parseDocument(lines);
     if (!parsed.ok) {
       if (parsed.reason === "no_text" && doc.mime_type === "application/pdf") problems.add("NO_TEXT_LAYER");
@@ -147,19 +151,24 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
     }
     const x = parsed.extraction;
     const complete = x.lines.length > 0 || x.documentKind === "service_receipt" || x.documentKind === "refund_notice";
-    if (!best || (complete && best.extraction.lines.length === 0)) best = { extraction: x, text: lines.join("\n") };
+    if (!best || (complete && best.extraction.lines.length === 0)) {
+      best = { extraction: x, text: lines.join("\n") };
+      seen = lines;
+    }
     if (complete) break;
   }
 
+  const text = seen.slice(0, MAX_TEXT_LINES);
   if (!best) {
     const problem = PROBLEM_ORDER.find((p) => problems.has(p));
     // An email (or file) with readable text that isn't a receipt is "unsupported", not an error.
-    if (!problem) return { status: "unsupported", stage: "parsed", document_kind: "other" };
+    if (!problem) return { status: "unsupported", stage: "parsed", document_kind: "other", extracted: { text } };
     const [message, retryable] = FAILURES[problem];
-    return failure(problem, message, retryable);
+    return { ...failure(problem, message, retryable), extracted: { text } };
   }
 
-  return review(db, userId, best.extraction, best.text);
+  const outcome = await review(db, userId, best.extraction, best.text);
+  return { ...outcome, extracted: { ...(outcome.extracted as object), text } as unknown as Json };
 }
 
 async function review(db: Db, userId: string, x: Extraction, text: string): Promise<Outcome> {

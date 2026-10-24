@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { CATEGORIES, categoryValue } from "@/lib/types";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -88,14 +89,6 @@ export async function registerUpload(input: z.input<typeof uploadSchema>): Promi
 
 // ── Manual entry ────────────────────────────────────────────────────────
 
-const categoryValues = {
-  Electronics: "electronics",
-  Appliances: "appliances",
-  Vehicle: "vehicle",
-  Furniture: "furniture",
-  Accessories: "accessories",
-  Home: "home",
-} as const;
 
 const money = z.number().nonnegative().max(1e10);
 const isoDate = z.iso.date();
@@ -120,7 +113,7 @@ const purchaseSchema = z.object({
     .array(
       z.object({
         name: z.string().trim().min(1).max(200),
-        category: z.enum(Object.keys(categoryValues) as [keyof typeof categoryValues]),
+        category: z.enum(CATEGORIES),
         price: money.optional(),
         fieldMeta,
         /** Only when a document states one; "extracted" warranties need the quoted evidence. */
@@ -169,7 +162,7 @@ export async function createPurchase(input: PurchaseInput): Promise<SaveResult> 
       field_meta: p.fieldMeta ?? {},
       items: p.items.map((i) => ({
         name: i.name,
-        category: categoryValues[i.category],
+        category: categoryValue(i.category),
         price: i.price ?? null,
         field_meta: i.fieldMeta ?? {},
         warranty: i.warranty ?? null,

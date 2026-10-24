@@ -8,6 +8,12 @@ describe("guessCategory", () => {
     expect(guessCategory("LG 8 kg Front Load Washing Machine")).toBe("Appliances");
     expect(guessCategory("Ergonomic Office Chair")).toBe("Furniture");
     expect(guessCategory("Philips Air Fryer HD9252")).toBe("Appliances");
+    expect(guessCategory("Example Brand Boys Printed Sweatshirt, Size: 2Y")).toBe("Clothing");
+    expect(guessCategory("Example Brand Girls Hooded Pullover, Size: L (7-8Y)")).toBe("Clothing");
+  });
+
+  it("says Other when it can't tell", () => {
+    expect(guessCategory("Gift voucher")).toBe("Other");
   });
 
   it("doesn't match words inside other words", () => {

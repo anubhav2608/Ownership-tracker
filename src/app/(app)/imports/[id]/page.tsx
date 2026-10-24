@@ -93,6 +93,18 @@ async function ImportDetail({ params }: Pick<PageProps<"/imports/[id]">, "params
               items={ownedItems}
             />
           )}
+          {record.text && record.text.length > 0 && record.status !== "imported" && (
+            <SectionCard title="Text we found">
+              <details className="px-5 py-4 text-sm">
+                <summary className="cursor-pointer text-muted-foreground">
+                  Show the {record.text.length} lines read from this document
+                </summary>
+                <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words">
+                  {record.text.join("\n")}
+                </pre>
+              </details>
+            </SectionCard>
+          )}
         </div>
 
         <div className="min-w-0 space-y-6">

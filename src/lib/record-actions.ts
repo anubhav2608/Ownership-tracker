@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { CATEGORIES, categoryValue } from "@/lib/types";
 import type { ServiceEventInput } from "@/app/(app)/add/actions";
 
 // Editing and deleting purchases, items, warranties and service events. Every
@@ -15,15 +16,6 @@ const id = z.uuid();
 const money = z.number().nonnegative().max(1e10);
 const isoDate = z.iso.date();
 const optionalText = (max: number) => z.string().trim().max(max).optional();
-
-const categories = {
-  Electronics: "electronics",
-  Appliances: "appliances",
-  Vehicle: "vehicle",
-  Furniture: "furniture",
-  Accessories: "accessories",
-  Home: "home",
-} as const;
 
 const NOT_FOUND: ActionResult = { ok: false, message: "That record no longer exists." };
 const INVALID: ActionResult = { ok: false, message: "Please check the details and try again." };
@@ -67,7 +59,7 @@ const itemSchema = z.object({
   name: z.string().trim().min(1).max(200),
   brand: optionalText(100),
   model: optionalText(100),
-  category: z.enum(Object.keys(categories) as [keyof typeof categories]),
+  category: z.enum(CATEGORIES),
   purchaseDate: isoDate.optional(),
   price: money.optional(),
   identifiers: z
@@ -90,7 +82,7 @@ export async function updateItem(itemId: string, input: ItemInput): Promise<Acti
       name: i.name,
       brand: blankToNull(i.brand),
       model: blankToNull(i.model),
-      category: categories[i.category],
+      category: categoryValue(i.category),
       purchase_date: i.purchaseDate ?? null,
       price: i.price ?? null,
       identifiers: i.identifiers,

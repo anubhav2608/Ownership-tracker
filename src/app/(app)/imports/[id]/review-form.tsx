@@ -17,13 +17,12 @@ import { guessCategory } from "@/lib/extraction/category";
 import { formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
-import type { Category, ExtractedLine, FieldState, ImportRecord, Tracked } from "@/lib/types";
+import { CATEGORIES, type Category, type ExtractedLine, type FieldState, type ImportRecord, type Tracked } from "@/lib/types";
 import { createPurchase, createServiceEvent, type PurchaseInput } from "../../add/actions";
 import { DiscardButton } from "./status-panels";
 
 type ItemOption = { id: string; name: string; brand?: string };
 
-const CATEGORIES: Category[] = ["Electronics", "Appliances", "Vehicle", "Furniture", "Accessories", "Home"];
 
 /** A field being reviewed. Editing an extracted value makes it user-confirmed. */
 interface Draft {

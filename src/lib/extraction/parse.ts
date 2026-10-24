@@ -96,13 +96,16 @@ function findOrderRef(lines: string[], text: string, merchant?: KnownMerchant): 
   const known = merchant?.orderRef && text.match(merchant.orderRef);
   if (known) return extracted(known[1], 0.98);
 
-  const labelled = label("order|invoice|bill|receipt|job card|ro");
-  for (const line of lines) {
-    const m = line.match(labelled);
-    if (!m) continue;
-    const rest = line.slice((m.index ?? 0) + m[0].length);
-    const ref = rest.match(/^([A-Z0-9][A-Z0-9\-/]{3,30})/i);
-    if (ref && /\d/.test(ref[1]) && !parseDate(ref[1])) return extracted(ref[1], 0.8);
+  // The order number identifies the purchase; an invoice or bill number is the fallback.
+  for (const words of ["order", "invoice|bill|receipt|job card|ro"]) {
+    const labelled = label(words);
+    for (const line of lines) {
+      const m = line.match(labelled);
+      if (!m) continue;
+      const rest = line.slice((m.index ?? 0) + m[0].length);
+      const ref = rest.match(/^([A-Z0-9][A-Z0-9\-/]{3,30})/i);
+      if (ref && /\d/.test(ref[1]) && !parseDate(ref[1])) return extracted(ref[1], words === "order" ? 0.85 : 0.8);
+    }
   }
   return missing();
 }
@@ -127,6 +130,16 @@ const TOTAL_LABELS: [RegExp, number][] = [
 ];
 
 function findTotal(lines: string[]): Tracked<number> {
+  // One PDF can hold several invoices for one order (e.g. the goods, then a
+  // platform fee). What was paid is the sum of their totals.
+  const starts = lines.flatMap((l, i) => (/^tax invoice\b/i.test(l) ? [i] : []));
+  if (starts.length > 1) {
+    const totals = starts.map((start, n) => findTotal(lines.slice(start + 1, starts[n + 1])));
+    if (totals.every((t) => t.value !== null)) {
+      const sum = Math.round(totals.reduce((s, t) => s + t.value!, 0) * 100) / 100;
+      return extracted(sum, Math.min(...totals.map((t) => t.confidence ?? 0)));
+    }
+  }
   for (const [pattern, confidence] of TOTAL_LABELS) {
     // The last labelled line wins: invoices list "Total" per row before the grand total.
     for (let i = lines.length - 1; i >= 0; i--) {
@@ -159,14 +172,21 @@ function findWarranty(lines: string[]) {
 // ── Line items ──────────────────────────────────────────────────────────
 
 const NOT_AN_ITEM =
-  /\b(sub ?total|total|tax|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|pan|gstin|address|phone|email|page|qty|quantity|description|unit price|rate)\b/i;
+  /\b(sub ?total|total|tax|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|pan|gstin|address|phone|email|page|qty|quantity|description|unit price|rate)\b/i;
 const LABOUR = /\b(labou?r|service|servicing|visit charge|inspection|installation)\b/i;
 /** A numbered table row: "1  Description  ...amounts". */
 const TABLE_ROW = /^\d{1,3}[.)]?\s+(?=.*[a-z]{3})/i;
 
+/** Product codes and tax-code lines that sit between an item's name and its amounts. */
+const TAX_CODE_LINE = /^\s*(hsn|sac)\b/i;
+/** How far below its name an item's row of amounts may be. */
+const MAX_ROW_GAP = 4;
+
 const cleanDescription = (s: string) =>
   s
     .replace(/^\d{1,3}[.)]?\s+/, "")
+    // Leading SKU codes: "UCFBSWSH75090392 - United Colors of Benetton …"
+    .replace(/^[A-Z0-9]{6,}\s+[-–:]\s+/, "")
     .replace(/\s*[|(]?\s*\bHSN\b.*$/i, "")
     .replace(/\s*\|.*$/, "")
     .trim();
@@ -178,11 +198,45 @@ const cleanDescription = (s: string) =>
  */
 function findLines(lines: string[]): ExtractedLine[] {
   const items: ExtractedLine[] = [];
-  for (const raw of lines) {
+  // A name waiting for its amounts: some invoices print the name, then tax
+  // codes, then a row of amounts ("1  Rs 1799.00 … Rs 755.00").
+  let pending: { text: string; at: number } | null = null;
+
+  for (const [i, raw] of lines.entries()) {
+    if (TAX_CODE_LINE.test(raw)) continue;
     const tableRow = TABLE_ROW.test(raw);
-    if (!tableRow && NOT_AN_ITEM.test(raw)) continue;
+    if (!tableRow && NOT_AN_ITEM.test(raw)) {
+      pending = null;
+      continue;
+    }
     const prices = moneyIn(raw);
-    if (prices.length === 0) continue;
+    if (prices.length === 0) {
+      if (!/[a-z]{3}/i.test(raw) && !/^\(.*\)$/.test(raw.trim())) continue;
+      // "(7-8Y)" right under a name continues it; any other text starts a new candidate.
+      const continues: boolean =
+        pending !== null && i - pending.at === 1 && (/^\(/.test(raw) || (raw.length < 25 && !raw.includes(":")));
+      pending = continues && pending ? { text: `${pending.text} ${raw}`, at: i } : { text: raw, at: i };
+      continue;
+    }
+
+    if (!/[a-z]{3}/i.test(raw)) {
+      // A row of amounts only: it belongs to the name just above, if there is one.
+      if (pending && i - pending.at <= MAX_ROW_GAP) {
+        const description = cleanDescription(pending.text);
+        const qty = raw.trim().match(/^(\d{1,3})(?:\.0+)?\s/);
+        if (/[a-z]{3}/i.test(description) && description.length <= 160) {
+          items.push({
+            name: extracted(description, 0.8),
+            quantity: Number(qty?.[1] ?? 1) || 1,
+            price: extracted(prices.at(-1)!, 0.8),
+          });
+        }
+      }
+      pending = null;
+      if (items.length >= 30) break;
+      continue;
+    }
+    pending = null;
 
     const columns = raw.split(/\s{2,}/).map((c) => c.trim());
     const descIndex = columns.findIndex((c) => /[a-z]{3}/i.test(c) && moneyIn(c).length === 0);
@@ -291,7 +345,7 @@ function validate(
   // Line prices are line totals, so they add up without multiplying by quantity.
   const sum = rows.reduce((s, l) => s + (l.price.value ?? 0), 0) + (fields.labourCost?.value ?? 0);
   if (total && rows.length && Math.abs(sum - total) > 1) {
-    reasons.push("Items don't add up to the total. Check for shipping, discounts or a misread price.");
+    reasons.push("Items don't add up to the total. Check for shipping, fees, discounts or a misread price.");
   }
 
   const fieldList = [...Object.values(fields), ...rows.flatMap((l) => [l.name, l.price])];
