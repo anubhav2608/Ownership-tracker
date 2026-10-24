@@ -112,32 +112,44 @@ function UploadTab({ userId }: { userId: string }) {
     );
 
     const imported = results.flatMap((r) => (r.ok ? [r.importId] : []));
-    const duplicates = results.filter((r) => !r.ok && r.reason === "duplicate");
+    // A file uploaded before opens its earlier import instead, read again if it never was.
+    const earlier = results.flatMap((r) => (!r.ok && r.reason === "duplicate" && r.importId ? [r.importId] : []));
+    const attached = results.filter((r) => !r.ok && r.reason === "duplicate" && !r.importId).length;
     for (const r of results) if (!r.ok && r.reason !== "duplicate") toast.error(r.message);
-    if (duplicates.length) {
-      toast(`${duplicates.length} file${duplicates.length > 1 ? "s were" : " was"} already uploaded, skipped`);
+    if (attached) {
+      toast(`${attached} file${attached > 1 ? "s are" : " is"} already attached to a purchase or service, skipped`);
     }
-    if (imported.length === 0) {
+    const all = [...imported, ...earlier];
+    if (all.length === 0) {
       setBusy(null);
       return;
     }
 
     // Read each file now; whatever it finds waits for review, nothing is saved yet.
+    // Earlier imports that were already read or saved are left as they are.
     setBusy("reading");
-    const read = await Promise.all(imported.map((id) => processImport(id).catch(() => null)));
+    const read = await Promise.all(all.map((id) => processImport(id).catch(() => null)));
     setBusy(null);
     setFiles([]);
 
     // A setup problem (e.g. the database migration is missing) affects every file: say so once.
     const setupError = read.flatMap((r) => (r && !r.ok ? [r.message] : []))[0];
     if (setupError?.includes("db push")) toast.error(setupError, { duration: 15000 });
-    const toReview = read.filter((r) => r?.ok && r.status === "needs_review").length;
-    toast.success(
-      toReview === imported.length
-        ? `${imported.length} file${imported.length > 1 ? "s" : ""} read. Check the details and save.`
-        : `${imported.length} file${imported.length > 1 ? "s" : ""} uploaded. ${imported.length - toReview} couldn't be read automatically.`,
-    );
-    router.push(imported.length === 1 ? `/imports/${imported[0]}` : "/imports");
+
+    const readNow = read.filter((r) => r?.ok);
+    const toReview = readNow.filter((r) => r?.ok && r.status === "needs_review").length;
+    const notRead = readNow.length - toReview;
+    if (earlier.length) {
+      toast(`You uploaded ${earlier.length > 1 ? "these files" : "this file"} before, so we opened the earlier import.`);
+    }
+    if (readNow.length) {
+      toast.success(
+        notRead === 0
+          ? `${toReview} file${toReview > 1 ? "s" : ""} read. Check the details and save.`
+          : `${notRead} file${notRead > 1 ? "s" : ""} couldn't be read automatically.${toReview ? ` ${toReview} read and ready to check.` : ""}`,
+      );
+    }
+    router.push(all.length === 1 ? `/imports/${all[0]}` : "/imports");
   }
 
   function addFiles(list: FileList | null) {

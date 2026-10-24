@@ -54,7 +54,15 @@ export async function registerUpload(input: z.input<typeof uploadSchema>): Promi
     .single();
   if (importError || !imp) {
     await removeUpload();
-    if (importError?.code === "23505") return { ok: false, reason: "duplicate" };
+    if (importError?.code === "23505") {
+      const { data: earlier } = await supabase
+        .from("imports")
+        .select("id")
+        .eq("content_sha256", sha256)
+        .is("duplicate_of", null)
+        .maybeSingle();
+      return { ok: false, reason: "duplicate", importId: earlier?.id };
+    }
     console.error("[upload] creating import failed:", importError?.message);
     return { ok: false, reason: "failed", message: "Couldn't save the upload. Please try again." };
   }
