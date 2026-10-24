@@ -77,6 +77,11 @@ interface Outcome {
 
 export type ProcessResult = { ok: true; status: ImportStatus } | { ok: false; message: string };
 
+/** PostgREST reports a function the database doesn't have as PGRST202 (or 42883). */
+const missingFunction = (e: { code?: string }) => e.code === "PGRST202" || e.code === "42883";
+const NOT_MIGRATED =
+  "Reading isn't set up on your database yet. Run `npx supabase db push` to apply the latest migration, then try again.";
+
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 
 const failure = (code: string, message: string, retryable: boolean, stage: ImportStage = "text_extracted"): Outcome => ({
@@ -94,9 +99,11 @@ export async function processImport(importId: string): Promise<ProcessResult> {
   const supabase = await createClient();
 
   const { data: started, error } = await supabase.rpc("start_import_processing", { import_id: importId });
-  if (error || !started) {
-    return { ok: false, message: "This import is already being read, or has been saved." };
+  if (error) {
+    console.error("[imports] start_import_processing failed:", error.code, error.message);
+    return { ok: false, message: missingFunction(error) ? NOT_MIGRATED : "Couldn't start reading. Try again." };
   }
+  if (!started) return { ok: false, message: "This import is already being read, or has been saved." };
 
   let outcome: Outcome;
   try {
@@ -111,8 +118,8 @@ export async function processImport(importId: string): Promise<ProcessResult> {
     outcome: outcome as unknown as Json,
   });
   if (recordError) {
-    console.error("[imports] recording result failed:", recordError.message);
-    return { ok: false, message: "Couldn't save what was read. Try again." };
+    console.error("[imports] recording result failed:", recordError.code, recordError.message);
+    return { ok: false, message: missingFunction(recordError) ? NOT_MIGRATED : "Couldn't save what was read. Try again." };
   }
   return { ok: true, status: outcome.status };
 }

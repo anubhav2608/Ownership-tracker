@@ -128,6 +128,9 @@ function UploadTab({ userId }: { userId: string }) {
     setBusy(null);
     setFiles([]);
 
+    // A setup problem (e.g. the database migration is missing) affects every file: say so once.
+    const setupError = read.flatMap((r) => (r && !r.ok ? [r.message] : []))[0];
+    if (setupError?.includes("db push")) toast.error(setupError, { duration: 15000 });
     const toReview = read.filter((r) => r?.ok && r.status === "needs_review").length;
     toast.success(
       toReview === imported.length
