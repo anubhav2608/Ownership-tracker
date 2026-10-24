@@ -82,7 +82,15 @@ function classify(text: string, merchant?: KnownMerchant): DocumentKind {
 const label = (words: string) => new RegExp(`\\b(?:${words})\\b\\s*(?:no\\.?|number|#|id)?\\s*[:#-]?\\s*`, "i");
 
 function findMerchant(lines: string[], text: string) {
-  const known = MERCHANTS.find((m) => m.pattern.test(text));
+  // Several marketplaces can appear (a Myntra order's transport bill comes from
+  // Flipkart): the one named most often is the seller, the earliest breaks ties.
+  const mentions = (m: KnownMerchant) => {
+    const all = [...text.matchAll(new RegExp(m.pattern.source, "gi"))];
+    return { count: all.length, first: all[0]?.index ?? Infinity };
+  };
+  const known = MERCHANTS.map((m) => ({ m, ...mentions(m) }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count || a.first - b.first)[0]?.m;
   if (known) return { known, field: extracted(known.name, 0.95) };
 
   for (const line of lines) {
@@ -120,11 +128,16 @@ function findRefs(lines: string[], text: string, merchant?: KnownMerchant) {
 }
 
 function findDate(lines: string[]): Tracked<string> {
-  const labelled = /\b(order date|invoice date|date of (purchase|service|invoice)|bill date|service date|dated?)\b/i;
-  for (const line of lines) {
-    if (!labelled.test(line)) continue;
-    const date = parseDate(line.slice(line.search(labelled)));
-    if (date) return extracted(date, 0.92);
+  // The order date is when it was bought; an invoice can be dated a day later.
+  for (const labelled of [
+    /\b(order(ed)? (date|on)|date of (purchase|order|service)|purchase date|service date)\b/i,
+    /\b(invoice date|date of invoice|bill date|dated?)\b/i,
+  ]) {
+    for (const line of lines) {
+      if (!labelled.test(line)) continue;
+      const date = parseDate(line.slice(line.search(labelled)));
+      if (date) return extracted(date, 0.92);
+    }
   }
   for (const line of lines) {
     const date = parseDate(line);
@@ -140,11 +153,14 @@ const TOTAL_LABELS: [RegExp, number][] = [
 
 function findTotal(lines: string[]): Tracked<number> {
   // One PDF can hold several invoices for one order (e.g. the goods, then a
-  // platform fee). What was paid is the sum of their totals.
-  const starts = lines.flatMap((l, i) => (/^tax invoice\b/i.test(l) ? [i] : []));
-  if (starts.length > 1) {
-    const totals = starts.map((start, n) => findTotal(lines.slice(start + 1, starts[n + 1])));
-    if (totals.every((t) => t.value !== null)) {
+  // platform fee). What was paid is the sum of their totals; a bill of supply
+  // for transport is reported separately (see parseDocument), not added.
+  const sections = documentSections(lines);
+  if (sections.length > 1) {
+    const totals = sections
+      .filter((s) => s.kind === "invoice")
+      .map((s) => findTotal(lines.slice(s.start + 1, s.end)));
+    if (totals.length && totals.every((t) => t.value !== null)) {
       const sum = Math.round(totals.reduce((s, t) => s + t.value!, 0) * 100) / 100;
       return extracted(sum, Math.min(...totals.map((t) => t.confidence ?? 0)));
     }
@@ -206,7 +222,7 @@ function findWarranty(lines: string[]) {
 // ── Line items ──────────────────────────────────────────────────────────
 
 const NOT_AN_ITEM =
-  /\b(sub ?total|total|tax|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|pan|gstin|address|phone|email|page|qty|quantity|description|unit price|rate)\b/i;
+  /\b(sub ?total|total|tax|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|charges?|freight|transport(ation)?|handling|packing|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|pan|gstin|address|phone|email|page|qty|quantity|description|unit price|rate)\b/i;
 const LABOUR = /\b(labou?r|service|servicing|visit charge|inspection|installation)\b/i;
 /** A numbered table row: "1  Description  ...amounts". */
 const TABLE_ROW = /^\d{1,3}[.)]?\s+(?=.*[a-z]{3})/i;
@@ -220,10 +236,80 @@ const cleanDescription = (s: string) =>
   s
     .replace(/^\d{1,3}[.)]?\s+/, "")
     // Leading SKU codes: "UCFBSWSH75090392 - United Colors of Benetton …"
-    .replace(/^[A-Z0-9]{6,}\s+[-–:]\s+/, "")
+    .replace(/^[A-Z0-9]{6,}(?:\([^)]*\))?\s*[-–:]\s+/, "")
     .replace(/\s*[|(]?\s*\bHSN\b.*$/i, "")
     .replace(/\s*\|.*$/, "")
     .trim();
+
+/** Where an address block starts: everything until the items table is address, not items. */
+const ADDRESS_START =
+  /\b(bill(ed)? (to|from)|ship(ped)? (to|from)|deliver(y|ed)? to|billing address|shipping address|delivery address|sold by|seller details|customer details|consignor|consignee|destination|place of origin|reg(istered)?\.? address)\b/i;
+/** Registration numbers and invoice metadata, never items. */
+const IDENTITY_LINE =
+  /\b(gstin|gst ?(no|number|reg)|pan|cin|fssai|state code|place of supply|customer type|nature of (transaction|supply)|packet ?id|e\.? ?& ?o\.? ?e)\b/i;
+/** The items table's header: several column names on one line. */
+const TABLE_HEADER_WORDS = /\b(qty|quantity|description|particulars|item|product|amount|total|rate|price|mrp|hsn|sac|value|gross|discount|taxable)\b/gi;
+const isTableHeader = (line: string) => new Set(line.toLowerCase().match(TABLE_HEADER_WORDS) ?? []).size >= 2;
+/** After these, the rest of the section is declarations and transport details, not items. */
+const END_OF_ITEMS =
+  /\b(details of goods transported|terms (&|and) conditions|declaration|authori[sz]ed signatory|amount in words)\b/i;
+
+const rupees = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+
+/** Explains totals of PDFs that hold several documents. */
+function sectionNotes(lines: string[], items: ExtractedLine[]): { messages: string[]; explained: boolean } {
+  const sections = documentSections(lines);
+  if (sections.length < 2) return { messages: [], explained: false };
+  const totalOf = (s: { start: number; end: number }) => findTotal(lines.slice(s.start + 1, s.end)).value;
+  const invoices = sections.filter((s) => s.kind === "invoice").map(totalOf).filter((v): v is number => v !== null);
+  const supplies = sections.filter((s) => s.kind === "supply").map(totalOf).filter((v): v is number => v !== null);
+  const notes: string[] = [];
+  const itemSum = items.reduce((s, l) => s + (l.price.value ?? 0), 0);
+  // Items match the first invoice exactly: the others are fees charged alongside.
+  const explained = invoices.length > 1 && Math.abs(itemSum - invoices[0]) <= 1;
+  if (explained) {
+    const extra = invoices.slice(1);
+    notes.push(
+      `The items come to ${rupees(invoices[0])}. The PDF also has ${extra.length === 1 ? "an invoice" : "invoices"} for ${extra.map(rupees).join(" + ")} (such as a platform fee), included in the total.`,
+    );
+  } else if (invoices.length > 1) {
+    notes.push(`This PDF holds ${invoices.length} invoices (${invoices.map(rupees).join(" + ")}); the total adds them up.`);
+  }
+  for (const v of supplies) {
+    notes.push(`It also has a bill of supply (${rupees(v)}, usually transport) that isn't added to the total. Add it if you paid it.`);
+  }
+  return { messages: notes, explained };
+}
+
+/**
+ * A long product name wraps onto the next line ("… White T-" / "Shirts, Size: L",
+ * "… Size: L" / "(7-8Y)"); anything else starts a new name.
+ */
+function continuePending(pending: { text: string; at: number } | null, raw: string, i: number) {
+  const line = raw.trim();
+  if (pending && i - pending.at === 1) {
+    const prev = pending.text.trimEnd();
+    if (/[-–/]$/.test(prev)) return { text: prev + line, at: i };
+    if (/[,&(]$/.test(prev) || /^[(a-z]/.test(line) || (line.length < 25 && !line.includes(":"))) {
+      return { text: `${prev} ${line}`, at: i };
+    }
+  }
+  return { text: line, at: i };
+}
+
+/** "Tax Invoice" and "Bill of Supply" sections when one PDF holds several documents. */
+export function documentSections(lines: string[]) {
+  const sections: { kind: "invoice" | "supply"; start: number; end: number }[] = [];
+  for (const [i, line] of lines.entries()) {
+    const kind = /^tax invoice\b/i.test(line) ? "invoice" : /^bill of supply\b/i.test(line) ? "supply" : null;
+    if (!kind) continue;
+    const last = sections.at(-1);
+    if (last && last.kind === kind && i - last.start <= 2) continue; // "Bill of Supply" / "Bill of Supply Details"
+    if (last) last.end = i;
+    sections.push({ kind, start: i, end: lines.length });
+  }
+  return sections;
+}
 
 /**
  * Item rows with their line total (the amount paid for that line, which is
@@ -235,8 +321,37 @@ function findLines(lines: string[]): ExtractedLine[] {
   // A name waiting for its amounts: some invoices print the name, then tax
   // codes, then a row of amounts ("1  Rs 1799.00 … Rs 755.00").
   let pending: { text: string; at: number } | null = null;
+  // Address blocks run until the items table; a bill of supply (transport) and
+  // the declarations after the items hold no items at all.
+  let inAddress = false;
+  let skipSection = false;
 
   for (const [i, raw] of lines.entries()) {
+    if (/^(tax invoice|invoice|bill of supply)\b/i.test(raw)) {
+      skipSection = /^bill of supply\b/i.test(raw);
+      inAddress = false;
+      pending = null;
+      continue;
+    }
+    if (skipSection) continue;
+    if (END_OF_ITEMS.test(raw)) {
+      skipSection = true;
+      pending = null;
+      continue;
+    }
+    if (inAddress) {
+      if (isTableHeader(raw)) inAddress = false;
+      continue;
+    }
+    if (ADDRESS_START.test(raw)) {
+      inAddress = !isTableHeader(raw);
+      pending = null;
+      continue;
+    }
+    if (IDENTITY_LINE.test(raw)) {
+      pending = null;
+      continue;
+    }
     if (TAX_CODE_LINE.test(raw)) continue;
     const tableRow = TABLE_ROW.test(raw);
     if (!tableRow && NOT_AN_ITEM.test(raw)) {
@@ -246,10 +361,7 @@ function findLines(lines: string[]): ExtractedLine[] {
     const prices = moneyIn(raw);
     if (prices.length === 0) {
       if (!/[a-z]{3}/i.test(raw) && !/^\(.*\)$/.test(raw.trim())) continue;
-      // "(7-8Y)" right under a name continues it; any other text starts a new candidate.
-      const continues: boolean =
-        pending !== null && i - pending.at === 1 && (/^\(/.test(raw) || (raw.length < 25 && !raw.includes(":")));
-      pending = continues && pending ? { text: `${pending.text} ${raw}`, at: i } : { text: raw, at: i };
+      pending = continuePending(pending, raw, i);
       continue;
     }
 
@@ -335,7 +447,19 @@ export function parseDocument(lines: string[]): ParseOutcome {
   }
 
   corroborate(fields, documentKind === "service_receipt" ? parts : lineItems);
+  const notes = sectionNotes(clean, lineItems);
+  if (notes.explained && fields.total) {
+    // Items that add up exactly to the first invoice vouch for its total and for themselves.
+    fields.total.confidence = Math.max(fields.total.confidence ?? 0, 0.95);
+    for (const l of lineItems) if (l.price.state === "extracted") l.price.confidence = Math.max(l.price.confidence ?? 0, 0.95);
+  }
   const reviewReasons = validate(documentKind, fields, lineItems, parts);
+  if (notes.explained) {
+    // The difference is the other invoices in the PDF (a platform fee), not a misread price.
+    const i = reviewReasons.findIndex((r) => r.startsWith("Items don't add up"));
+    if (i >= 0) reviewReasons.splice(i, 1);
+  }
+  reviewReasons.push(...notes.messages);
   return {
     ok: true,
     extraction: {
@@ -379,6 +503,13 @@ export function mergeExtractions(primary: Extraction, others: Extraction[]): Ext
   const isService = primary.documentKind === "service_receipt";
   corroborate(fields, isService ? parts : lines);
   const reviewReasons = validate(primary.documentKind, fields, lines, parts);
+  // Notes about the lead document's own layout (several invoices in one PDF) still apply.
+  const layoutNotes = primary.reviewReasons.filter((r) => /^(The items come to|This PDF holds|It also has a bill of supply)/.test(r));
+  if (layoutNotes.some((r) => r.startsWith("The items come to"))) {
+    const i = reviewReasons.findIndex((r) => r.startsWith("Items don't add up"));
+    if (i >= 0) reviewReasons.splice(i, 1);
+  }
+  reviewReasons.push(...layoutNotes);
   if (filled) reviewReasons.push("Some details were filled in from the email around the attachment.");
   return { ...primary, fields, lines, parts, reviewReasons };
 }

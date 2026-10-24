@@ -5,7 +5,10 @@ const MONTHS: Record<string, number> = {
 };
 
 /** Matches amounts like ₹1,24,900.00 · Rs. 649 · INR 29990 · 1,499.50 */
-export const AMOUNT = /(?:₹|rs\.?|inr)?\s*(\d{1,3}(?:,\d{2,3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)(?![\d,])/gi;
+// Thousands are grouped Western (31,489) or Indian (1,24,900) style; other
+// comma-separated numbers ("70/2,70/3" in an address) aren't amounts.
+export const AMOUNT =
+  /(?:₹|rs\.?|inr)?\s*(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d{1,2}(?:,\d{2})+,\d{3}(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)(?![\d,])/gi;
 
 /** All amounts on a line, in order. */
 export function amountsIn(line: string): number[] {

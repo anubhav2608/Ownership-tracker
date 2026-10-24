@@ -1,22 +1,196 @@
 import type { Category } from "@/lib/types";
 
-// A starting category for an extracted line. Only a default for the review
-// screen: the user sees it and can change it before saving.
+// A starting category for an extracted line, from the words in its name. Only
+// a default for the review screen: the user sees it and can change it.
+//
+// Every category scores the name: product words ("t-shirt", "refrigerator")
+// count most, then telling details ("Size: L", "128 GB"), then brands; the
+// merchant can tip a close call (Myntra sells clothes). The best score wins;
+// with no evidence at all the line is Miscellaneous.
 
-const RULES: [Category, RegExp][] = [
-  ["Accessories", /\b(case|cover|cable|charger|adapter|screen guard|protector|strap|band|stand|mount|pouch|sleeve|wallet|belt|cap|sunglasses)\b/i],
-  ["Vehicle", /\b(car|scooter|motorcycle|bike|tyre|tire|helmet)\b/i],
-  ["Appliances", /\b(ac|air conditioner|refrigerator|fridge|washing machine|microwave|oven|purifier|geyser|heater|dishwasher|vacuum|mixer|grinder|fan|chimney|cooler|fryer|air fryer|toaster|iron|induction|cooktop|blender|juicer)\b/i],
-  ["Clothing", /\b(shirt|t-shirt|tshirt|sweatshirt|hoodie|pullover|sweater|jacket|coat|jeans|trousers|pants|shorts|skirt|dress|kurta|kurti|saree|sari|top|leggings|shoes|sneakers|sandals|socks|innerwear|blazer|tracksuit|joggers)\b/i],
-  ["Furniture", /\b(sofa|chair|table|desk|bed|mattress|wardrobe|shelf|cabinet|recliner)\b/i],
-  ["Home", /\b(curtain|bedsheet|towel|cookware|lamp|rug|carpet|pillow|bottle|kettle)\b/i],
+type Rule = { words: string[]; weight: number };
+
+const PRODUCT = 3;
+const DETAIL = 2;
+const BRAND = 1;
+const HEAD_NOUN = 1.5;
+
+const RULES: Record<Exclude<Category, "Miscellaneous">, Rule[]> = {
+  Clothing: [
+    {
+      weight: PRODUCT,
+      words: [
+        "t shirt", "tshirt", "tee", "shirt", "sweatshirt", "hoodie", "pullover", "sweater", "cardigan", "jacket",
+        "coat", "blazer", "jeans", "denim", "trouser", "pant", "chino", "shorts", "skirt", "dress", "gown", "top",
+        "tunic", "kurta", "kurti", "saree", "sari", "lehenga", "dupatta", "salwar", "legging", "jegging", "jogger",
+        "track pant", "tracksuit", "innerwear", "brief", "boxer", "bra", "vest", "nightwear", "pyjama", "pajama",
+        "co ord", "jumpsuit", "dungaree", "shoe", "sneaker", "sandal", "slipper", "flip flop", "boot", "loafer",
+        "heel", "sock", "cap", "beanie", "scarf", "stole",
+      ],
+    },
+    {
+      weight: DETAIL,
+      words: [
+        "size", "regular fit", "slim fit", "relaxed fit", "oversized", "round neck", "v neck", "polo",
+        "full sleeve", "half sleeve", "short sleeve", "sleeveless", "cotton", "printed", "solid", "striped",
+        "checked", "men", "women", "boys", "girls", "kids", "unisex",
+      ],
+    },
+    {
+      weight: BRAND,
+      words: [
+        "united colors of benetton", "benetton", "souled store", "levi", "zara", "h m", "roadster", "hrx",
+        "allen solly", "van heusen", "peter england", "louis philippe", "us polo", "jack jones", "biba", "w for woman",
+        "puma", "nike", "adidas", "reebok", "jockey", "bewakoof", "mango", "vero moda", "fabindia",
+      ],
+    },
+  ],
+  Electronics: [
+    {
+      weight: PRODUCT,
+      words: [
+        "phone", "smartphone", "mobile", "iphone", "laptop", "notebook", "macbook", "tablet", "ipad", "tv",
+        "television", "monitor", "headphone", "earphone", "earbud", "airpod", "speaker", "soundbar", "camera",
+        "smartwatch", "watch", "keyboard", "mouse", "router", "console", "playstation", "xbox", "printer", "ssd",
+        "hard drive", "pen drive", "power bank", "projector", "kindle", "drone", "gimbal",
+      ],
+    },
+    {
+      weight: DETAIL,
+      words: [
+        "gb", "tb", "ram", "rom", "mah", "inch", "4k", "uhd", "oled", "qled", "led", "hdmi", "bluetooth", "wireless",
+        "wifi", "5g", "anc", "noise cancelling", "processor",
+      ],
+    },
+    {
+      weight: BRAND,
+      words: [
+        "sony", "samsung", "apple", "oneplus", "xiaomi", "redmi", "realme", "vivo", "oppo", "motorola", "nokia",
+        "boat", "jbl", "bose", "sennheiser", "lenovo", "hp", "dell", "asus", "acer", "msi", "canon", "nikon",
+        "logitech", "fire boltt", "google pixel",
+      ],
+    },
+  ],
+  Appliances: [
+    {
+      weight: PRODUCT,
+      words: [
+        "ac", "air conditioner", "refrigerator", "fridge", "washing machine", "washer", "dryer", "microwave", "oven",
+        "otg", "air purifier", "water purifier", "purifier", "geyser", "water heater", "room heater", "dishwasher",
+        "vacuum", "mixer", "grinder", "juicer", "blender", "fan", "chimney", "cooler", "air fryer", "fryer",
+        "toaster", "iron", "induction", "cooktop", "hob", "kettle", "rice cooker", "sandwich maker", "coffee maker",
+        "trimmer", "hair dryer", "straightener",
+      ],
+    },
+    { weight: DETAIL, words: ["ton", "litre", "liter", "star rating", "inverter", "front load", "top load", "watt"] },
+    {
+      weight: BRAND,
+      words: [
+        "lg", "whirlpool", "haier", "voltas", "daikin", "blue star", "godrej", "ifb", "bosch", "philips", "bajaj",
+        "prestige", "havells", "crompton", "usha", "kent", "aquaguard", "eureka forbes", "morphy richards",
+        "dyson", "panasonic", "hitachi", "lloyd",
+      ],
+    },
+  ],
+  Vehicle: [
+    {
+      weight: PRODUCT,
+      words: ["car", "scooter", "motorcycle", "motorbike", "bike", "bicycle", "cycle", "tyre", "tire", "helmet"],
+    },
+    { weight: DETAIL, words: ["cc", "petrol", "diesel", "ex showroom", "registration", "chassis"] },
+    {
+      weight: BRAND,
+      words: ["maruti", "hyundai", "tata motors", "mahindra", "honda", "toyota", "kia", "hero", "tvs", "royal enfield", "ather", "ola electric", "yamaha"],
+    },
+  ],
+  Furniture: [
+    {
+      weight: PRODUCT,
+      words: [
+        "sofa", "chair", "table", "desk", "bed", "mattress", "wardrobe", "almirah", "shelf", "bookshelf", "cabinet",
+        "recliner", "stool", "bench", "dresser", "tv unit", "shoe rack", "side table", "dining set",
+      ],
+    },
+    { weight: DETAIL, words: ["seater", "sheesham", "engineered wood", "plywood", "queen size", "king size", "ergonomic"] },
+    { weight: BRAND, words: ["ikea", "urban ladder", "pepperfry", "wakefit", "sleepwell", "durian", "nilkamal", "featherlite"] },
+  ],
+  Accessories: [
+    {
+      weight: PRODUCT,
+      words: [
+        "case", "cover", "back cover", "cable", "charger", "adapter", "screen guard", "screen protector",
+        "tempered glass", "strap", "stand", "mount", "pouch", "sleeve", "wallet", "belt", "sunglasses",
+        "bag", "backpack", "handbag", "luggage", "trolley", "watch strap", "ring", "earring", "necklace", "bracelet",
+      ],
+    },
+    { weight: DETAIL, words: ["compatible with", "for iphone", "for samsung", "usb c", "type c", "lightning"] },
+    { weight: BRAND, words: ["spigen", "anker", "portronics", "wildcraft", "american tourister", "skybags", "fastrack"] },
+  ],
+  Home: [
+    {
+      weight: PRODUCT,
+      words: [
+        "curtain", "bedsheet", "bed sheet", "blanket", "comforter", "quilt", "dohar", "towel", "pillow", "cushion",
+        "cookware", "pan", "kadai", "pressure cooker", "tawa", "dinner set", "cutlery", "lamp", "bulb", "rug",
+        "carpet", "doormat", "bottle", "flask", "lunch box", "container", "storage box", "mop", "bucket",
+        "decor", "vase", "photo frame", "clock",
+      ],
+    },
+    { weight: DETAIL, words: ["kitchen", "bathroom", "living room", "bedroom", "home"] },
+    { weight: BRAND, words: ["milton", "cello", "borosil", "pigeon", "hawkins", "solimo", "home centre", "bombay dyeing"] },
+  ],
+};
+
+/** Merchants that mostly sell one kind of thing tip close calls. */
+const MERCHANT_HINTS: [RegExp, Category][] = [
+  [/\b(myntra|ajio|souled store|nykaa fashion|meesho|bewakoof|h&m|zara|westside|lifestyle|max fashion|pantaloons|trends)\b/i, "Clothing"],
+  [/\b(croma|reliance digital|vijay sales|apple|samsung)\b/i, "Electronics"],
+  [/\b(urban ladder|pepperfry|ikea|wakefit)\b/i, "Furniture"],
 ];
 
-/** Weaker hints, checked only when nothing above matched. */
-const FALLBACK: [Category, RegExp][] = [
-  ["Electronics", /\b(phone|laptop|tablet|tv|television|monitor|headphones?|earbuds|speaker|camera|watch|keyboard|mouse|router|console|printer|ssd|hard drive|power bank|wireless|bluetooth)\b/i],
-];
+/** Lowercase words only: "T-Shirts," → "t shirts". */
+const normalise = (s: string) => ` ${s.toLowerCase().replace(/&/g, " ").replace(/[^a-z0-9]+/g, " ").trim()} `;
 
-export function guessCategory(name: string): Category {
-  return RULES.find(([, re]) => re.test(name))?.[0] ?? FALLBACK.find(([, re]) => re.test(name))?.[0] ?? "Miscellaneous";
+/** A phrase as whole words, allowing a plural ("t shirt" matches "t shirts", "dress" matches "dresses"). */
+const phrase = (words: string) => new RegExp(` ${words.replace(/ /g, " ")}(?:s|es)? `);
+
+const COMPILED = Object.entries(RULES).map(([category, rules]) => ({
+  category: category as Category,
+  rules: rules.map((r) => ({ weight: r.weight, patterns: r.words.map(phrase) })),
+}));
+
+/** Clothing sizes like "Size: L", "(7-8Y)", "XL". */
+const SIZE = /\bsize\s*[:-]?\s*(xxs|xs|s|m|l|xl|xxl|xxxl|\d{1,2}y?|\d{2})\b|\(\s*\d{1,2}\s*-\s*\d{1,2}\s*y\s*\)|\b\d{1,2}-\d{1,2}\s*(y|yrs|years)\b/i;
+
+export function guessCategory(name: string, merchant?: string | null): Category {
+  const text = normalise(name);
+  const scores = new Map<Category, number>();
+  // Where the category's product word ends: in "car charger" the last noun is the thing bought.
+  const headAt = new Map<Category, number>();
+
+  for (const { category, rules } of COMPILED) {
+    let score = 0;
+    for (const { weight, patterns } of rules) {
+      // A group counts once, however many of its words match: "shirt" in "t-shirt" isn't extra evidence.
+      const hits = patterns.map((p) => text.search(p)).filter((at) => at >= 0);
+      if (!hits.length) continue;
+      score += weight;
+      if (weight === PRODUCT) headAt.set(category, Math.max(...hits));
+    }
+    if (score) scores.set(category, score);
+  }
+  if (SIZE.test(name)) scores.set("Clothing", (scores.get("Clothing") ?? 0) + DETAIL);
+  // With product words from several categories ("headphone carry case"), the last one is the thing bought.
+  if (headAt.size > 1) {
+    const [head] = [...headAt].sort((a, b) => b[1] - a[1])[0];
+    scores.set(head, (scores.get(head) ?? 0) + HEAD_NOUN);
+  }
+
+  const hinted = merchant ? MERCHANT_HINTS.find(([re]) => re.test(merchant))?.[1] : undefined;
+  if (hinted && scores.size) scores.set(hinted, (scores.get(hinted) ?? 0) + 0.5);
+
+  const [best] = [...scores].sort((a, b) => b[1] - a[1] || (headAt.get(b[0]) ?? -1) - (headAt.get(a[0]) ?? -1));
+  // Details or a brand alone aren't enough to file it; a product word, or several hints together, are.
+  if (!best || best[1] < DETAIL + BRAND) return hinted && best?.[0] === hinted ? hinted : "Miscellaneous";
+  return best[0];
 }

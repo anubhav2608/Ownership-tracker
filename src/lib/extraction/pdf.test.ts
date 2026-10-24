@@ -10,10 +10,15 @@ type Row = string | [x: number, text: string][];
 
 async function makePdf(rows: Row[]): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  const page = doc.addPage([842, 595]);
+  let page = doc.addPage([842, 595]);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   let y = 560;
   for (const row of rows) {
+    // Long documents continue on the next page, like real multi-page invoices.
+    if (y < 40) {
+      page = doc.addPage([842, 595]);
+      y = 560;
+    }
     const cells = typeof row === "string" ? [[40, row] as [number, string]] : row;
     for (const [x, text] of cells) page.drawText(text, { x, y, size: 9, font });
     y -= 18;
@@ -124,7 +129,84 @@ describe("extractPdfText + parseDocument", () => {
       ["Example Brand Girls Cotton Hoodie, Size: M (9-10Y)", 899],
       ["Example Brand Girls Denim Jacket, Size: S", 1499],
     ]);
-    expect(x.reviewReasons[0]).toMatch(/fees/);
+    expect(x.reviewReasons).toContain(
+      "The items come to ₹2,398. The PDF also has an invoice for ₹20 (such as a platform fee), included in the total.",
+    );
+    expect(x.reviewReasons.some((r) => r.startsWith("Items don't add up"))).toBe(false);
+  });
+
+  it("ignores addresses, GSTINs, tax breakups and a transport bill of supply", async () => {
+    // Fictional; laid out like a marketplace order PDF with a seller invoice, a
+    // platform-fee invoice and a transport bill of supply from another company.
+    const AMT = [40, 70, 160, 250, 330, 400, 460, 520];
+    const amounts = (cells: string[]): Row => cells.map((c, i) => [AMT[i], c] as [number, string]);
+    const pdf = await makePdf([
+      "Tax Invoice",
+      [[40, "Invoice Number: X2727TE000000001"], [400, "PacketID: 1000000000001"]],
+      [[40, "Order Number: 2000001-3000002-4000003"], [400, "Invoice Date: 09 May 2026"]],
+      [[40, "Nature of Transaction: Inter-State"], [400, "Order Date: 08 May 2026"]],
+      "Bill to / Ship to:",
+      "Asha Example",
+      "Customer Type: Unregistered",
+      "B 706 Example Society sector omega-1 Greater",
+      "Noida - 201310 UP, India",
+      [[40, "Bill From:"], [400, "Ship From:"]],
+      [[40, "EXAMPLE APPAREL PVT. LTD."], [400, "EXAMPLE APPAREL PVT. LTD."]],
+      "Survey Nos. 68/2,69,70/1,70/2,70/3A, 70/8B,71/1A, K Square Industrial Park",
+      "Padagha, maharashtra- 421101",
+      "GSTIN Number: 27AAECT0000L1ZI",
+      [[40, "Gross"], [160, "Other"], [250, "Taxable"], [400, "SGST/"]],
+      [[40, "Qty"], [100, "Discount"], [330, "CGST"], [460, "IGST"], [520, "Total Amount"]],
+      "EXT123272808(324370) - Example Apparel Women Regular Fit Printed White T-",
+      "Shirts, Size: L",
+      "HSN: 61091000, 5.0% IGST",
+      amounts(["1", "Rs 799.00", "Rs 359.00", "Rs 0.00", "Rs 419.05", "Rs 20.95", "", "Rs 440.00"]),
+      "EXT126761744(332803) - Example Apparel Women Regular Fit Solid Orange T-Shirts, Size: L",
+      "HSN: 61091000, 5.0% IGST",
+      amounts(["1", "Rs 699.00", "Rs 244.00", "Rs 0.00", "Rs 433.33", "Rs 21.67", "", "Rs 455.00"]),
+      [[40, "TOTAL"], [160, "Rs 1498.00"], [520, "Rs 895.00"]],
+      "Authorized Signatory",
+      "Reg Address: EXAMPLE APPAREL PVT. LTD., F6 - 202, Example Industrial Park, Mumbai-421302",
+      "Questions? Visit www.myntra.com/contactus",
+      "Tax Invoice",
+      [[40, "Invoice Number: X2927MY000000002"], [400, "Date: 08 May 2026"]],
+      [[40, "Bill to / Ship to:"], [400, "Seller Details"]],
+      [[40, "Asha Example"], [400, "MYNTRA DESIGNS PVT LTD"]],
+      [[40, "Customer Type: Unregistered"], [400, "GSTIN Number: 29AAECM0000P1ZJ"]],
+      [[40, "Qty"], [100, "Gross Amount"], [460, "IGST"], [520, "Total Amount"]],
+      "Platform Fee",
+      "HSN: 999799, 18.0% IGST",
+      amounts(["1.0", "Rs 23.00", "Rs 0.00", "Rs 0.00", "Rs 19.49", "Rs 3.51", "", "Rs 23.00"]),
+      [[40, "TOTAL"], [160, "Rs 23.00"], [520, "Rs 23.00"]],
+      "Bill of Supply",
+      "Bill of Supply Details",
+      "Order Number : 200000130000024000003",
+      [[40, "Billed From"], [400, "Billed To"]],
+      [[40, "Flipkart India Private Limited"], [400, "Asha Example"]],
+      [[40, "Warehouse no. 9,Survey Nos 42/2,42/3,51/2,51/3,51/4"], [400, "B 706 Example Society"]],
+      [[40, "GSTIN : 27AABCF0000M1Z1"], [400, "State Code : UP"]],
+      [[40, "Particulars"], [160, "SAC"], [250, "Qty"], [330, "Gross"], [520, "Total"]],
+      [[40, "GT charges"], [160, "996511"], [250, "2.0"], [330, "Rs 306.00"], [520, "Rs 306.00"]],
+      [[40, "Total"], [250, "2.0"], [520, "Rs 306.00"]],
+      "DETAILS OF GOODS TRANSPORTED BY GTA SUPPLIER",
+      [[40, "Example Apparel"], [160, "2.0"], [250, "1.0 KG"], [330, "895.0"]],
+      "Consignor details:Flipkart India Private Limited (on behalf",
+      "of Asha Example ) /2,51/3,51/4,51/5B, K Square Logistics Park",
+    ]);
+    const outcome = parseDocument((await extractPdfText(pdf)).lines);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const x = outcome.extraction;
+    expect(x.fields.merchant?.value).toBe("Myntra");
+    expect(x.fields.orderRef?.value).toBe("2000001-3000002-4000003");
+    expect(x.fields.total?.value).toBe(918);
+    expect(x.lines.map((l) => [l.name.value, l.price.value])).toEqual([
+      ["Example Apparel Women Regular Fit Printed White T-Shirts, Size: L", 440],
+      ["Example Apparel Women Regular Fit Solid Orange T-Shirts, Size: L", 455],
+    ]);
+    expect(x.reviewReasons).toContain(
+      "It also has a bill of supply (₹306, usually transport) that isn't added to the total. Add it if you paid it.",
+    );
   });
 
   it("finds no text in a scanned page", async () => {

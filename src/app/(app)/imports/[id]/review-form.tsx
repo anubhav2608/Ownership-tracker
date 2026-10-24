@@ -71,7 +71,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
     Object.fromEntries(Object.entries(f).map(([k, v]) => [k, toDraft(v)])),
   );
   const [lines, setLines] = useState<LineDraft[]>(() =>
-    (record.lines ?? []).map((l) => ({ ...lineDraft(l), category: guessCategory(String(l.name.value ?? "")), target: "new" })),
+    (record.lines ?? []).map((l) => ({ ...lineDraft(l), category: guessCategory(String(l.name.value ?? ""), f.merchant?.value), target: "new" })),
   );
   const [parts] = useState(() => (record.parts ?? []).map(lineDraft));
   const [warrantyFor, setWarrantyFor] = useState(() => defaultWarrantyLine(record.lines ?? []));
@@ -98,7 +98,13 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   const kept = lines.filter((l) => l.target === "new");
   const lineSum = kept.reduce((s, l) => s + (Number(l.price.value) || 0), 0);
   const total = Number(fields.total?.value) || 0;
-  const totalMismatch = !isService && kept.length > 0 && total > 0 && Math.abs(lineSum - total) > 0.005;
+  // When the PDF holds other invoices (a platform fee), the items match the first one, not the total.
+  const itemsInvoice = Number(
+    record.reviewReasons?.find((r) => r.startsWith("The items come to"))?.match(/₹([\d,.]+)/)?.[1].replace(/,/g, "") ?? NaN,
+  );
+  const explainedByFees = Math.abs(lineSum - itemsInvoice) <= 0.005;
+  const totalMismatch =
+    !isService && kept.length > 0 && total > 0 && Math.abs(lineSum - total) > 0.005 && !explainedByFees;
 
   const assetResolved = !isService || serviceItem !== "";
   const lowConfidenceLeft = [...Object.values(fields), ...lines.flatMap((l) => [l.name, l.price])].some(

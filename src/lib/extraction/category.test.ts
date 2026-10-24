@@ -19,4 +19,27 @@ describe("guessCategory", () => {
   it("doesn't match words inside other words", () => {
     expect(guessCategory("Bluetooth Speaker Pack")).toBe("Electronics");
   });
+
+  it("reads plurals, hyphens and sizes", () => {
+    expect(guessCategory("TSS Women Regular Fit Solid Orange T-Shirts, Size: L")).toBe("Clothing");
+    expect(guessCategory("Slim Fit Jeans")).toBe("Clothing");
+    expect(guessCategory("Printed Cotton Dresses (7-8Y)")).toBe("Clothing");
+  });
+
+  it("weighs the thing bought over what it's for", () => {
+    expect(guessCategory("Car Charger 30W Dual USB")).toBe("Accessories");
+    expect(guessCategory("Sony Headphone Carry Case")).toBe("Accessories");
+    expect(guessCategory("Washing Machine Cover")).toBe("Accessories");
+    expect(guessCategory("Silicone Case for iPhone 16")).toBe("Accessories");
+    expect(guessCategory("Back Cover for Samsung Galaxy S24")).toBe("Accessories");
+    expect(guessCategory("Samsung Galaxy S24 5G (8 GB RAM, 256 GB)")).toBe("Electronics");
+    expect(guessCategory("Whirlpool 1.5 Ton 3 Star Inverter Split AC")).toBe("Appliances");
+    expect(guessCategory("Prestige Pressure Cooker 5 Litre")).toBe("Home");
+  });
+
+  it("uses brands and the merchant only to tip close calls", () => {
+    expect(guessCategory("Sony")).toBe("Miscellaneous");
+    expect(guessCategory("Roadster Men Regular Fit")).toBe("Clothing");
+    expect(guessCategory("Graphic Print Co-ord Set", "Myntra")).toBe("Clothing");
+  });
 });

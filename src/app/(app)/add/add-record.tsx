@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { guessCategory } from "@/lib/extraction/category";
 import { formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { CATEGORIES, type Category } from "@/lib/types";
@@ -245,11 +246,13 @@ interface LineRow {
   key: number;
   name: string;
   category: Category;
+  /** Once the user picks a category, typing the name no longer changes it. */
+  categoryChosen?: boolean;
   price: string;
 }
 
 let nextKey = 0;
-const newLine = (): LineRow => ({ key: nextKey++, name: "", category: "Electronics", price: "" });
+const newLine = (): LineRow => ({ key: nextKey++, name: "", category: "Miscellaneous", price: "" });
 
 const text = (form: FormData, name: string) => String(form.get(name) ?? "").trim();
 const optionalText = (form: FormData, name: string) => text(form, name) || undefined;
@@ -471,13 +474,19 @@ function ManualTab({
                   placeholder="Item name, e.g. Refrigerator"
                   required
                   value={l.name}
-                  onChange={(e) => update(l.key, { name: e.target.value })}
+                  onChange={(e) =>
+                    update(l.key, {
+                      name: e.target.value,
+                      // The category follows the name's keywords until the user picks one.
+                      ...(l.categoryChosen ? {} : { category: guessCategory(e.target.value) }),
+                    })
+                  }
                 />
                 <NativeSelect
                   aria-label={`Item ${i + 1} category`}
                   wrapperClassName="w-full"
                   value={l.category}
-                  onChange={(e) => update(l.key, { category: e.target.value as Category })}
+                  onChange={(e) => update(l.key, { category: e.target.value as Category, categoryChosen: true })}
                 >
                   {CATEGORIES.map((c) => (
                     <NativeSelectOption key={c}>{c}</NativeSelectOption>
