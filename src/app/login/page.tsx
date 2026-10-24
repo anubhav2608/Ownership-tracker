@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { signInWithEmail, signInWithGoogle } from "./actions";
+import { ClearErrorParam } from "./clear-error-param";
 
 export const metadata: Metadata = { title: "Log in" };
 
@@ -22,7 +23,7 @@ const errors: Record<string, string> = {
   key: "Supabase rejected the API key. Check NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in .env.local, then restart the app.",
   disabled:
     "Email sign-in is turned off for this project. Enable it under Authentication → Sign In / Providers → Email.",
-  rate: "Too many attempts. Wait a minute and try again.",
+  rate: "Supabase's built-in email sends only a few sign-in emails per hour. Wait about an hour, or use Continue with Google.",
   link: "That sign-in link has expired or was already used. Request a new one.",
   oauth: "Google sign-in didn't complete. Please try again.",
 };
@@ -83,6 +84,7 @@ async function LoginCard({ searchParams }: Pick<PageProps<"/login">, "searchPara
               <Alert variant="destructive" className="mt-4">
                 <AlertTitle>Couldn&rsquo;t sign you in</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
+                <ClearErrorParam />
               </Alert>
             )}
 
