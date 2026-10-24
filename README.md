@@ -186,6 +186,13 @@ variants) live in `src/app/globals.css`, with a dark set that follows the system
   `field_meta`; a warranty is only stored when the document states it, with the quote.
   A service receipt is never attached to an item unless you pick it (or a serial /
   registration number makes it a clear match).
+- Emails can also be uploaded as saved `.eml` files. An email and its attachments are
+  read together: the most complete document (usually the attached invoice) leads, and
+  the others fill in what it lacks (order number, return-by date, warranty wording).
+- Items have a "Return by" date (read from the document when it states one, or a
+  return period counted from the order date; editable per item).
+- Purchases, items and service events can have any number of documents attached, each
+  with a type; anything else is filed as Miscellaneous (stored as `other`).
 - A purchase's order number and invoice number each identify it: no two purchases share
   one (case-insensitive; unique indexes plus a check in `create_manual_purchase`). Saving
   one that exists asks whether to override it; overriding deletes the old purchase (items,

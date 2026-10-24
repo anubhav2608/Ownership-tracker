@@ -10,14 +10,15 @@ import {
   OrderStatusBadge,
   SourceLabel,
   WarrantyBadge,
+  ReturnByBadge,
 } from "@/components/badges";
 import { DocumentList } from "@/components/document-list";
 import { DetailRow, SectionCard } from "@/components/layout-bits";
 import { DetailSkeleton } from "@/components/skeletons";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { formatDate, formatMoney, fractionElapsed } from "@/lib/format";
-import { getDocuments, getItem, getItems, getOrder, getServiceEvents } from "@/lib/data";
+import { getCurrentUser, getDocuments, getItem, getItems, getOrder, getServiceEvents } from "@/lib/data";
+import { AttachDocuments } from "@/components/attach-documents";
 import { ItemActions } from "./item-actions";
 import { ServiceHistory } from "./service-history";
 import { WarrantyActions } from "./warranty-actions";
@@ -32,11 +33,12 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
   const item = await getItem(id);
   if (!item) notFound();
 
-  const [order, documents, events, allItems] = await Promise.all([
+  const [order, documents, events, allItems, user] = await Promise.all([
     item.orderId ? getOrder(item.orderId) : undefined,
     getDocuments(item.documentIds),
     getServiceEvents(item.id),
     getItems(),
+    getCurrentUser(),
   ]);
   const siblings = allItems.filter((i) => i.orderId === item.orderId && i.id !== item.id);
   const { warranty } = item;
@@ -71,6 +73,14 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
                 </DetailRow>
               )}
               <DetailRow label="Date">{formatDate(item.purchaseDate)}</DetailRow>
+              {item.returnBy && (
+                <DetailRow label="Return by">
+                  <span className="inline-flex flex-wrap items-center justify-end gap-2">
+                    {formatDate(item.returnBy)}
+                    <ReturnByBadge item={item} />
+                  </span>
+                </DetailRow>
+              )}
               <DetailRow label="Price">
                 <span className="inline-flex items-center gap-2">
                   {item.price.state !== "confirmed" && (
@@ -167,11 +177,7 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
 
           <SectionCard
             title={`Documents (${documents.length})`}
-            action={
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/add?tab=upload">Upload</Link>
-              </Button>
-            }
+            action={<AttachDocuments userId={user.id} target={{ itemId: item.id }} />}
           >
             <DocumentList documents={documents} />
           </SectionCard>

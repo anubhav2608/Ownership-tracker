@@ -39,6 +39,7 @@ const itemSchema = z.object({
   model: optionalText(100),
   category: z.enum(CATEGORIES),
   purchaseDate: isoDate.optional(),
+  returnBy: isoDate.optional(),
   price: money.optional(),
   identifiers: z
     .array(z.object({ label: z.string().trim().min(1).max(50), value: z.string().trim().min(1).max(100) }))
@@ -62,6 +63,7 @@ export async function updateItem(itemId: string, input: ItemInput): Promise<Acti
       model: blankToNull(i.model),
       category: categoryValue(i.category),
       purchase_date: i.purchaseDate ?? null,
+      return_by: i.returnBy ?? null,
       price: i.price ?? null,
       identifiers: i.identifiers,
       notes: blankToNull(i.notes),
@@ -295,4 +297,100 @@ export async function deleteServiceEvent(eventId: string): Promise<ActionResult>
   if (importId) await supabase.from("imports").delete().eq("id", importId);
   await removeOrphanDocuments(supabase, docIds);
   return { ok: true };
+}
+
+// ── Documents ───────────────────────────────────────────────────────────
+
+const DOCUMENT_KINDS = ["invoice", "order_confirmation", "warranty_card", "service_receipt", "refund_notice", "other"] as const;
+
+const attachSchema = z
+  .object({
+    orderId: id.optional(),
+    itemId: id.optional(),
+    serviceEventId: id.optional(),
+    /** Anything that isn't one of the named kinds is filed as "other" (Miscellaneous). */
+    kind: z.enum(DOCUMENT_KINDS).default("other"),
+    files: z
+      .array(
+        z.object({
+          path: z.string().min(1).max(512),
+          fileName: z.string().trim().min(1).max(255),
+          mimeType: z.string().min(1).max(127),
+          size: z.number().int().nonnegative().max(10 * 1024 * 1024),
+          sha256: z.string().regex(/^[0-9a-f]{64}$/),
+        }),
+      )
+      .min(1)
+      .max(20),
+  })
+  .refine((a) => [a.orderId, a.itemId, a.serviceEventId].filter(Boolean).length === 1);
+
+export type AttachInput = z.input<typeof attachSchema>;
+
+/**
+ * Attaches files the browser already uploaded to a purchase, item or service
+ * event. A file stored before (same SHA-256) is attached as it is, without a
+ * second copy.
+ */
+export async function attachDocuments(input: AttachInput): Promise<ActionResult & { attached?: number }> {
+  const parsed = attachSchema.safeParse(input);
+  if (!parsed.success) return INVALID;
+  const { orderId, itemId, serviceEventId, kind, files } = parsed.data;
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  const userId = auth?.claims.sub;
+  if (!userId || files.some((f) => !f.path.startsWith(`${userId}/`))) {
+    return { ok: false, message: "Please sign in again." };
+  }
+
+  const target = orderId
+    ? { order_id: orderId }
+    : itemId
+      ? { item_id: itemId }
+      : { service_event_id: serviceEventId! };
+  const [table, targetId] = orderId
+    ? (["orders", orderId] as const)
+    : itemId
+      ? (["items", itemId] as const)
+      : (["service_events", serviceEventId!] as const);
+  const { data: exists } = await supabase.from(table).select("id").eq("id", targetId).maybeSingle();
+  if (!exists) {
+    await supabase.storage.from("documents").remove(files.map((f) => f.path));
+    return NOT_FOUND;
+  }
+
+  let attached = 0;
+  for (const f of files) {
+    const { data: earlier } = await supabase.from("documents").select("id").eq("sha256", f.sha256).maybeSingle();
+    let documentId = earlier?.id;
+    if (documentId) {
+      await supabase.storage.from("documents").remove([f.path]);
+    } else {
+      const { data: doc, error } = await supabase
+        .from("documents")
+        .insert({
+          kind,
+          file_name: f.fileName,
+          storage_path: f.path,
+          mime_type: f.mimeType,
+          size_bytes: f.size,
+          sha256: f.sha256,
+          source: "manual",
+        })
+        .select("id")
+        .single();
+      if (error || !doc) {
+        await supabase.storage.from("documents").remove([f.path]);
+        console.error("[records] attaching document failed:", error?.message);
+        continue;
+      }
+      documentId = doc.id;
+    }
+    const { error: linkError } = await supabase.from("document_links").insert({ document_id: documentId, ...target });
+    if (!linkError || linkError.code === "23505") attached++;
+  }
+
+  if (attached === 0) return { ok: false, message: "Couldn't attach the files. Please try again." };
+  return { ok: true, attached };
 }

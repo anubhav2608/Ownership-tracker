@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDocument, type Extraction } from "./parse";
+import { mergeExtractions, parseDocument, type Extraction } from "./parse";
 
 // Fictional documents modelled on common Indian invoice layouts. Columns are
 // separated by two spaces, as extractPdfText produces for table gaps.
@@ -178,5 +178,66 @@ describe("documents that aren't receipts", () => {
       "Refund amount  ₹74,999.00",
     ]);
     expect(doc.documentKind).toBe("refund_notice");
+  });
+});
+
+describe("return-by dates", () => {
+  const base = ["Order Confirmation", "Order Date: 15 Oct 2026", "Order Total: Rs. 1,499.00", "1  Hoodie  Rs. 1,499.00"];
+
+  it("reads a stated return deadline", () => {
+    for (const line of [
+      "Return window closes on 25 Oct 2026",
+      "Eligible for return till 25/10/2026",
+      "Easy returns: return by Oct 25, 2026",
+    ]) {
+      const outcome = parseDocument([...base, line]);
+      expect(outcome.ok && outcome.extraction.fields.returnBy).toMatchObject({ value: "2026-10-25", state: "extracted" });
+    }
+  });
+
+  it("counts a return period from the order date, with lower confidence", () => {
+    const outcome = parseDocument([...base, "This item has a 10-day return policy"]);
+    expect(outcome.ok && outcome.extraction.fields.returnBy).toMatchObject({ value: "2026-10-25", confidence: 0.6 });
+  });
+
+  it("finds none when the document doesn't say", () => {
+    const outcome = parseDocument(base);
+    expect(outcome.ok && outcome.extraction.fields.returnBy).toBeUndefined();
+  });
+});
+
+describe("mergeExtractions", () => {
+  // Fictional: the attached invoice has the items; the email has the order number and return window.
+  const invoice = parseDocument([
+    "Sharma Electronics",
+    "Tax Invoice",
+    "Invoice No: SE/2026/0457  Date: 03/09/2026",
+    "Philips Mixer Grinder HL7756  Rs. 4,299.00",
+    "Grand Total  Rs. 4,798.00",
+    "Extension board 4-way  Rs. 499.00",
+  ]);
+  const email = parseDocument([
+    "Your order is confirmed",
+    "Order Number: SE-ORD-99812",
+    "Order Date: 3 Sep 2026",
+    "Grand Total  Rs. 4,798.00",
+    "Return window closes on 13 Sep 2026",
+  ]);
+
+  it("fills what the invoice lacks from the email, and keeps the invoice's items", () => {
+    if (!invoice.ok || !email.ok) throw new Error("fixtures should parse");
+    const merged = mergeExtractions(invoice.extraction, [email.extraction]);
+    expect(merged.fields.invoiceRef?.value).toBe("SE/2026/0457");
+    expect(merged.fields.orderRef?.value).toBe("SE-ORD-99812");
+    expect(merged.fields.returnBy?.value).toBe("2026-09-13");
+    expect(merged.lines.map((l) => l.name.value)).toEqual(["Philips Mixer Grinder HL7756", "Extension board 4-way"]);
+    expect(merged.reviewReasons).toContain("Some details were filled in from the email around the attachment.");
+  });
+
+  it("is more certain of values both documents agree on", () => {
+    if (!invoice.ok || !email.ok) throw new Error("fixtures should parse");
+    const merged = mergeExtractions(invoice.extraction, [email.extraction]);
+    expect(merged.fields.total?.confidence).toBeGreaterThanOrEqual(0.95);
+    expect(merged.fields.date?.confidence).toBeGreaterThanOrEqual(0.95);
   });
 });

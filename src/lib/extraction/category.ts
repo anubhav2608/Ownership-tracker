@@ -18,5 +18,5 @@ const FALLBACK: [Category, RegExp][] = [
 ];
 
 export function guessCategory(name: string): Category {
-  return RULES.find(([, re]) => re.test(name))?.[0] ?? FALLBACK.find(([, re]) => re.test(name))?.[0] ?? "Other";
+  return RULES.find(([, re]) => re.test(name))?.[0] ?? FALLBACK.find(([, re]) => re.test(name))?.[0] ?? "Miscellaneous";
 }

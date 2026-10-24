@@ -9,13 +9,15 @@ import {
   ItemStatusBadge,
   OrderStatusBadge,
   SourceLabel,
+  ReturnByBadge,
 } from "@/components/badges";
 import { DocumentList } from "@/components/document-list";
 import { DetailRow, SectionCard } from "@/components/layout-bits";
 import { DetailSkeleton } from "@/components/skeletons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatDate, formatMoney } from "@/lib/format";
-import { getDocuments, getImport, getItems, getOrder } from "@/lib/data";
+import { getCurrentUser, getDocuments, getImport, getItems, getOrder } from "@/lib/data";
+import { AttachDocuments } from "@/components/attach-documents";
 import { OrderActions } from "./order-actions";
 
 export const metadata: Metadata = { title: "Purchase" };
@@ -25,10 +27,11 @@ async function PurchaseDetail({ params }: Pick<PageProps<"/purchases/[id]">, "pa
   const order = await getOrder(id);
   if (!order) notFound();
 
-  const [items, documents, source] = await Promise.all([
+  const [items, documents, source, user] = await Promise.all([
     getItems(),
     getDocuments(order.documentIds),
     order.importId ? getImport(order.importId) : undefined,
+    getCurrentUser(),
   ]);
   const orderItems = items.filter((i) => i.orderId === order.id);
 
@@ -87,7 +90,10 @@ async function PurchaseDetail({ params }: Pick<PageProps<"/purchases/[id]">, "pa
             </dl>
           </SectionCard>
 
-          <SectionCard title={`Documents (${documents.length})`}>
+          <SectionCard
+            title={`Documents (${documents.length})`}
+            action={<AttachDocuments userId={user.id} target={{ orderId: order.id }} />}
+          >
             <DocumentList documents={documents} />
           </SectionCard>
         </div>
@@ -108,6 +114,9 @@ async function PurchaseDetail({ params }: Pick<PageProps<"/purchases/[id]">, "pa
                     </p>
                   </div>
                   {item.status !== "owned" && <ItemStatusBadge status={item.status} />}
+                  <span className="hidden sm:inline-flex">
+                    <ReturnByBadge item={item} />
+                  </span>
                   {item.price.state === "extracted" && (
                     <span className="hidden sm:inline-flex">
                       <FieldStateBadge state="extracted" confidence={item.price.confidence} />

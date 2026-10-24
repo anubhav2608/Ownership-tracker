@@ -12,8 +12,8 @@ describe("guessCategory", () => {
     expect(guessCategory("Example Brand Girls Hooded Pullover, Size: L (7-8Y)")).toBe("Clothing");
   });
 
-  it("says Other when it can't tell", () => {
-    expect(guessCategory("Gift voucher")).toBe("Other");
+  it("says Miscellaneous when it can't tell", () => {
+    expect(guessCategory("Gift voucher")).toBe("Miscellaneous");
   });
 
   it("doesn't match words inside other words", () => {

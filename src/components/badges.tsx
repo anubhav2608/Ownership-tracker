@@ -20,7 +20,7 @@ import {
   Shirt,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { daysUntil } from "@/lib/format";
+import { daysUntil, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type {
   Category,
@@ -65,7 +65,7 @@ const categoryIcons: Record<Category, LucideIcon> = {
   Clothing: Shirt,
   Accessories: Headphones,
   Home: Home,
-  Other: Package,
+  Miscellaneous: Package,
 };
 
 export function CategoryIcon({
@@ -113,6 +113,16 @@ export function WarrantyBadge({ item }: { item: Item }) {
   return <Pill tone="success">Warranty {left} left</Pill>;
 }
 
+/** Last day to return an item. Only shown while the item is owned. */
+export function ReturnByBadge({ item }: { item: Pick<Item, "status" | "returnBy"> }) {
+  if (item.status !== "owned" || !item.returnBy) return null;
+  const d = daysUntil(item.returnBy);
+  if (d < 0) return <Pill>Return window closed</Pill>;
+  if (d === 0) return <Pill tone="warning">Return by today</Pill>;
+  if (d <= 7) return <Pill tone="warning">Return by {formatDate(item.returnBy)} · {d}d left</Pill>;
+  return <Pill>Return by {formatDate(item.returnBy)}</Pill>;
+}
+
 // ── Orders ──────────────────────────────────────────────────────────────
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
@@ -146,7 +156,7 @@ export const documentKindLabel: Record<DocumentKind, string> = {
   refund_notice: "Refund notice",
   service_receipt: "Service receipt",
   warranty_card: "Warranty card",
-  other: "Other",
+  other: "Miscellaneous",
 };
 
 // ── Imports ─────────────────────────────────────────────────────────────

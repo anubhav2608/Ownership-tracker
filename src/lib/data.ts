@@ -34,7 +34,7 @@ const categories: Record<Database["public"]["Enums"]["item_category"], Category>
   clothing: "Clothing",
   accessories: "Accessories",
   home: "Home",
-  other: "Other",
+  other: "Miscellaneous",
 };
 
 const db = cache(createClient);
@@ -175,6 +175,7 @@ async function toItems(rows: Row<"items">[]): Promise<Item[]> {
       status: r.status,
       orderId: r.order_id ?? undefined,
       purchaseDate: r.purchase_date ?? dateOnly(r.created_at),
+      returnBy: r.return_by ?? undefined,
       price: tracked(r.price, meta, "price"),
       identifiers: r.identifiers as unknown as Item["identifiers"],
       warranty: w && {

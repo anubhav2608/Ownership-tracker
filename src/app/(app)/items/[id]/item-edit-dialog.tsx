@@ -56,6 +56,7 @@ export function ItemEditDialog({ item, onClose }: { item: Item; onClose: () => v
         model: text("model") || undefined,
         category: text("category") as Category,
         purchaseDate: text("purchaseDate") || undefined,
+        returnBy: text("returnBy") || undefined,
         price: price === "" ? undefined : Number(price),
         identifiers: identifiers
           .map((r) => ({ label: r.label.trim(), value: r.value.trim() }))
@@ -103,6 +104,10 @@ export function ItemEditDialog({ item, onClose }: { item: Item; onClose: () => v
             <div className="grid gap-2">
               <Label htmlFor={`${fid}-purchaseDate`}>Purchase date</Label>
               <Input id={`${fid}-purchaseDate`} name="purchaseDate" type="date" defaultValue={item.purchaseDate} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor={`${fid}-returnBy`}>Return by</Label>
+              <Input id={`${fid}-returnBy`} name="returnBy" type="date" defaultValue={item.returnBy} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor={`${fid}-price`}>Price</Label>

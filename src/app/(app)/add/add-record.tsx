@@ -21,7 +21,10 @@ import { processImport } from "../imports/actions";
 import { ReplacePurchaseDialog } from "@/components/replace-purchase-dialog";
 import type { ExistingPurchase } from "@/lib/purchases";
 import { createPurchase, createServiceEvent, type PurchaseInput } from "./actions";
-import { uploadFile } from "./upload-file";
+import { attachDocuments } from "@/lib/record-actions";
+import { ACCEPTED_FILES, storeFile, uploadFile } from "./upload-file";
+
+type Target = { orderId: string } | { serviceEventId: string };
 
 export type AddTab = "forward" | "upload" | "manual";
 
@@ -82,6 +85,10 @@ function ForwardTab({ address }: { address: string }) {
         <li>Send from a verified address (Settings → Verified senders). Others are held, unread.</li>
         <li>Forwarding the same email twice is safe; we detect duplicates.</li>
         <li>Track progress under Imports. Anything uncertain waits for your review.</li>
+        <li>
+          Prefer not to forward? Save the email as a file (in Gmail: ⋮ → Download message) and
+          upload the .eml. Its body and attached invoice are read together.
+        </li>
       </ul>
     </Card>
   );
@@ -185,14 +192,15 @@ function UploadTab({ userId }: { userId: string }) {
         <FileUp className="size-8 text-muted-foreground" strokeWidth={1.5} />
         <span className="mt-3 text-sm font-medium">Drop invoices or receipts, or click to choose</span>
         <span className="mt-1 text-xs text-muted-foreground">
-          PDF, JPG, PNG or HEIC, up to {MAX_MB} MB each. Stored privately.
+          PDF, photos, or saved emails (.eml) with their attachments, up to {MAX_MB} MB each.
+          Stored privately.
         </span>
       </button>
       <input
         ref={inputRef}
         type="file"
         multiple
-        accept=".pdf,image/*"
+        accept={ACCEPTED_FILES}
         className="hidden"
         onChange={(e) => addFiles(e.target.files)}
       />
@@ -288,10 +296,22 @@ function ManualTab({
     return null;
   }
 
+  async function attachExtra(target: Target, files: File[]) {
+    const stored = [];
+    for (const f of files) {
+      const result = await storeFile(userId, f);
+      if (result.ok) stored.push(result.file);
+      else toast.error(result.message);
+    }
+    if (stored.length === 0) return;
+    const result = await attachDocuments({ ...target, files: stored });
+    if (!result.ok) toast.error(`The extra documents couldn't be attached: ${result.message}`);
+  }
+
   // Pages stay mounted after navigation (Activity), so clear the form once it's saved.
   async function save(
     e: FormEvent<HTMLFormElement>,
-    run: (form: FormData, importId?: string) => Promise<boolean>,
+    run: (form: FormData, importId?: string) => Promise<false | Target>,
   ) {
     e.preventDefault();
     const formElement = e.currentTarget;
@@ -303,8 +323,12 @@ function ManualTab({
     }
     setSaving(true);
     try {
-      const importId = await attachment(form.get("file"));
-      if (importId !== null && (await run(form, importId))) {
+      // The first file is read as the record's source; any others are attached to it once saved.
+      const [first, ...more] = form.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+      const importId = await attachment(first ?? null);
+      const saved = importId !== null && (await run(form, importId));
+      if (saved) {
+        if (more.length) await attachExtra(saved, more);
         formElement.reset();
         setLines([newLine()]);
         setServiceItem("");
@@ -323,7 +347,12 @@ function ManualTab({
         orderRef: optionalText(form, "ref"),
         invoiceRef: optionalText(form, "invoice"),
         importId,
-        items: lines.map((l) => ({ name: l.name, category: l.category, price: optionalNumber(l.price) })),
+        items: lines.map((l) => ({
+          name: l.name,
+          category: l.category,
+          price: optionalNumber(l.price),
+          returnBy: optionalText(form, "returnBy"),
+        })),
       };
       const result = await createPurchase(input);
       if (!result.ok) {
@@ -338,7 +367,7 @@ function ManualTab({
       }
       toast.success("Purchase saved");
       router.push(`/purchases/${result.id}`);
-      return true;
+      return { orderId: result.id };
     });
   };
 
@@ -383,13 +412,13 @@ function ManualTab({
       }
       toast.success("Service event saved");
       router.push(`/items/${serviceItem}`);
-      return true;
+      return { serviceEventId: result.id };
     });
 
   const fileField = (label: string) =>
     fromImport ? null : (
       <Field id={`${fid}-file`} label={label} optional>
-        <Input id={`${fid}-file`} name="file" type="file" accept=".pdf,image/*" />
+        <Input id={`${fid}-file`} name="file" type="file" multiple accept={ACCEPTED_FILES} />
       </Field>
     );
 
@@ -427,7 +456,10 @@ function ManualTab({
             <Field id={`${fid}-invoice`} label="Invoice number" optional>
               <Input id={`${fid}-invoice`} name="invoice" />
             </Field>
-            {fileField("Invoice")}
+            <Field id={`${fid}-returnBy`} label="Return by" optional>
+              <Input id={`${fid}-returnBy`} name="returnBy" type="date" />
+            </Field>
+            {fileField("Invoice and other documents")}
           </div>
 
           <fieldset className="grid gap-3">
@@ -532,7 +564,7 @@ function ManualTab({
               <Input id={`${fid}-svc-odo`} name="odometer" type="number" min="0" />
             </Field>
           )}
-          {fileField("Receipt")}
+          {fileField("Receipt and other documents")}
           <Field id={`${fid}-svc-notes`} label="Notes" optional className="sm:col-span-2">
             <Textarea id={`${fid}-svc-notes`} name="notes" rows={2} />
           </Field>

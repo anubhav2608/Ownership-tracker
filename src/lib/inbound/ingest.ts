@@ -1,9 +1,17 @@
 import "server-only";
-import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Resend } from "resend";
 import { bodyOnlyEmail, emailAddress, parseRawEmail } from "@/lib/extraction/email";
 import { isVerifiedSender, readImport, readingCrashed, unverifiedSender, type Outcome } from "@/lib/extraction/read-import";
+import {
+  extensionFor,
+  isKeptType,
+  keptAttachments,
+  MAX_ATTACHMENT_BYTES,
+  sha256,
+  storeDocument,
+  type Attachment,
+} from "@/lib/stored-documents";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 // Stores one forwarded email for one user (spec §4A, §4B): the message itself,
@@ -12,31 +20,9 @@ import type { Database, Json } from "@/lib/supabase/database.types";
 
 type Db = SupabaseClient<Database>;
 
-/** Kinds of attachment kept as documents; the documents bucket accepts only these. */
-const KEPT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
-const EXTENSIONS: Record<string, string> = {
-  "application/pdf": "pdf",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/heic": "heic",
-  "image/heif": "heif",
-  "message/rfc822": "eml",
-};
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-const MAX_ATTACHMENTS = 10;
-
 export type IngestResult =
   | { status: "redelivered" | "duplicate" | "held"; importId: string }
   | { status: "stored"; importId: string };
-
-interface Attachment {
-  fileName: string;
-  mimeType: string;
-  content: Uint8Array;
-}
-
-const sha256 = (data: Uint8Array | string) => createHash("sha256").update(data).digest("hex");
 
 export async function ingestEmail({
   db,
@@ -66,9 +52,7 @@ export async function ingestEmail({
   const html = email.html ?? parsed?.html ?? null;
   const text = email.text ?? parsed?.text ?? null;
 
-  const attachments = (parsed ? parsed.attachments : await fetchAttachments(resend, emailId))
-    .filter((a) => KEPT_TYPES.has(a.mimeType) && a.content.byteLength <= MAX_ATTACHMENT_BYTES)
-    .slice(0, MAX_ATTACHMENTS);
+  const attachments = keptAttachments(parsed ? parsed.attachments : await fetchAttachments(resend, emailId));
 
   const base = {
     user_id: userId,
@@ -217,33 +201,6 @@ async function duplicateAttachmentsImport(db: Db, userId: string, attachments: A
   return data.find((d) => d.import_id)?.import_id ?? null;
 }
 
-async function storeDocument(db: Db, userId: string, importId: string, a: Attachment) {
-  const path = `${userId}/${randomUUID()}.${EXTENSIONS[a.mimeType] ?? "bin"}`;
-  const { error: uploadError } = await db.storage
-    .from("documents")
-    .upload(path, a.content, { contentType: a.mimeType });
-  if (uploadError) throw new Error(`storing ${a.fileName} failed: ${uploadError.message}`);
-
-  const row = {
-    user_id: userId,
-    kind: "other" as const,
-    file_name: a.fileName.slice(0, 255),
-    storage_path: path,
-    mime_type: a.mimeType,
-    size_bytes: a.content.byteLength,
-    sha256: sha256(a.content),
-    source: "email" as const,
-    import_id: importId,
-  };
-  let { error } = await db.from("documents").insert(row);
-  // The same file is already stored (e.g. a logo PDF every email carries): keep this copy without a hash.
-  if (error?.code === "23505") ({ error } = await db.from("documents").insert({ ...row, sha256: null }));
-  if (error) {
-    await db.storage.from("documents").remove([path]);
-    throw new Error(`recording ${a.fileName} failed: ${error.message}`);
-  }
-}
-
 async function removeImport(db: Db, userId: string, importId: string) {
   const { data: docs } = await db
     .from("documents")
@@ -270,9 +227,9 @@ async function fetchAttachments(resend: Resend, emailId: string): Promise<Attach
   if (error || !data) throw new Error(`listing attachments failed: ${error?.message}`);
   const out: Attachment[] = [];
   for (const a of data.data) {
-    if (a.content_disposition === "inline" || !KEPT_TYPES.has(a.content_type) || a.size > MAX_ATTACHMENT_BYTES) continue;
+    if (a.content_disposition === "inline" || !isKeptType(a.content_type) || a.size > MAX_ATTACHMENT_BYTES) continue;
     out.push({
-      fileName: a.filename || `attachment.${EXTENSIONS[a.content_type] ?? "bin"}`,
+      fileName: a.filename || `attachment.${extensionFor(a.content_type)}`,
       mimeType: a.content_type,
       content: await fetchBytes(a.download_url),
     });

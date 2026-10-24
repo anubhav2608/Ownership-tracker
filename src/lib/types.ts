@@ -9,13 +9,14 @@ export const CATEGORIES = [
   "Clothing",
   "Accessories",
   "Home",
-  "Other",
+  "Miscellaneous",
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number];
 
-/** Category names as stored in the database (enum item_category). */
-export const categoryValue = (c: Category) => c.toLowerCase() as Lowercase<Category>;
+/** Category names as stored in the database (enum item_category). Miscellaneous is stored as "other". */
+export const categoryValue = (c: Category) =>
+  (c === "Miscellaneous" ? "other" : c.toLowerCase()) as Exclude<Lowercase<Category>, "miscellaneous"> | "other";
 
 export type RecordSource = "email" | "upload" | "manual";
 
@@ -73,6 +74,8 @@ export interface Item {
   status: ItemStatus;
   orderId?: string;
   purchaseDate: string;
+  /** Last day the item can be returned, if known. */
+  returnBy?: string;
   price: Tracked<number>;
   identifiers: Identifier[];
   /** Absent when no reliable source mentions a warranty. */
@@ -184,6 +187,7 @@ export interface ImportRecord {
     warrantyMonths?: Tracked<number>;
     /** The words on the document that state the warranty. */
     warrantyEvidence?: Tracked<string>;
+    returnBy?: Tracked<string>;
     provider?: Tracked<string>;
     workPerformed?: Tracked<string>;
     labourCost?: Tracked<number>;

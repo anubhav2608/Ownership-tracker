@@ -4,8 +4,9 @@ import type { Database, Json } from "@/lib/supabase/database.types";
 import type { Identifier } from "@/lib/types";
 import { bodyLines, parseRawEmail } from "./email";
 import { matchItems, type MatchableItem } from "./match";
-import { parseDocument, type Extraction } from "./parse";
+import { mergeExtractions, parseDocument, type Extraction } from "./parse";
 import { extractPdfText, PdfFileError } from "./pdf-text";
+import { keptAttachments, storeDocument } from "@/lib/stored-documents";
 
 // Reads an import's documents: an uploaded file, or a forwarded email and its
 // attachments. Shared by the "Read" action (as the signed-in user) and the
@@ -30,6 +31,8 @@ export interface Outcome {
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const EMAIL = "message/rfc822";
 const MAX_TEXT_LINES = 400;
+/** Documents read per import (an email and its attachments). */
+const MAX_SOURCES = 6;
 
 /** An unexpected error while reading: retryable, with the reason kept for diagnosis. */
 export function readingCrashed(e: unknown, what: "file" | "email"): Outcome {
@@ -104,22 +107,32 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
 
   const { data: docs } = await db
     .from("documents")
-    .select("storage_path, mime_type, size_bytes")
+    .select("storage_path, mime_type, size_bytes, file_name")
     .eq("import_id", importId)
     .eq("user_id", userId)
     .order("created_at");
   if (!docs?.length) return failure("NO_FILE", FAILURES.NO_FILE[0], false);
+
+  // A saved email (.eml) arrives as one file: its attachments become documents of
+  // their own the first time it's read, so they can be opened and kept.
+  if (docs.length === 1 && docs[0].mime_type === EMAIL) {
+    const email = await parseRawEmail(await download(db, docs[0].storage_path));
+    for (const a of keptAttachments(email.attachments)) {
+      docs.push(await storeDocument(db, userId, importId, a, imp.source === "email" ? "email" : "upload"));
+    }
+  }
 
   // An attached invoice is more complete than the email it came with, so PDFs go first.
   const rank = (mime: string) => (mime === "application/pdf" ? 0 : mime === EMAIL ? 1 : 2);
   const ordered = [...docs].sort((a, b) => rank(a.mime_type) - rank(b.mime_type));
 
   const problems = new Set<Problem>();
-  let best: { extraction: Extraction; text: string } | undefined;
+  // Everything readable: an email is read together with its attachments.
+  const read: { extraction: Extraction; lines: string[]; label: string }[] = [];
   // The text we found, kept so the import page can show what was read.
-  let seen: string[] = [];
+  const seen: string[] = [];
 
-  for (const doc of ordered) {
+  for (const doc of ordered.slice(0, MAX_SOURCES)) {
     let lines: string[];
     if (doc.mime_type.startsWith("image/")) {
       problems.add("OCR_NOT_AVAILABLE");
@@ -143,29 +156,34 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
       continue;
     }
 
-    if (seen.length === 0) seen = lines;
+    if (lines.length) seen.push(`── ${doc.file_name} ──`, ...lines);
     const parsed = parseDocument(lines);
     if (!parsed.ok) {
       if (parsed.reason === "no_text" && doc.mime_type === "application/pdf") problems.add("NO_TEXT_LAYER");
       continue;
     }
-    const x = parsed.extraction;
-    const complete = x.lines.length > 0 || x.documentKind === "service_receipt" || x.documentKind === "refund_notice";
-    if (!best || (complete && best.extraction.lines.length === 0)) {
-      best = { extraction: x, text: lines.join("\n") };
-      seen = lines;
-    }
-    if (complete) break;
+    read.push({ extraction: parsed.extraction, lines, label: doc.file_name });
   }
 
   const text = seen.slice(0, MAX_TEXT_LINES);
-  if (!best) {
+  // The most complete document leads (PDFs come first); the rest fill in what it lacks.
+  const complete = (x: Extraction) =>
+    x.lines.length > 0 || x.documentKind === "service_receipt" || x.documentKind === "refund_notice";
+  const lead = read.find((r) => complete(r.extraction)) ?? read[0];
+  if (!lead) {
     const problem = PROBLEM_ORDER.find((p) => problems.has(p));
     // An email (or file) with readable text that isn't a receipt is "unsupported", not an error.
     if (!problem) return { status: "unsupported", stage: "parsed", document_kind: "other", extracted: { text } };
     const [message, retryable] = FAILURES[problem];
     return { ...failure(problem, message, retryable), extracted: { text } };
   }
+  const best = {
+    extraction: mergeExtractions(
+      lead.extraction,
+      read.filter((r) => r !== lead && r.extraction.documentKind !== "refund_notice").map((r) => r.extraction),
+    ),
+    text: read.map((r) => r.lines.join("\n")).join("\n"),
+  };
 
   const outcome = await review(db, userId, best.extraction, best.text);
   return { ...outcome, extracted: { ...(outcome.extracted as object), text } as unknown as Json };

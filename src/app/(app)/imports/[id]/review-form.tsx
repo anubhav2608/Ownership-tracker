@@ -145,7 +145,8 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
                 name: l.name.value,
                 category: l.category,
                 price: number(l.price),
-                fieldMeta: meta({ name: l.name, price: l.price }),
+                returnBy: fields.returnBy?.value || undefined,
+                fieldMeta: meta({ name: l.name, price: l.price, return_by: fields.returnBy }),
                 warranty:
                   months && (warrantyFor === "all" || warrantyFor === String(i))
                     ? warranty?.state === "extracted" && warrantyEvidence
@@ -245,6 +246,15 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
               <FieldInput fid={fid} label="Invoice number" name="invoiceRef" draft={fields.invoiceRef} onChange={setField} />
               <FieldInput fid={fid} label="Order date" name="date" type="date" draft={fields.date} onChange={setField} />
               <FieldInput fid={fid} label="Order total" name="total" type="number" draft={fields.total} onChange={setField} />
+              <FieldInput
+                fid={fid}
+                label="Return by"
+                name="returnBy"
+                type="date"
+                draft={fields.returnBy}
+                onChange={setField}
+                hint="Not found in this document. Applies to every item; change it per item later."
+              />
               <FieldInput
                 fid={fid}
                 label="Warranty (months)"

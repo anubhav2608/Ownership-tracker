@@ -13,6 +13,8 @@ export interface ExtractedFields {
   total?: Tracked<number>;
   warrantyMonths?: Tracked<number>;
   warrantyEvidence?: Tracked<string>;
+  /** Last day to return, YYYY-MM-DD. */
+  returnBy?: Tracked<string>;
   provider?: Tracked<string>;
   workPerformed?: Tracked<string>;
   labourCost?: Tracked<number>;
@@ -161,6 +163,31 @@ function findTotal(lines: string[]): Tracked<number> {
   return all.length ? extracted(Math.max(...all), 0.45) : missing();
 }
 
+const RETURN_DEADLINE =
+  /\b(?:return|replacement|exchange)s?\b[^.\n]{0,60}?\b(?:by|till|until|before|on or before|closes? on|ends? on|valid (?:till|until)|last date)\b/i;
+const RETURN_PERIOD = /\b(\d{1,3})[\s-]*days?\b[^.\n]{0,25}\b(?:return|replacement|exchange)\b|\b(?:return|replacement|exchange)s?\b[^.\n]{0,30}\bwithin\s+(\d{1,3})\s*days?\b/i;
+
+/** The last day to return: a stated date, or a return period counted from the order date. */
+function findReturnBy(lines: string[], orderDate: string | null): Tracked<string> | undefined {
+  for (const line of lines) {
+    const m = line.match(RETURN_DEADLINE);
+    if (!m) continue;
+    const date = parseDate(line.slice((m.index ?? 0) + m[0].length));
+    if (date && (!orderDate || date >= orderDate)) return extracted(date, 0.88);
+  }
+  if (!orderDate) return undefined;
+  for (const line of lines) {
+    const m = line.match(RETURN_PERIOD);
+    const days = Number(m?.[1] ?? m?.[2]);
+    if (days > 0 && days <= 365) {
+      const d = new Date(`${orderDate}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + days);
+      return extracted(d.toISOString().slice(0, 10), 0.6);
+    }
+  }
+  return undefined;
+}
+
 function findWarranty(lines: string[]) {
   for (const line of lines) {
     const m =
@@ -298,6 +325,8 @@ export function parseDocument(lines: string[]): ParseOutcome {
     fields.merchant = merchant;
     Object.assign(fields, findRefs(clean, text, known));
     lineItems = found;
+    const returnBy = findReturnBy(clean, date.value);
+    if (returnBy) fields.returnBy = returnBy;
     const warranty = findWarranty(clean);
     if (warranty) {
       fields.warrantyMonths = warranty.months;
@@ -318,6 +347,40 @@ export function parseDocument(lines: string[]): ParseOutcome {
       reviewReasons,
     },
   };
+}
+
+/**
+ * Combines what several documents of one purchase say (a forwarded email and
+ * its attached invoice): the most complete one leads, the others fill in
+ * fields it lacks, and a value two documents agree on is more certain.
+ */
+export function mergeExtractions(primary: Extraction, others: Extraction[]): Extraction {
+  if (others.length === 0) return primary;
+  const fields: ExtractedFields = { ...primary.fields };
+  const keys = Object.keys as <T extends object>(o: T) => (keyof T)[];
+  let filled = false;
+
+  for (const other of others) {
+    for (const key of keys(other.fields)) {
+      const theirs = other.fields[key] as Tracked<string | number> | undefined;
+      const ours = fields[key] as Tracked<string | number> | undefined;
+      if (!theirs || theirs.value === null) continue;
+      if (!ours || ours.value === null) {
+        (fields as Record<string, unknown>)[key] = theirs;
+        filled = true;
+      } else if (ours.state === "extracted" && String(ours.value).toLowerCase() === String(theirs.value).toLowerCase()) {
+        (fields as Record<string, unknown>)[key] = { ...ours, confidence: Math.max(ours.confidence ?? 0, 0.95) };
+      }
+    }
+  }
+
+  const lines = primary.lines.length ? primary.lines : (others.find((o) => o.lines.length)?.lines ?? []);
+  const parts = primary.parts.length ? primary.parts : (others.find((o) => o.parts.length)?.parts ?? []);
+  const isService = primary.documentKind === "service_receipt";
+  corroborate(fields, isService ? parts : lines);
+  const reviewReasons = validate(primary.documentKind, fields, lines, parts);
+  if (filled) reviewReasons.push("Some details were filled in from the email around the attachment.");
+  return { ...primary, fields, lines, parts, reviewReasons };
 }
 
 /** Items that add up exactly to the total vouch for each other's amounts. */

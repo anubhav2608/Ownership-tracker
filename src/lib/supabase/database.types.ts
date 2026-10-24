@@ -225,6 +225,7 @@ export type Database = {
           order_id: string | null;
           price: number | null;
           purchase_date: string | null;
+          return_by: string | null;
           search_text: string | null;
           status: Database["public"]["Enums"]["item_status"];
           updated_at: string;
@@ -245,6 +246,7 @@ export type Database = {
           order_id?: string | null;
           price?: number | null;
           purchase_date?: string | null;
+          return_by?: string | null;
           search_text?: never;
           status?: Database["public"]["Enums"]["item_status"];
           updated_at?: string;
@@ -264,6 +266,7 @@ export type Database = {
           order_id?: string | null;
           price?: number | null;
           purchase_date?: string | null;
+          return_by?: string | null;
           search_text?: never;
           status?: Database["public"]["Enums"]["item_status"];
           updated_at?: string;

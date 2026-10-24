@@ -124,6 +124,8 @@ const purchaseSchema = z.object({
         name: z.string().trim().min(1).max(200),
         category: z.enum(CATEGORIES),
         price: money.optional(),
+        /** Last day it can be returned. */
+        returnBy: isoDate.optional(),
         fieldMeta,
         /** Only when a document states one; "extracted" warranties need the quoted evidence. */
         warranty: z
@@ -180,6 +182,7 @@ export async function createPurchase(input: PurchaseInput): Promise<SaveResult> 
         name: i.name,
         category: categoryValue(i.category),
         price: i.price ?? null,
+        return_by: i.returnBy ?? null,
         field_meta: i.fieldMeta ?? {},
         warranty: i.warranty ?? null,
       })),
