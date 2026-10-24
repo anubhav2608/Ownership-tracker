@@ -125,6 +125,7 @@ async function toOrders(rows: Row<"orders">[]): Promise<Order[]> {
     id: o.id,
     merchant: o.merchant,
     orderRef: o.order_ref ?? undefined,
+    invoiceRef: o.invoice_ref ?? undefined,
     orderDate: o.order_date ?? dateOnly(o.created_at),
     total: o.total === null ? 0 : Number(o.total),
     status: o.status,

@@ -186,5 +186,10 @@ variants) live in `src/app/globals.css`, with a dark set that follows the system
   `field_meta`; a warranty is only stored when the document states it, with the quote.
   A service receipt is never attached to an item unless you pick it (or a serial /
   registration number makes it a clear match).
+- A purchase's order number and invoice number each identify it: no two purchases share
+  one (case-insensitive; unique indexes plus a check in `create_manual_purchase`). Saving
+  one that exists asks whether to override it; overriding deletes the old purchase (items,
+  warranties, service history, source import, unattached files) and saves the new one in
+  the same transaction.
 - Pages stay mounted after navigation (React Activity), so form fields use `useId()` for
   their ids: a hidden page's `id="merchant"` would otherwise capture another form's label.

@@ -8,6 +8,7 @@ import { amountsIn, moneyIn, parseDate } from "./values";
 export interface ExtractedFields {
   merchant?: Tracked<string>;
   orderRef?: Tracked<string>;
+  invoiceRef?: Tracked<string>;
   date?: Tracked<string>;
   total?: Tracked<number>;
   warrantyMonths?: Tracked<number>;
@@ -92,22 +93,28 @@ function findMerchant(lines: string[], text: string) {
 
 const cleanName = (s: string) => s.replace(/\s{2,}.*/, "").replace(/[,.;:]+$/, "").trim();
 
-function findOrderRef(lines: string[], text: string, merchant?: KnownMerchant): Tracked<string> {
-  const known = merchant?.orderRef && text.match(merchant.orderRef);
-  if (known) return extracted(known[1], 0.98);
-
-  // The order number identifies the purchase; an invoice or bill number is the fallback.
-  for (const words of ["order", "invoice|bill|receipt|job card|ro"]) {
-    const labelled = label(words);
-    for (const line of lines) {
-      const m = line.match(labelled);
-      if (!m) continue;
-      const rest = line.slice((m.index ?? 0) + m[0].length);
-      const ref = rest.match(/^([A-Z0-9][A-Z0-9\-/]{3,30})/i);
-      if (ref && /\d/.test(ref[1]) && !parseDate(ref[1])) return extracted(ref[1], words === "order" ? 0.85 : 0.8);
-    }
+/** A reference after a label like "Order No:" — has a digit and isn't a date. */
+function labelledRef(lines: string[], words: string): string | null {
+  const labelled = label(words);
+  for (const line of lines) {
+    const m = line.match(labelled);
+    if (!m) continue;
+    const rest = line.slice((m.index ?? 0) + m[0].length);
+    const ref = rest.match(/^([A-Z0-9][A-Z0-9\-/]{3,30})/i);
+    if (ref && /\d/.test(ref[1]) && !parseDate(ref[1])) return ref[1];
   }
-  return missing();
+  return null;
+}
+
+/** The order number and the invoice (or bill / receipt) number: either identifies the purchase. */
+function findRefs(lines: string[], text: string, merchant?: KnownMerchant) {
+  const known = merchant?.orderRef && text.match(merchant.orderRef);
+  const order = known ? known[1] : labelledRef(lines, "order");
+  const invoice = labelledRef(lines, "invoice|bill|receipt|job card|ro");
+  return {
+    orderRef: order ? extracted(order, known ? 0.98 : 0.85) : missing<string>(),
+    invoiceRef: invoice && invoice !== order ? extracted(invoice, 0.85) : missing<string>(),
+  };
 }
 
 function findDate(lines: string[]): Tracked<string> {
@@ -289,7 +296,7 @@ export function parseDocument(lines: string[]): ParseOutcome {
     fields.workPerformed = work ? extracted(work, 0.6) : missing();
   } else {
     fields.merchant = merchant;
-    fields.orderRef = findOrderRef(clean, text, known);
+    Object.assign(fields, findRefs(clean, text, known));
     lineItems = found;
     const warranty = findWarranty(clean);
     if (warranty) {

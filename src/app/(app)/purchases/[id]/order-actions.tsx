@@ -38,6 +38,7 @@ export function OrderActions({ order, itemCount }: { order: Order; itemCount: nu
         merchant: text("merchant"),
         orderDate: text("orderDate"),
         orderRef: text("orderRef") || undefined,
+        invoiceRef: text("invoiceRef") || undefined,
         total: text("total") === "" ? undefined : Number(text("total")),
       });
       setSaving(false);
@@ -93,8 +94,12 @@ export function OrderActions({ order, itemCount }: { order: Order; itemCount: nu
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor={`${fid}-orderRef`}>Order reference</Label>
+              <Label htmlFor={`${fid}-orderRef`}>Order number</Label>
               <Input id={`${fid}-orderRef`} name="orderRef" defaultValue={order.orderRef} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor={`${fid}-invoiceRef`}>Invoice number</Label>
+              <Input id={`${fid}-invoiceRef`} name="invoiceRef" defaultValue={order.invoiceRef} />
             </div>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => setEditing(false)}>

@@ -1,6 +1,12 @@
 "use server";
 
 import { z } from "zod";
+import {
+  linkedDocumentIds,
+  purchaseDocumentIds,
+  purchaseWithNumbers,
+  removeOrphanDocuments,
+} from "@/lib/purchases";
 import { createClient } from "@/lib/supabase/server";
 import { CATEGORIES, categoryValue } from "@/lib/types";
 import type { ServiceEventInput } from "@/app/(app)/add/actions";
@@ -9,8 +15,6 @@ import type { ServiceEventInput } from "@/app/(app)/add/actions";
 // query runs as the signed-in user, so row level security limits it to their rows.
 
 export type ActionResult = { ok: true } | { ok: false; message: string };
-
-type Supabase = Awaited<ReturnType<typeof createClient>>;
 
 const id = z.uuid();
 const money = z.number().nonnegative().max(1e10);
@@ -26,32 +30,6 @@ function failed(where: string, error: { message: string; code?: string }): Actio
 }
 
 const blankToNull = (v: string | undefined) => (v ? v : null);
-
-/** Removes documents that are no longer attached to anything, from storage and the table. */
-async function removeOrphanDocuments(supabase: Supabase, documentIds: string[]) {
-  if (documentIds.length === 0) return;
-  const { data: stillLinked } = await supabase
-    .from("document_links")
-    .select("document_id")
-    .in("document_id", documentIds);
-  const linked = new Set((stillLinked ?? []).map((l) => l.document_id));
-  const orphanIds = documentIds.filter((d) => !linked.has(d));
-  if (orphanIds.length === 0) return;
-
-  const { data: docs } = await supabase.from("documents").select("id, storage_path").in("id", orphanIds);
-  if (docs?.length) await supabase.storage.from("documents").remove(docs.map((d) => d.storage_path));
-  await supabase.from("documents").delete().in("id", orphanIds);
-}
-
-async function linkedDocumentIds(
-  supabase: Supabase,
-  column: "order_id" | "item_id" | "service_event_id",
-  ids: string[],
-) {
-  if (ids.length === 0) return [];
-  const { data } = await supabase.from("document_links").select("document_id").in(column, ids);
-  return (data ?? []).map((l) => l.document_id);
-}
 
 // ── Items ───────────────────────────────────────────────────────────────
 
@@ -185,6 +163,7 @@ const orderSchema = z.object({
   merchant: z.string().trim().min(1).max(200),
   orderDate: isoDate,
   orderRef: optionalText(100),
+  invoiceRef: optionalText(100),
   total: money.optional(),
 });
 
@@ -203,16 +182,25 @@ export async function updateOrder(orderId: string, input: OrderInput): Promise<A
     .maybeSingle();
   if (!before) return NOT_FOUND;
 
+  const taken = await purchaseWithNumbers(supabase, blankToNull(o.orderRef), blankToNull(o.invoiceRef), orderId);
+  if (taken) {
+    return { ok: false, message: `Another purchase (${taken.merchant}) already has this order or invoice number.` };
+  }
+
   const { error } = await supabase
     .from("orders")
     .update({
       merchant: o.merchant,
       order_date: o.orderDate,
       order_ref: blankToNull(o.orderRef),
+      invoice_ref: blankToNull(o.invoiceRef),
       total: o.total ?? null,
       field_meta: {},
     })
     .eq("id", orderId);
+  if (error?.code === "23505") {
+    return { ok: false, message: "Another purchase already has this order or invoice number." };
+  }
   if (error) return failed("updateOrder", error);
 
   // Items that took their purchase date from the order follow the new date.
@@ -241,22 +229,13 @@ export async function deleteOrder(orderId: string): Promise<ActionResult> {
     .maybeSingle();
   if (!order) return NOT_FOUND;
 
-  const { data: items } = await supabase.from("items").select("id").eq("order_id", orderId);
-  const itemIds = (items ?? []).map((i) => i.id);
-  const { data: events } = itemIds.length
-    ? await supabase.from("service_events").select("id").in("item_id", itemIds)
-    : { data: [] };
-  const docIds = [
-    ...(await linkedDocumentIds(supabase, "order_id", [orderId])),
-    ...(await linkedDocumentIds(supabase, "item_id", itemIds)),
-    ...(await linkedDocumentIds(supabase, "service_event_id", (events ?? []).map((e) => e.id))),
-  ];
+  const { documentIds } = await purchaseDocumentIds(supabase, orderId);
 
   const { error } = await supabase.from("orders").delete().eq("id", orderId);
   if (error) return failed("deleteOrder", error);
   if (order.import_id) await supabase.from("imports").delete().eq("id", order.import_id);
 
-  await removeOrphanDocuments(supabase, [...new Set(docIds)]);
+  await removeOrphanDocuments(supabase, documentIds);
   return { ok: true };
 }
 

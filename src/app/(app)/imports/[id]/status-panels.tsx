@@ -26,7 +26,17 @@ import { approveSender, deleteImport, processImport, retryImport, type ProcessRe
 
 // In demo mode (no Supabase) actions only confirm with a toast.
 
-export function DiscardButton({ importId, label = "Delete import" }: { importId: string; label?: string }) {
+const NOTHING_CREATED = "The forwarded message or uploaded file is removed. No records were created from it.";
+
+export function DiscardButton({
+  importId,
+  label = "Delete import",
+  description = NOTHING_CREATED,
+}: {
+  importId: string;
+  label?: string;
+  description?: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -48,7 +58,7 @@ export function DiscardButton({ importId, label = "Delete import" }: { importId:
         open={open}
         onOpenChange={setOpen}
         title="Delete this import?"
-        description="The forwarded message or uploaded file is removed. No records were created from it."
+        description={description}
         onConfirm={discard}
       />
     </>
@@ -120,9 +130,12 @@ export function ProcessingPanel({
         </AlertDescription>
       </Alert>
       {!reading && (
-        <Button asChild variant="outline">
-          <Link href={`/add?tab=manual&import=${importId}`}>Taking too long? Enter the details manually</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/add?tab=manual&import=${importId}`}>Taking too long? Enter the details manually</Link>
+          </Button>
+          <DiscardButton importId={importId} />
+        </div>
       )}
     </div>
   );
@@ -342,6 +355,13 @@ export function ImportedPanel({
           </li>
         )}
       </ul>
+
+      <div className="border-t px-5 py-3">
+        <DiscardButton
+          importId={record.id}
+          description="Only the import record is removed. What it created stays, with the documents attached to it."
+        />
+      </div>
 
       {relinking && (
         <RelinkDialog

@@ -18,7 +18,9 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { CATEGORIES, type Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { processImport } from "../imports/actions";
-import { createPurchase, createServiceEvent } from "./actions";
+import { ReplacePurchaseDialog } from "@/components/replace-purchase-dialog";
+import type { ExistingPurchase } from "@/lib/purchases";
+import { createPurchase, createServiceEvent, type PurchaseInput } from "./actions";
 import { uploadFile } from "./upload-file";
 
 export type AddTab = "forward" | "upload" | "manual";
@@ -265,6 +267,8 @@ function ManualTab({
   const [lines, setLines] = useState<LineRow[]>(() => [newLine()]);
   const [serviceItem, setServiceItem] = useState("");
   const [saving, setSaving] = useState(false);
+  const [existing, setExisting] = useState<ExistingPurchase | null>(null);
+  const pending = useRef<{ input: PurchaseInput; form: HTMLFormElement } | null>(null);
 
   const sum = lines.reduce((s, l) => s + (Number(l.price) || 0), 0);
   const isVehicle = items.find((i) => i.id === serviceItem)?.isVehicle;
@@ -310,23 +314,51 @@ function ManualTab({
     }
   }
 
-  const savePurchase = (e: FormEvent<HTMLFormElement>) =>
-    save(e, async (form, importId) => {
-      const result = await createPurchase({
+  const savePurchase = (e: FormEvent<HTMLFormElement>) => {
+    const formElement = e.currentTarget;
+    return save(e, async (form, importId) => {
+      const input: PurchaseInput = {
         merchant: text(form, "merchant"),
         orderDate: text(form, "date"),
         orderRef: optionalText(form, "ref"),
+        invoiceRef: optionalText(form, "invoice"),
         importId,
         items: lines.map((l) => ({ name: l.name, category: l.category, price: optionalNumber(l.price) })),
-      });
+      };
+      const result = await createPurchase(input);
       if (!result.ok) {
-        toast.error(result.message);
+        // Same order or invoice number as a saved purchase: ask before overriding it.
+        if (result.existing) {
+          pending.current = { input, form: formElement };
+          setExisting(result.existing);
+        } else {
+          toast.error(result.message);
+        }
         return false;
       }
       toast.success("Purchase saved");
       router.push(`/purchases/${result.id}`);
       return true;
     });
+  };
+
+  async function replaceExisting(old: ExistingPurchase) {
+    setExisting(null);
+    const p = pending.current;
+    if (!p) return;
+    setSaving(true);
+    try {
+      const result = await createPurchase({ ...p.input, replaceOrderId: old.id });
+      if (!result.ok) return toast.error(result.message);
+      pending.current = null;
+      p.form.reset();
+      setLines([newLine()]);
+      toast.success("Purchase replaced");
+      router.push(`/purchases/${result.id}`);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const saveService = (e: FormEvent<HTMLFormElement>) =>
     save(e, async (form, importId) => {
@@ -363,6 +395,7 @@ function ManualTab({
 
   return (
     <Card className="gap-0 p-6">
+      <ReplacePurchaseDialog existing={existing} onCancel={() => setExisting(null)} onReplace={replaceExisting} />
       {fromImport && (
         <Alert className="mb-6">
           <Paperclip />
@@ -388,8 +421,11 @@ function ManualTab({
             <Field id={`${fid}-date`} label="Purchase date">
               <Input id={`${fid}-date`} name="date" type="date" required />
             </Field>
-            <Field id={`${fid}-ref`} label="Order reference" optional>
+            <Field id={`${fid}-ref`} label="Order number" optional>
               <Input id={`${fid}-ref`} name="ref" />
+            </Field>
+            <Field id={`${fid}-invoice`} label="Invoice number" optional>
+              <Input id={`${fid}-invoice`} name="invoice" />
             </Field>
             {fileField("Invoice")}
           </div>

@@ -100,7 +100,8 @@ describe("local shop bill (unknown merchant)", () => {
   });
 
   it("reads the labelled invoice number, date, items and total", () => {
-    expect(doc.fields.orderRef?.value).toBe("SE/2026/0457");
+    expect(doc.fields.invoiceRef?.value).toBe("SE/2026/0457");
+    expect(doc.fields.orderRef?.state).toBe("missing");
     expect(doc.fields.date?.value).toBe("2026-09-03");
     expect(doc.fields.total?.value).toBe(4798);
     expect(doc.lines.map((l) => l.name.value)).toEqual(["Philips Mixer Grinder HL7756", "Extension board 4-way"]);

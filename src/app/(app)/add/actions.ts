@@ -1,6 +1,12 @@
 "use server";
 
 import { z } from "zod";
+import {
+  purchaseDocumentIds,
+  purchaseWithNumbers,
+  removeOrphanDocuments,
+  type ExistingPurchase,
+} from "@/lib/purchases";
 import { createClient } from "@/lib/supabase/server";
 import { CATEGORIES, categoryValue } from "@/lib/types";
 
@@ -105,7 +111,10 @@ const purchaseSchema = z.object({
   merchant: z.string().trim().min(1).max(200),
   orderDate: isoDate,
   orderRef: z.string().trim().max(100).optional(),
+  invoiceRef: z.string().trim().max(100).optional(),
   importId: z.uuid().optional(),
+  /** The existing purchase with the same order or invoice number, which the user agreed to replace. */
+  replaceOrderId: z.uuid().optional(),
   /** Defaults to the sum of item prices; differs when there's shipping or a discount. */
   total: money.optional(),
   fieldMeta,
@@ -132,7 +141,9 @@ const purchaseSchema = z.object({
 
 export type PurchaseInput = z.input<typeof purchaseSchema>;
 
-export type SaveResult = { ok: true; id: string } | { ok: false; message: string };
+export type SaveResult =
+  | { ok: true; id: string }
+  | { ok: false; message: string; existing?: ExistingPurchase };
 
 function saveFailed(where: string, error: { message: string; code?: string }): SaveResult {
   console.error(`[manual] ${where} failed:`, error.code, error.message);
@@ -152,11 +163,16 @@ export async function createPurchase(input: PurchaseInput): Promise<SaveResult> 
   const p = parsed.data;
 
   const supabase = await createClient();
+  // Files of the purchase being replaced, to clean up once it's gone.
+  const replaced = p.replaceOrderId ? await purchaseDocumentIds(supabase, p.replaceOrderId) : null;
+
   const { data, error } = await supabase.rpc("create_manual_purchase", {
     purchase: {
       merchant: p.merchant,
       order_date: p.orderDate,
-      order_ref: p.orderRef ?? null,
+      order_ref: p.orderRef || null,
+      invoice_ref: p.invoiceRef || null,
+      replace_order_id: p.replaceOrderId ?? null,
       import_id: p.importId ?? null,
       total: p.total ?? null,
       field_meta: p.fieldMeta ?? {},
@@ -169,7 +185,14 @@ export async function createPurchase(input: PurchaseInput): Promise<SaveResult> 
       })),
     },
   });
+  if (error?.code === "OT409") {
+    const existing = await purchaseWithNumbers(supabase, p.orderRef, p.invoiceRef);
+    if (existing) {
+      return { ok: false, message: "A purchase with this order or invoice number already exists.", existing };
+    }
+  }
   if (error) return saveFailed("create_manual_purchase", error);
+  if (replaced) await removeOrphanDocuments(supabase, replaced.documentIds);
   return { ok: true, id: (data as { order_id: string }).order_id };
 }
 

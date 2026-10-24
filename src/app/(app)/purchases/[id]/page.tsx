@@ -65,8 +65,13 @@ async function PurchaseDetail({ params }: Pick<PageProps<"/purchases/[id]">, "pa
             <dl className="space-y-3 px-5 py-4 text-sm">
               <DetailRow label="Merchant">{order.merchant}</DetailRow>
               {order.orderRef && (
-                <DetailRow label="Order ref." mono>
+                <DetailRow label="Order no." mono>
                   {order.orderRef}
+                </DetailRow>
+              )}
+              {order.invoiceRef && (
+                <DetailRow label="Invoice no." mono>
+                  {order.invoiceRef}
                 </DetailRow>
               )}
               <DetailRow label="Date">{formatDate(order.orderDate)}</DetailRow>

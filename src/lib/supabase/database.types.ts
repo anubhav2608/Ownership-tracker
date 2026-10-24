@@ -288,6 +288,7 @@ export type Database = {
           import_id: string | null;
           merchant: string;
           order_date: string | null;
+          invoice_ref: string | null;
           order_ref: string | null;
           refunded_amount: number | null;
           source: Database["public"]["Enums"]["record_source"];
@@ -305,6 +306,7 @@ export type Database = {
           import_id?: string | null;
           merchant: string;
           order_date?: string | null;
+          invoice_ref?: string | null;
           order_ref?: string | null;
           refunded_amount?: number | null;
           source: Database["public"]["Enums"]["record_source"];
@@ -321,6 +323,7 @@ export type Database = {
           import_id?: string | null;
           merchant?: string;
           order_date?: string | null;
+          invoice_ref?: string | null;
           order_ref?: string | null;
           refunded_amount?: number | null;
           source?: Database["public"]["Enums"]["record_source"];

@@ -195,17 +195,11 @@ async function review(db: Db, userId: string, x: Extraction, text: string): Prom
       evidence: c.evidence,
     }));
     if ((candidates as unknown[]).length === 0) reviewReasons.push("Couldn't tell which item was serviced. Choose it below.");
-  } else if (x.fields.orderRef?.value) {
-    const { data: existing } = await db
-      .from("orders")
-      .select("merchant, order_date")
-      .eq("user_id", userId)
-      .eq("order_ref", x.fields.orderRef.value)
-      .limit(1)
-      .maybeSingle();
+  } else {
+    const existing = await existingPurchase(db, userId, x.fields.orderRef?.value, x.fields.invoiceRef?.value);
     if (existing) {
       reviewReasons.unshift(
-        `You already have a purchase with order reference ${x.fields.orderRef.value} from ${existing.merchant}. This may be a duplicate.`,
+        `You already have this purchase from ${existing.merchant} (same ${existing.on} number). Saving will ask whether to replace it.`,
       );
     }
   }
@@ -219,6 +213,26 @@ async function review(db: Db, userId: string, x: Extraction, text: string): Prom
     review_reasons: reviewReasons,
     candidates,
   };
+}
+
+/** A purchase of this user's with the same order or invoice number (case-insensitive). */
+async function existingPurchase(db: Db, userId: string, orderRef?: string | null, invoiceRef?: string | null) {
+  const exactly = (v: string) => v.replace(/[\\%_]/g, (c) => `\\${c}`);
+  for (const [on, column, value] of [
+    ["order", "order_ref", orderRef],
+    ["invoice", "invoice_ref", invoiceRef],
+  ] as const) {
+    if (!value) continue;
+    const { data } = await db
+      .from("orders")
+      .select("merchant")
+      .eq("user_id", userId)
+      .ilike(column, exactly(value))
+      .limit(1)
+      .maybeSingle();
+    if (data) return { merchant: data.merchant, on };
+  }
+  return null;
 }
 
 async function download(db: Db, path: string): Promise<Uint8Array> {

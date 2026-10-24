@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils";
 import { CATEGORIES, type Category, type ExtractedLine, type FieldState, type ImportRecord, type Tracked } from "@/lib/types";
 import { createPurchase, createServiceEvent, type PurchaseInput } from "../../add/actions";
 import { DiscardButton } from "./status-panels";
+import { ReplacePurchaseDialog } from "@/components/replace-purchase-dialog";
+import type { ExistingPurchase } from "@/lib/purchases";
 
 type ItemOption = { id: string; name: string; brand?: string };
 
@@ -74,6 +76,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   const [parts] = useState(() => (record.parts ?? []).map(lineDraft));
   const [warrantyFor, setWarrantyFor] = useState(() => defaultWarrantyLine(record.lines ?? []));
   const [saving, setSaving] = useState(false);
+  const [existing, setExisting] = useState<ExistingPurchase | null>(null);
 
   const candidates = [...(record.candidates ?? [])]
     .filter((c) => items.some((i) => i.id === c.itemId))
@@ -109,7 +112,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
     router.push(href);
   }
 
-  async function savePurchase() {
+  async function savePurchase(replaceOrderId?: string) {
     if (!fields.merchant?.value || !fields.date?.value) {
       toast.error("Add the merchant and order date first.");
       return;
@@ -123,11 +126,14 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       merchant: fields.merchant.value,
       orderDate: fields.date.value,
       orderRef: fields.orderRef?.value || undefined,
+      invoiceRef: fields.invoiceRef?.value || undefined,
       total: number(fields.total),
       importId: record.id,
+      replaceOrderId,
       fieldMeta: meta({
         merchant: fields.merchant,
         order_ref: fields.orderRef,
+        invoice_ref: fields.invoiceRef,
         order_date: fields.date,
         total: fields.total,
       }),
@@ -150,8 +156,22 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
             ],
       ),
     });
-    if (!result.ok) return toast.error(result.message);
-    done("Purchase saved", `/purchases/${result.id}`);
+    if (!result.ok) {
+      // Same order or invoice number as a saved purchase: ask before overriding it.
+      if (result.existing) return setExisting(result.existing);
+      return toast.error(result.message);
+    }
+    done(replaceOrderId ? "Purchase replaced" : "Purchase saved", `/purchases/${result.id}`);
+  }
+
+  async function replaceExisting(old: ExistingPurchase) {
+    setExisting(null);
+    setSaving(true);
+    try {
+      await savePurchase(old.id);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function saveService() {
@@ -190,6 +210,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
+      <ReplacePurchaseDialog existing={existing} onCancel={() => setExisting(null)} onReplace={replaceExisting} />
       {record.reviewReasons && (
         <Alert>
           <AlertTriangle className="text-warning" />
@@ -220,7 +241,8 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
           ) : (
             <>
               <FieldInput fid={fid} label="Merchant" name="merchant" draft={fields.merchant} onChange={setField} />
-              <FieldInput fid={fid} label="Order reference" name="orderRef" draft={fields.orderRef} onChange={setField} />
+              <FieldInput fid={fid} label="Order number" name="orderRef" draft={fields.orderRef} onChange={setField} />
+              <FieldInput fid={fid} label="Invoice number" name="invoiceRef" draft={fields.invoiceRef} onChange={setField} />
               <FieldInput fid={fid} label="Order date" name="date" type="date" draft={fields.date} onChange={setField} />
               <FieldInput fid={fid} label="Order total" name="total" type="number" draft={fields.total} onChange={setField} />
               <FieldInput

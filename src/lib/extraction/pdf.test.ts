@@ -55,6 +55,7 @@ describe("extractPdfText + parseDocument", () => {
 
     expect(doc.fields.merchant?.value).toBe("Amazon");
     expect(doc.fields.orderRef?.value).toBe("408-1938842-1173903");
+    expect(doc.fields.invoiceRef?.value).toBe("BLR7-123456");
     expect(doc.fields.date?.value).toBe("2026-10-15");
     expect(doc.fields.total?.value).toBe(31489);
     expect(doc.lines.map((l) => [l.name.value, l.price.value])).toEqual([
@@ -116,6 +117,7 @@ describe("extractPdfText + parseDocument", () => {
     if (!outcome.ok) return;
     const x = outcome.extraction;
     expect(x.fields.orderRef?.value).toBe("1000001-2000002-3000003");
+    expect(x.fields.invoiceRef?.value).toBe("F0101XX000000001");
     expect(x.fields.date?.value).toBe("2026-09-14");
     expect(x.fields.total?.value).toBe(2418);
     expect(x.lines.map((l) => [l.name.value, l.price.value])).toEqual([

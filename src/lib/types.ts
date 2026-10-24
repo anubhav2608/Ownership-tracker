@@ -35,6 +35,7 @@ export interface Order {
   id: string;
   merchant: string;
   orderRef?: string;
+  invoiceRef?: string;
   orderDate: string;
   total: number;
   status: OrderStatus;
@@ -177,6 +178,7 @@ export interface ImportRecord {
   fields?: {
     merchant?: Tracked<string>;
     orderRef?: Tracked<string>;
+    invoiceRef?: Tracked<string>;
     date?: Tracked<string>;
     total?: Tracked<number>;
     warrantyMonths?: Tracked<number>;
