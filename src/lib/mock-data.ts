@@ -11,10 +11,12 @@ import type {
 // The async getters at the bottom mirror the Supabase queries that replace them.
 
 const currentUser = {
+  id: "demo-user",
   name: "Anubhav",
   email: "anubhav2608@gmail.com",
   forwardingAddress: "u_7f3k9q@in.ownership.app",
   verifiedSenders: ["anubhav2608@gmail.com"],
+  pendingSenders: [] as string[],
 };
 
 const confirmed = <T,>(value: T) => ({ value, state: "confirmed" as const });
@@ -470,4 +472,10 @@ export async function getImports() {
 export async function getImport(id: string) {
   await connection();
   return imports.find((i) => i.id === id);
+}
+
+// Sample imports have no stored originals.
+export async function getImportDocuments(): Promise<StoredDocument[]> {
+  await connection();
+  return [];
 }

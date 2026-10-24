@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import type { Database } from "./database.types";
 import { supabaseEnv } from "./env";
 
@@ -10,6 +11,8 @@ import { supabaseEnv } from "./env";
  */
 export async function createClient() {
   const { url, key } = supabaseEnv();
+  // The auth client reads the clock as soon as it starts, so it must only run at request time.
+  await connection();
   const cookieStore = await cookies();
 
   return createServerClient<Database>(url, key, {

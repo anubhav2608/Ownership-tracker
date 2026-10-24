@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Boxes, Search } from "lucide-react";
 import { useState } from "react";
 import { CategoryIcon, ItemStatusBadge, WarrantyBadge } from "@/components/badges";
+import { EmptyCta } from "@/components/empty-cta";
 import { Card } from "@/components/ui/card";
 import {
   Empty,
@@ -101,7 +102,13 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
       </div>
 
       <Card className="gap-0 overflow-hidden py-0">
-        {visible.length === 0 ? (
+        {rows.length === 0 ? (
+          <EmptyCta
+            icon={<Boxes />}
+            title="No items yet"
+            description="Items appear here when you upload an invoice, forward a receipt or enter a purchase."
+          />
+        ) : visible.length === 0 ? (
           <Empty className="py-12">
             <EmptyHeader>
               <EmptyMedia variant="icon">

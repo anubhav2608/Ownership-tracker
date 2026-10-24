@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Ban, Copy, Link2, Loader2, RotateCw } from "lucide-react";
+import { AlertCircle, Ban, Clock, Copy, Link2, Loader2, RotateCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDelete } from "@/components/confirm-delete";
@@ -20,13 +20,25 @@ import {
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { formatDate, formatMoney } from "@/lib/format";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { ImportError, ImportRecord, Item, ServiceEvent } from "@/lib/types";
+import { deleteImport } from "../actions";
 
-// Prototype: actions confirm with a toast. Real handlers call the import API.
+// In demo mode (no Supabase) actions only confirm with a toast.
 
-function DiscardButton({ label = "Delete import" }: { label?: string }) {
+function DiscardButton({ importId, label = "Delete import" }: { importId: string; label?: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  async function discard() {
+    if (isSupabaseConfigured && !(await deleteImport(importId)).ok) {
+      toast.error("Couldn't delete the import. Please try again.");
+      return;
+    }
+    toast.success("Import deleted");
+    router.push("/imports");
+  }
+
   return (
     <>
       <Button variant="ghost" onClick={() => setOpen(true)}>
@@ -37,16 +49,41 @@ function DiscardButton({ label = "Delete import" }: { label?: string }) {
         onOpenChange={setOpen}
         title="Delete this import?"
         description="The forwarded message or uploaded file is removed. No records were created from it."
-        onConfirm={() => {
-          toast.success("Import deleted");
-          router.push("/imports");
-        }}
+        onConfirm={discard}
       />
     </>
   );
 }
 
-export function ProcessingPanel() {
+export function ProcessingPanel({
+  importId,
+  status,
+}: {
+  importId: string;
+  status: "queued" | "processing";
+}) {
+  if (status === "queued") {
+    return (
+      <SectionCard title="Waiting to be read">
+        <div className="space-y-4 px-5 py-4">
+          <Alert>
+            <Clock />
+            <AlertTitle>Queued</AlertTitle>
+            <AlertDescription>
+              Your file is stored privately (open it under Source). Automatic reading
+              isn&rsquo;t switched on yet, so it will stay queued until it is.
+            </AlertDescription>
+          </Alert>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href="/add?tab=manual">Enter the details manually</Link>
+            </Button>
+            <DiscardButton importId={importId} />
+          </div>
+        </div>
+      </SectionCard>
+    );
+  }
   return (
     <Alert>
       <Loader2 className="animate-spin" />
@@ -60,10 +97,12 @@ export function ProcessingPanel() {
 }
 
 export function FailedPanel({
+  importId,
   error,
   attempts,
   from,
 }: {
+  importId: string;
   error: ImportError;
   attempts: number;
   from?: string;
@@ -112,14 +151,20 @@ export function FailedPanel({
               </Button>
             </>
           )}
-          <DiscardButton />
+          <DiscardButton importId={importId} />
         </div>
       </div>
     </SectionCard>
   );
 }
 
-export function DuplicatePanel({ duplicateOf }: { duplicateOf?: ImportRecord }) {
+export function DuplicatePanel({
+  importId,
+  duplicateOf,
+}: {
+  importId: string;
+  duplicateOf?: ImportRecord;
+}) {
   return (
     <SectionCard title="Duplicate">
       <div className="space-y-4 px-5 py-4">
@@ -144,14 +189,14 @@ export function DuplicatePanel({ duplicateOf }: { duplicateOf?: ImportRecord }) 
           >
             It&rsquo;s different, import anyway
           </Button>
-          <DiscardButton />
+          <DiscardButton importId={importId} />
         </div>
       </div>
     </SectionCard>
   );
 }
 
-export function UnsupportedPanel() {
+export function UnsupportedPanel({ importId }: { importId: string }) {
   return (
     <SectionCard title="Not imported">
       <div className="space-y-4 px-5 py-4">
@@ -167,7 +212,7 @@ export function UnsupportedPanel() {
           <Button variant="outline" onClick={() => toast("Sent to review as a receipt")}>
             It is a receipt, review it
           </Button>
-          <DiscardButton />
+          <DiscardButton importId={importId} />
         </div>
       </div>
     </SectionCard>

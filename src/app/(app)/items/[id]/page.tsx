@@ -15,7 +15,7 @@ import { DetailRow, SectionCard } from "@/components/layout-bits";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { formatDate, formatMoney, fractionElapsed } from "@/lib/format";
-import { getDocuments, getItem, getItems, getOrder, getServiceEvents } from "@/lib/mock-data";
+import { getDocuments, getItem, getItems, getOrder, getServiceEvents } from "@/lib/data";
 import { ItemActions } from "./item-actions";
 import { ServiceHistory } from "./service-history";
 

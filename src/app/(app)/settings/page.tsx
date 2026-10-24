@@ -4,7 +4,7 @@ import { CheckCircle2 } from "lucide-react";
 import { ForwardingAddress } from "@/components/copy-button";
 import { PageHeader, SectionCard } from "@/components/layout-bits";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/lib/mock-data";
+import { getCurrentUser } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { AddSender, DangerZone } from "./settings-actions";
 

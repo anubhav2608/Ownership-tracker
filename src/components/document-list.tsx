@@ -1,10 +1,10 @@
-import { Download, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { documentKindLabel, SourceLabel } from "@/components/badges";
-import { Button } from "@/components/ui/button";
+import { OpenDocumentButton } from "@/components/open-document-button";
 import { formatDate } from "@/lib/format";
 import type { StoredDocument } from "@/lib/types";
 
-/** Documents live in a private bucket; download goes through a signed URL later. */
+/** Documents live in a private bucket; opening one goes through a short-lived signed URL. */
 export function DocumentList({ documents }: { documents: StoredDocument[] }) {
   if (documents.length === 0) {
     return <p className="px-5 py-4 text-sm text-muted-foreground">No documents attached.</p>;
@@ -24,9 +24,7 @@ export function DocumentList({ documents }: { documents: StoredDocument[] }) {
               <span>{formatDate(d.addedAt)}</span>
             </p>
           </div>
-          <Button variant="ghost" size="icon" aria-label={`Download ${d.fileName}`}>
-            <Download />
-          </Button>
+          <OpenDocumentButton id={d.id} fileName={d.fileName} />
         </li>
       ))}
     </ul>

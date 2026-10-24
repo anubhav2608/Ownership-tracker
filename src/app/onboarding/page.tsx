@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { ForwardingAddress } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/lib/mock-data";
+import { getCurrentUser } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Welcome" };
 

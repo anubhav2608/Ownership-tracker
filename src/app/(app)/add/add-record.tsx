@@ -13,7 +13,9 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatMoney } from "@/lib/format";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
+import { uploadFile } from "./upload-file";
 
 export type AddTab = "forward" | "upload" | "manual";
 
@@ -22,10 +24,12 @@ const CATEGORIES = ["Electronics", "Appliances", "Vehicle", "Furniture", "Access
 
 export function AddRecord({
   initialTab,
+  userId,
   forwardingAddress,
   items,
 }: {
   initialTab: AddTab;
+  userId: string;
   forwardingAddress: string;
   items: { id: string; name: string; isVehicle: boolean }[];
 }) {
@@ -46,7 +50,7 @@ export function AddRecord({
         <ForwardTab address={forwardingAddress} />
       </TabsContent>
       <TabsContent value="upload">
-        <UploadTab />
+        <UploadTab userId={userId} />
       </TabsContent>
       <TabsContent value="manual">
         <ManualTab items={items} />
@@ -76,11 +80,43 @@ function ForwardTab({ address }: { address: string }) {
   );
 }
 
-function UploadTab() {
+function UploadTab({ userId }: { userId: string }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  async function importFiles() {
+    if (!isSupabaseConfigured) {
+      toast.success(`${files.length} file${files.length > 1 ? "s" : ""} queued for import`);
+      router.push("/imports");
+      return;
+    }
+
+    setUploading(true);
+    const results = await Promise.all(
+      files.map((f) =>
+        uploadFile(userId, f).catch(() => ({
+          ok: false as const,
+          reason: "failed" as const,
+          message: `${f.name}: upload failed`,
+        })),
+      ),
+    );
+    setUploading(false);
+
+    const imported = results.filter((r) => r.ok);
+    const duplicates = results.filter((r) => !r.ok && r.reason === "duplicate");
+    for (const r of results) if (!r.ok && r.reason !== "duplicate") toast.error(r.message);
+    if (duplicates.length) {
+      toast(`${duplicates.length} file${duplicates.length > 1 ? "s were" : " was"} already uploaded, skipped`);
+    }
+    if (imported.length === 0) return;
+
+    toast.success(`${imported.length} file${imported.length > 1 ? "s" : ""} uploaded`);
+    router.push(imported.length === 1 && imported[0].ok ? `/imports/${imported[0].importId}` : "/imports");
+  }
 
   function addFiles(list: FileList | null) {
     if (!list) return;
@@ -146,13 +182,8 @@ function UploadTab() {
             ))}
           </ul>
           <div className="mt-4 flex justify-end">
-            <Button
-              onClick={() => {
-                toast.success(`${files.length} file${files.length > 1 ? "s" : ""} queued for import`);
-                router.push("/imports");
-              }}
-            >
-              Import {files.length} file{files.length > 1 && "s"}
+            <Button onClick={importFiles} disabled={uploading}>
+              {uploading ? "Uploading…" : `Import ${files.length} file${files.length > 1 ? "s" : ""}`}
             </Button>
           </div>
         </>

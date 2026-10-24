@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout-bits";
 import { Button } from "@/components/ui/button";
-import { getItems, getOrders, getServiceEvents } from "@/lib/mock-data";
+import { getItems, getOrders, getServiceEvents } from "@/lib/data";
 import { ItemsList, type ItemRow } from "./items-list";
 
 export const metadata: Metadata = { title: "Items" };

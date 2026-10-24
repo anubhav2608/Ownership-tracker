@@ -3,9 +3,10 @@
 One place to find what you bought, retrieve its records, and track what happens to it
 while you own it.
 
-Status: every screen is built and clickable on fictional sample data. The Supabase
-schema, row level security, private storage and sign-in are in place; screens move from
-sample data to Supabase queries next, then the Resend inbound webhook and extraction.
+Status: signed-in users see their own data from Supabase, and uploading a document is
+real (stored privately, listed under Imports, openable and deletable). Next: saving
+purchases and service events, then the Resend inbound webhook and extraction. Without
+Supabase settings the app runs as a demo on fictional sample data.
 
 ## Run it
 
@@ -117,7 +118,8 @@ src/
   lib/
     supabase/           browser + server clients, proxy helper, generated database types
     types.ts            domain model: Order, Item, StoredDocument, ServiceEvent, ImportRecord
-    mock-data.ts        fictional sample data + async getters (swap for Supabase queries)
+    data.ts             data access: Supabase when configured, otherwise the sample data
+    mock-data.ts        fictional sample data for demo mode
     format.ts           money / date formatting (locale and currency in one place)
     utils.ts            cn()
 ```
@@ -131,8 +133,8 @@ variants) live in `src/app/globals.css`, with a dark set that follows the system
 
 ## Notes
 
-- Cache Components is on (Next 16 default). Request-time data goes through the async
-  getters in `lib/mock-data.ts`, which call `connection()`. Keep that pattern when the
-  Supabase queries replace them.
-- Screens still read sample data and actions are simulated (local state or a toast);
-  sign-in and the database are real once Supabase is configured.
+- Cache Components is on (Next 16 default). Request-time data goes through `lib/data.ts`;
+  the server Supabase client calls `connection()` before it starts.
+- Real today: sign-in, reading your data, uploading / opening / deleting documents.
+  Still simulated (toast only): saving manual entries, editing and deleting records,
+  reviewing imports and retrying them.

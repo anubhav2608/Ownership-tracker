@@ -13,7 +13,7 @@ import { DocumentList } from "@/components/document-list";
 import { DetailRow, SectionCard } from "@/components/layout-bits";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatDate, formatMoney } from "@/lib/format";
-import { getDocuments, getImport, getItems, getOrder } from "@/lib/mock-data";
+import { getDocuments, getImport, getItems, getOrder } from "@/lib/data";
 import { OrderActions } from "./order-actions";
 
 export const metadata: Metadata = { title: "Purchase" };

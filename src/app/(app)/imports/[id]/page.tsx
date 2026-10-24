@@ -3,9 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Check, FileText, Loader2, Mail, X } from "lucide-react";
 import { documentKindLabel, ImportStatusBadge, Pill, SourceLabel } from "@/components/badges";
+import { DocumentList } from "@/components/document-list";
 import { DetailRow, SectionCard } from "@/components/layout-bits";
 import { formatDate } from "@/lib/format";
-import { getImport, getItems, getOrders, getServiceEvents } from "@/lib/mock-data";
+import { getImport, getImportDocuments, getItems, getOrders, getServiceEvents } from "@/lib/data";
 import type { ImportRecord, ImportStage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -34,7 +35,12 @@ export default async function ImportPage(props: PageProps<"/imports/[id]">) {
   const record = await getImport(id);
   if (!record) notFound();
 
-  const [items, orders, events] = await Promise.all([getItems(), getOrders(), getServiceEvents()]);
+  const [items, orders, events, originals] = await Promise.all([
+    getItems(),
+    getOrders(),
+    getServiceEvents(),
+    getImportDocuments(record.id),
+  ]);
   const ownedItems = items
     .filter((i) => i.status === "owned")
     .map((i) => ({ id: i.id, name: i.name, brand: i.brand }));
@@ -67,18 +73,21 @@ export default async function ImportPage(props: PageProps<"/imports/[id]">) {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="min-w-0 space-y-6 lg:col-span-2">
           {record.status === "needs_review" && <ReviewForm record={record} items={ownedItems} />}
-          {(record.status === "processing" || record.status === "queued") && <ProcessingPanel />}
+          {(record.status === "processing" || record.status === "queued") && (
+            <ProcessingPanel importId={record.id} status={record.status} />
+          )}
           {record.status === "failed" && record.error && (
             <FailedPanel
+              importId={record.id}
               error={record.error}
               attempts={record.attempts}
               from={record.from}
             />
           )}
           {record.status === "duplicate" && (
-            <DuplicatePanel duplicateOf={duplicateOf} />
+            <DuplicatePanel importId={record.id} duplicateOf={duplicateOf} />
           )}
-          {record.status === "unsupported" && <UnsupportedPanel />}
+          {record.status === "unsupported" && <UnsupportedPanel importId={record.id} />}
           {record.status === "imported" && (
             <ImportedPanel
               record={record}
@@ -109,15 +118,20 @@ export default async function ImportPage(props: PageProps<"/imports/[id]">) {
                 </DetailRow>
               )}
             </dl>
-            {/* Placeholder for the rendered email / document preview. */}
-            <div className="mx-5 mb-5 flex aspect-[4/3] flex-col items-center justify-center rounded-lg border border-dashed bg-muted text-center text-sm text-muted-foreground">
-              {record.source === "email" ? (
-                <Mail className="mb-2 size-7" strokeWidth={1.5} />
-              ) : (
-                <FileText className="mb-2 size-7" strokeWidth={1.5} />
-              )}
-              Original {record.source === "email" ? "email" : "document"}
-            </div>
+            {originals.length > 0 ? (
+              <div className="border-t">
+                <DocumentList documents={originals} />
+              </div>
+            ) : (
+              <div className="mx-5 mb-5 flex aspect-[4/3] flex-col items-center justify-center rounded-lg border border-dashed bg-muted text-center text-sm text-muted-foreground">
+                {record.source === "email" ? (
+                  <Mail className="mb-2 size-7" strokeWidth={1.5} />
+                ) : (
+                  <FileText className="mb-2 size-7" strokeWidth={1.5} />
+                )}
+                Original {record.source === "email" ? "email" : "document"}
+              </div>
+            )}
           </SectionCard>
         </div>
       </div>

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ForwardingAddress } from "@/components/copy-button";
 import { PageHeader } from "@/components/layout-bits";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser, getImports } from "@/lib/mock-data";
+import { getCurrentUser, getImports } from "@/lib/data";
 import { ImportsList } from "./imports-list";
 
 export const metadata: Metadata = { title: "Imports" };

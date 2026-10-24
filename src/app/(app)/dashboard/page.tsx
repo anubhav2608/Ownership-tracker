@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Wrench } from "lucide-react";
+import { ArrowRight, CheckCircle2, Receipt, Wrench } from "lucide-react";
 import { ImportStatusBadge, OrderStatusBadge } from "@/components/badges";
+import { EmptyCta } from "@/components/empty-cta";
 import { PageHeader, SectionCard } from "@/components/layout-bits";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,7 +15,7 @@ import {
   getItems,
   getOrders,
   getServiceEvents,
-} from "@/lib/mock-data";
+} from "@/lib/data";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -131,6 +132,13 @@ export default async function DashboardPage() {
             </Link>
           }
         >
+          {recentOrders.length === 0 && (
+            <EmptyCta
+              icon={<Receipt />}
+              title="No purchases yet"
+              description="Upload an invoice or enter a purchase to start your history."
+            />
+          )}
           <ul className="divide-y">
             {recentOrders.map((o) => {
               const count = items.filter((i) => i.orderId === o.id).length;
@@ -156,6 +164,15 @@ export default async function DashboardPage() {
         </SectionCard>
 
         <SectionCard className="lg:col-span-2" title="Recent service">
+          {recentEvents.length === 0 && (
+            <EmptyCta
+              icon={<Wrench />}
+              title="No service recorded"
+              description="Repairs and servicing show up here once you add them to an item."
+              href="/add?tab=manual"
+              action="Add a service event"
+            />
+          )}
           <ul className="divide-y">
             {recentEvents.map((e) => (
               <li key={e.id}>

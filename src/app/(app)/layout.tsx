@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { AppShell } from "@/components/app-shell";
-import { getImports } from "@/lib/mock-data";
+import { getImports } from "@/lib/data";
 
 async function InboxCount({ variant }: { variant: "badge" | "dot" }) {
   const imports = await getImports();

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout-bits";
-import { getCurrentUser, getItems } from "@/lib/mock-data";
+import { getCurrentUser, getItems } from "@/lib/data";
 import { AddRecord, type AddTab } from "./add-record";
 
 export const metadata: Metadata = { title: "Add record" };
@@ -20,6 +20,7 @@ export default async function AddPage(props: PageProps<"/add">) {
       />
       <AddRecord
         initialTab={initial}
+        userId={user.id}
         forwardingAddress={user.forwardingAddress}
         items={items
           .filter((i) => i.status === "owned")
