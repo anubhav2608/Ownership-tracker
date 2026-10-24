@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { Suspense } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { ForwardingAddress } from "@/components/copy-button";
@@ -8,6 +9,7 @@ import { FormCardSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { GmailScript } from "./gmail-script";
 import { AddSender, DangerZone } from "./settings-actions";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -28,7 +30,10 @@ export default function SettingsPage() {
 }
 
 async function AccountSettings() {
-  const user = await getCurrentUser();
+  const [user, requestHeaders] = await Promise.all([getCurrentUser(), headers()]);
+  // Behind a proxy or tunnel the public host is in x-forwarded-host.
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
+  const proto = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   return (
     <>
       <SectionCard title="Forwarding address">
@@ -42,6 +47,8 @@ async function AccountSettings() {
           </Button>
         </div>
       </SectionCard>
+
+      <GmailScript gmailKey={user.gmailKey} defaultAppUrl={`${proto}://${host}`} />
 
       <SectionCard title="Verified senders">
         <div className="p-5">

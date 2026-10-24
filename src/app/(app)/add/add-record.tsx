@@ -87,6 +87,10 @@ function ForwardTab({ address }: { address: string }) {
         <li>Forwarding the same email twice is safe; we detect duplicates.</li>
         <li>Track progress under Imports. Anything uncertain waits for your review.</li>
         <li>
+          Use Gmail? A script in your own Google account can send emails you label{" "}
+          <span className="font-medium text-foreground">Ownership</span> (Settings → Gmail).
+        </li>
+        <li>
           Prefer not to forward? Save the email as a file (in Gmail: ⋮ → Download message) and
           upload the .eml. Its body and attached invoice are read together.
         </li>

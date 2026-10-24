@@ -122,6 +122,7 @@ export type Database = {
       };
       imports: {
         Row: {
+          sender_trusted: boolean;
           attempts: number;
           candidates: NonNullable<Json>;
           content_sha256: string | null;
@@ -149,6 +150,7 @@ export type Database = {
         };
         ComputedFields: never;
         Insert: {
+          sender_trusted?: boolean;
           attempts?: number;
           candidates?: NonNullable<Json>;
           content_sha256?: string | null;
@@ -175,6 +177,7 @@ export type Database = {
           user_id?: string;
         };
         Update: {
+          sender_trusted?: boolean;
           attempts?: number;
           candidates?: NonNullable<Json>;
           content_sha256?: string | null;
@@ -347,6 +350,9 @@ export type Database = {
       };
       profiles: {
         Row: {
+          inbound_key_created_at: string | null;
+          inbound_key_hash: string | null;
+          inbound_key_hint: string | null;
           created_at: string;
           display_name: string | null;
           forwarding_token: string;
@@ -355,6 +361,9 @@ export type Database = {
         };
         ComputedFields: never;
         Insert: {
+          inbound_key_created_at?: string | null;
+          inbound_key_hash?: string | null;
+          inbound_key_hint?: string | null;
           created_at?: string;
           display_name?: string | null;
           forwarding_token?: string;
@@ -362,6 +371,9 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          inbound_key_created_at?: string | null;
+          inbound_key_hash?: string | null;
+          inbound_key_hint?: string | null;
           created_at?: string;
           display_name?: string | null;
           forwarding_token?: string;
@@ -574,6 +586,7 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      set_inbound_key: { Args: { key_hash: string | null; hint: string | null }; Returns: undefined };
       approve_import_sender: { Args: { import_id: string }; Returns: string };
       create_manual_purchase: { Args: { purchase: Json }; Returns: Json };
       create_manual_service_event: { Args: { event: Json }; Returns: Json };

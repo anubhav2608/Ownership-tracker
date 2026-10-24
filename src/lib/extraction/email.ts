@@ -83,6 +83,10 @@ export function forwardingTokens(recipients: (string | null | undefined)[], doma
 
 export interface ParsedEmail {
   from: string | null;
+  /** The From header as written, with the display name. */
+  fromHeader: string | null;
+  to: string[];
+  date: string | null;
   subject: string;
   messageId: string | null;
   html: string | null;
@@ -94,8 +98,12 @@ export interface ParsedEmail {
 export async function parseRawEmail(raw: Uint8Array | string): Promise<ParsedEmail> {
   const email = await PostalMime.parse(raw, { attachmentEncoding: "arraybuffer" });
   const from = email.from && "address" in email.from ? (email.from.address ?? null) : null;
+  const mailbox = email.from && "address" in email.from ? email.from : null;
   return {
     from: from?.toLowerCase() ?? null,
+    fromHeader: mailbox?.address ? (mailbox.name ? `${mailbox.name} <${mailbox.address}>` : mailbox.address) : null,
+    to: (email.to ?? []).flatMap((a) => (a.address ? [a.address] : (a.group ?? []).map((g) => g.address))),
+    date: email.date ?? null,
     subject: email.subject?.trim() || "(no subject)",
     messageId: email.messageId ?? null,
     html: email.html ?? null,

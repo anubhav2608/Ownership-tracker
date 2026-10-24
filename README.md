@@ -67,6 +67,16 @@ import page offers to trust the sender, after which their mail is read automatic
 Redelivered webhooks and re-forwarded messages are recognised. Reading prefers an attached
 PDF invoice, then the email body, and runs after the webhook has responded.
 
+### Gmail without forwarding (Apps Script)
+
+Settings → Gmail creates a personal key (shown once; only its SHA-256 hash is stored) and
+gives a Google Apps Script with it filled in. The user pastes it into script.google.com in
+their own account and runs `setup()`; every 15 minutes it posts each email they've labelled
+"Ownership" (raw, with attachments) to `/api/inbound/raw` with the key, then moves it to
+"Ownership/Sent". The app never gets Gmail access. Mail sent with the key is read without
+the verified-sender check (the key proves it's the user's). Needs `SUPABASE_SECRET_KEY` and
+a public address for the app (a deployment, or a tunnel to your computer).
+
 ### Local stack (needs Docker)
 
 ```bash

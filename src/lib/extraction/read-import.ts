@@ -96,12 +96,13 @@ export const unverifiedSender = (email: string | null) =>
 export async function readImport(db: Db, userId: string, importId: string): Promise<Outcome> {
   const { data: imp } = await db
     .from("imports")
-    .select("source, from_email")
+    .select("source, from_email, sender_trusted")
     .eq("id", importId)
     .eq("user_id", userId)
     .maybeSingle();
   if (!imp) return failure("NO_FILE", FAILURES.NO_FILE[0], false);
-  if (imp.source === "email" && !(await isVerifiedSender(db, userId, imp.from_email))) {
+  // Mail sent with the user's own key (their Gmail script) is theirs, whoever wrote it.
+  if (imp.source === "email" && !imp.sender_trusted && !(await isVerifiedSender(db, userId, imp.from_email))) {
     return unverifiedSender(imp.from_email);
   }
 

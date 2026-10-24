@@ -78,6 +78,11 @@ export const getCurrentUser = cache(async () => {
     forwardingAddress: profile ? `${profile.forwarding_token}@${INBOUND_DOMAIN}` : "",
     verifiedSenders: senders.filter((s) => s.verified_at).map((s) => s.email),
     pendingSenders: senders.filter((s) => !s.verified_at).map((s) => s.email),
+    /** The personal key for the Gmail script; only its hint is ever shown again. */
+    gmailKey:
+      profile?.inbound_key_hash && profile.inbound_key_created_at
+        ? { hint: profile.inbound_key_hint ?? "", createdAt: profile.inbound_key_created_at }
+        : null,
   };
 });
 

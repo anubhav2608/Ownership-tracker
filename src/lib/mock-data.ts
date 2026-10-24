@@ -17,6 +17,7 @@ const currentUser = {
   forwardingAddress: "u_7f3k9q@in.ownership.app",
   verifiedSenders: ["anubhav2608@gmail.com"],
   pendingSenders: [] as string[],
+  gmailKey: null as { hint: string; createdAt: string } | null,
 };
 
 const confirmed = <T,>(value: T) => ({ value, state: "confirmed" as const });

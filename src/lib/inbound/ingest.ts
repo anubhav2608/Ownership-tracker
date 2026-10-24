@@ -46,13 +46,69 @@ export async function ingestEmail({
 
   const raw = email.raw?.download_url ? await fetchBytes(email.raw.download_url) : null;
   const parsed = raw ? await parseRawEmail(raw) : null;
-  const from = emailAddress(email.from) ?? parsed?.from ?? null;
-  const subject = email.subject?.trim() || parsed?.subject || "(no subject)";
-  const messageId = email.message_id || parsed?.messageId || null;
-  const html = email.html ?? parsed?.html ?? null;
-  const text = email.text ?? parsed?.text ?? null;
+  return storeEmail(db, userId, {
+    eventId,
+    raw,
+    from: email.from,
+    to: email.to,
+    date: email.created_at,
+    subject: email.subject?.trim() || parsed?.subject || "(no subject)",
+    messageId: email.message_id || parsed?.messageId || null,
+    html: email.html ?? parsed?.html ?? null,
+    text: email.text ?? parsed?.text ?? null,
+    attachments: parsed ? parsed.attachments : await fetchAttachments(resend, emailId),
+    senderTrusted: false,
+  });
+}
 
-  const attachments = keptAttachments(parsed ? parsed.attachments : await fetchAttachments(resend, emailId));
+/**
+ * Stores a raw email sent by the user's own Gmail script (with their personal
+ * key). The key proves who sent it, so the original sender (a shop) needn't be
+ * a verified sender.
+ */
+export async function ingestRawEmail(db: Db, userId: string, raw: Uint8Array): Promise<IngestResult> {
+  // The same message sent again (a script retry) is the same delivery.
+  const eventId = `raw:${userId}:${sha256(raw)}`;
+  const existing = await findImport(db, userId, "inbound_event_id", eventId);
+  if (existing) return { status: "redelivered", importId: existing };
+
+  const parsed = await parseRawEmail(raw);
+  const date = parsed.date && !Number.isNaN(Date.parse(parsed.date)) ? new Date(parsed.date).toISOString() : new Date().toISOString();
+  return storeEmail(db, userId, {
+    eventId,
+    raw,
+    from: parsed.fromHeader ?? parsed.from ?? "",
+    to: parsed.to,
+    date,
+    subject: parsed.subject,
+    messageId: parsed.messageId,
+    html: parsed.html,
+    text: parsed.text,
+    attachments: parsed.attachments,
+    senderTrusted: true,
+  });
+}
+
+interface IncomingEmail {
+  eventId: string;
+  raw: Uint8Array | null;
+  /** The From header as sent ("Shop <orders@shop.example>"). */
+  from: string;
+  to: string[];
+  date: string;
+  subject: string;
+  messageId: string | null;
+  html: string | null;
+  text: string | null;
+  attachments: Attachment[];
+  /** Sent with the user's own key, so the sender needn't be verified. */
+  senderTrusted: boolean;
+}
+
+async function storeEmail(db: Db, userId: string, email: IncomingEmail): Promise<IngestResult> {
+  const { eventId, raw, subject, messageId, html, text } = email;
+  const from = emailAddress(email.from);
+  const attachments = keptAttachments(email.attachments);
 
   const base = {
     user_id: userId,
@@ -61,6 +117,7 @@ export async function ingestEmail({
     from_email: from,
     message_id: messageId,
     inbound_event_id: eventId,
+    sender_trusted: email.senderTrusted,
   };
 
   // The same message forwarded again, or the same attachments sent again.
@@ -104,7 +161,7 @@ export async function ingestEmail({
       from: email.from,
       to: email.to,
       subject,
-      date: email.created_at,
+      date: email.date,
       messageId,
       html,
       text,
@@ -120,7 +177,7 @@ export async function ingestEmail({
     throw e;
   }
 
-  if (!(await isVerifiedSender(db, userId, from))) {
+  if (!email.senderTrusted && !(await isVerifiedSender(db, userId, from))) {
     await recordOutcome(db, userId, imp.id, unverifiedSender(from));
     return { status: "held", importId: imp.id };
   }
