@@ -77,3 +77,107 @@ export async function registerUpload(input: z.input<typeof uploadSchema>): Promi
 
   return { ok: true, importId: imp.id };
 }
+
+// ── Manual entry ────────────────────────────────────────────────────────
+
+const categoryValues = {
+  Electronics: "electronics",
+  Appliances: "appliances",
+  Vehicle: "vehicle",
+  Furniture: "furniture",
+  Accessories: "accessories",
+  Home: "home",
+} as const;
+
+const money = z.number().nonnegative().max(1e10);
+const isoDate = z.iso.date();
+
+const purchaseSchema = z.object({
+  merchant: z.string().trim().min(1).max(200),
+  orderDate: isoDate,
+  orderRef: z.string().trim().max(100).optional(),
+  importId: z.uuid().optional(),
+  items: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(200),
+        category: z.enum(Object.keys(categoryValues) as [keyof typeof categoryValues]),
+        price: money.optional(),
+      }),
+    )
+    .min(1)
+    .max(50),
+});
+
+export type SaveResult = { ok: true; id: string } | { ok: false; message: string };
+
+function saveFailed(where: string, error: { message: string; code?: string }): SaveResult {
+  console.error(`[manual] ${where} failed:`, error.code, error.message);
+  return {
+    ok: false,
+    message:
+      error.code === "P0002"
+        ? "That import was already saved or no longer exists."
+        : "Couldn't save. Please check the details and try again.",
+  };
+}
+
+/** Saves a purchase and its items in one transaction; attaches the import's documents if given. */
+export async function createPurchase(input: z.input<typeof purchaseSchema>): Promise<SaveResult> {
+  const parsed = purchaseSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Please fill in the merchant, date and item names." };
+  const p = parsed.data;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_manual_purchase", {
+    purchase: {
+      merchant: p.merchant,
+      order_date: p.orderDate,
+      order_ref: p.orderRef ?? null,
+      import_id: p.importId ?? null,
+      items: p.items.map((i) => ({
+        name: i.name,
+        category: categoryValues[i.category],
+        price: i.price ?? null,
+      })),
+    },
+  });
+  if (error) return saveFailed("create_manual_purchase", error);
+  return { ok: true, id: (data as { order_id: string }).order_id };
+}
+
+const serviceSchema = z.object({
+  itemId: z.uuid(),
+  serviceDate: isoDate,
+  workPerformed: z.string().trim().min(1).max(500),
+  provider: z.string().trim().max(200).optional(),
+  totalCost: money,
+  odometerKm: z.number().int().nonnegative().max(10_000_000).optional(),
+  notes: z.string().trim().max(2000).optional(),
+  parts: z.array(z.string().trim().min(1).max(200)).max(50),
+  importId: z.uuid().optional(),
+});
+
+/** Saves a service event (and its replaced parts) on one of the user's items. */
+export async function createServiceEvent(input: z.input<typeof serviceSchema>): Promise<SaveResult> {
+  const parsed = serviceSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Please fill in the item, date, work and cost." };
+  const e = parsed.data;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_manual_service_event", {
+    event: {
+      item_id: e.itemId,
+      service_date: e.serviceDate,
+      work_performed: e.workPerformed,
+      provider: e.provider ?? null,
+      total_cost: e.totalCost,
+      odometer_km: e.odometerKm ?? null,
+      notes: e.notes ?? null,
+      import_id: e.importId ?? null,
+      parts: e.parts.map((name) => ({ name })),
+    },
+  });
+  if (error) return saveFailed("create_manual_service_event", error);
+  return { ok: true, id: (data as { service_event_id: string }).service_event_id };
+}

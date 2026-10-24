@@ -565,7 +565,22 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      create_manual_purchase: { Args: { purchase: Json }; Returns: Json };
+      create_manual_service_event: { Args: { event: Json }; Returns: Json };
       is_valid_field_meta: { Args: { meta: Json }; Returns: boolean };
+      link_import_documents: {
+        Args: {
+          import_id: string;
+          item_ids?: string[];
+          order_id?: string;
+          service_event_id?: string;
+        };
+        Returns: undefined;
+      };
+      mark_import_saved: {
+        Args: { import_id: string; result: Json };
+        Returns: undefined;
+      };
       regenerate_forwarding_token: {
         Args: Record<PropertyKey, never>;
         Returns: string;

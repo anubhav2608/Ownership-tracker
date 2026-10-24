@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PageHeader } from "@/components/layout-bits";
 import { FormCardSkeleton } from "@/components/skeletons";
-import { getCurrentUser, getItems } from "@/lib/data";
+import { getCurrentUser, getImport, getItems } from "@/lib/data";
 import { AddRecord, type AddTab } from "./add-record";
 
 export const metadata: Metadata = { title: "Add record" };
 
 const tabs: AddTab[] = ["forward", "upload", "manual"];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function AddPage({ searchParams }: PageProps<"/add">) {
   return (
@@ -24,13 +25,22 @@ export default function AddPage({ searchParams }: PageProps<"/add">) {
 }
 
 async function AddContent({ searchParams }: Pick<PageProps<"/add">, "searchParams">) {
-  const { tab } = await searchParams;
-  const [user, items] = await Promise.all([getCurrentUser(), getItems()]);
-  const initial = tabs.includes(tab as AddTab) ? (tab as AddTab) : "forward";
+  const { tab, import: importParam } = await searchParams;
+  const importId = typeof importParam === "string" && UUID.test(importParam) ? importParam : null;
+  const [user, items, source] = await Promise.all([
+    getCurrentUser(),
+    getItems(),
+    importId ? getImport(importId) : undefined,
+  ]);
+  const fromImport =
+    source && source.status !== "imported" ? { id: source.id, title: source.title } : undefined;
+  const initial = fromImport ? "manual" : tabs.includes(tab as AddTab) ? (tab as AddTab) : "forward";
 
   return (
     <AddRecord
+      key={`${initial}:${fromImport?.id ?? ""}`}
       initialTab={initial}
+      fromImport={fromImport}
       userId={user.id}
       forwardingAddress={user.forwardingAddress}
       items={items

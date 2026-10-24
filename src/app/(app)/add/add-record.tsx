@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FileUp, Mail, PencilLine, Plus, X } from "lucide-react";
+import { FileUp, Mail, Paperclip, PencilLine, Plus, X } from "lucide-react";
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { toast } from "sonner";
 import { ForwardingAddress } from "@/components/copy-button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,24 +15,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import type { Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { createPurchase, createServiceEvent } from "./actions";
 import { uploadFile } from "./upload-file";
 
 export type AddTab = "forward" | "upload" | "manual";
 
 const MAX_MB = 10;
-const CATEGORIES = ["Electronics", "Appliances", "Vehicle", "Furniture", "Accessories", "Home"];
+const CATEGORIES: Category[] = ["Electronics", "Appliances", "Vehicle", "Furniture", "Accessories", "Home"];
 
 export function AddRecord({
   initialTab,
   userId,
   forwardingAddress,
   items,
+  fromImport,
 }: {
   initialTab: AddTab;
   userId: string;
   forwardingAddress: string;
   items: { id: string; name: string; isVehicle: boolean }[];
+  fromImport?: FromImport;
 }) {
   return (
     <Tabs defaultValue={initialTab} className="max-w-3xl gap-6">
@@ -53,7 +58,7 @@ export function AddRecord({
         <UploadTab userId={userId} />
       </TabsContent>
       <TabsContent value="manual">
-        <ManualTab items={items} />
+        <ManualTab items={items} userId={userId} fromImport={fromImport} />
       </TabsContent>
     </Tabs>
   );
@@ -197,18 +202,36 @@ type ManualKind = "purchase" | "service";
 interface LineRow {
   key: number;
   name: string;
-  category: string;
+  category: Category;
   price: string;
 }
 
 let nextKey = 0;
 const newLine = (): LineRow => ({ key: nextKey++, name: "", category: "Electronics", price: "" });
 
-function ManualTab({ items }: { items: { id: string; name: string; isVehicle: boolean }[] }) {
+const text = (form: FormData, name: string) => String(form.get(name) ?? "").trim();
+const optionalText = (form: FormData, name: string) => text(form, name) || undefined;
+const optionalNumber = (value: string) => (value === "" ? undefined : Number(value));
+
+export interface FromImport {
+  id: string;
+  title: string;
+}
+
+function ManualTab({
+  items,
+  userId,
+  fromImport,
+}: {
+  items: { id: string; name: string; isVehicle: boolean }[];
+  userId: string;
+  fromImport?: FromImport;
+}) {
   const router = useRouter();
   const [kind, setKind] = useState<ManualKind>("purchase");
   const [lines, setLines] = useState<LineRow[]>(() => [newLine()]);
   const [serviceItem, setServiceItem] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const sum = lines.reduce((s, l) => s + (Number(l.price) || 0), 0);
   const isVehicle = items.find((i) => i.id === serviceItem)?.isVehicle;
@@ -217,14 +240,104 @@ function ManualTab({ items }: { items: { id: string; name: string; isVehicle: bo
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
 
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    toast.success(kind === "purchase" ? "Purchase saved" : "Service event saved");
-    router.push(kind === "purchase" ? "/purchases" : `/items/${serviceItem}`);
+  /** The import whose documents get attached: the one we came from, or a newly chosen file. */
+  async function attachment(file: FormDataEntryValue | null): Promise<string | undefined | null> {
+    if (fromImport) return fromImport.id;
+    if (!(file instanceof File) || file.size === 0) return undefined;
+    const result = await uploadFile(userId, file);
+    if (result.ok) return result.importId;
+    if (result.reason === "duplicate" && result.importId) return result.importId;
+    toast.error(result.reason === "duplicate" ? "That file is already attached to a record." : result.message);
+    return null;
   }
+
+  // Pages stay mounted after navigation (Activity), so clear the form once it's saved.
+  async function save(
+    e: FormEvent<HTMLFormElement>,
+    run: (form: FormData, importId?: string) => Promise<boolean>,
+  ) {
+    e.preventDefault();
+    const formElement = e.currentTarget;
+    const form = new FormData(formElement);
+    if (!isSupabaseConfigured) {
+      toast.success(kind === "purchase" ? "Purchase saved" : "Service event saved");
+      router.push(kind === "purchase" ? "/purchases" : `/items/${serviceItem}`);
+      return;
+    }
+    setSaving(true);
+    try {
+      const importId = await attachment(form.get("file"));
+      if (importId !== null && (await run(form, importId))) {
+        formElement.reset();
+        setLines([newLine()]);
+        setServiceItem("");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const savePurchase = (e: FormEvent<HTMLFormElement>) =>
+    save(e, async (form, importId) => {
+      const result = await createPurchase({
+        merchant: text(form, "merchant"),
+        orderDate: text(form, "date"),
+        orderRef: optionalText(form, "ref"),
+        importId,
+        items: lines.map((l) => ({ name: l.name, category: l.category, price: optionalNumber(l.price) })),
+      });
+      if (!result.ok) {
+        toast.error(result.message);
+        return false;
+      }
+      toast.success("Purchase saved");
+      router.push(`/purchases/${result.id}`);
+      return true;
+    });
+
+  const saveService = (e: FormEvent<HTMLFormElement>) =>
+    save(e, async (form, importId) => {
+      const result = await createServiceEvent({
+        itemId: serviceItem,
+        serviceDate: text(form, "date"),
+        workPerformed: text(form, "work"),
+        provider: optionalText(form, "provider"),
+        totalCost: Number(text(form, "cost")),
+        odometerKm: optionalNumber(text(form, "odometer")),
+        notes: optionalText(form, "notes"),
+        parts: text(form, "parts")
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean),
+        importId,
+      });
+      if (!result.ok) {
+        toast.error(result.message);
+        return false;
+      }
+      toast.success("Service event saved");
+      router.push(`/items/${serviceItem}`);
+      return true;
+    });
+
+  const fileField = (label: string) =>
+    fromImport ? null : (
+      <Field id="file" label={label} optional>
+        <Input id="file" name="file" type="file" accept=".pdf,image/*" />
+      </Field>
+    );
 
   return (
     <Card className="gap-0 p-6">
+      {fromImport && (
+        <Alert className="mb-6">
+          <Paperclip />
+          <AlertTitle>Saving from {fromImport.title}</AlertTitle>
+          <AlertDescription>
+            The uploaded file will be attached to what you save, and the import marked as done.
+          </AlertDescription>
+        </Alert>
+      )}
       <Tabs value={kind} onValueChange={(v) => setKind(v as ManualKind)} className="mb-6">
         <TabsList>
           <TabsTrigger value="purchase">Purchase</TabsTrigger>
@@ -233,20 +346,18 @@ function ManualTab({ items }: { items: { id: string; name: string; isVehicle: bo
       </Tabs>
 
       {kind === "purchase" ? (
-        <form onSubmit={onSubmit} className="grid gap-6">
+        <form onSubmit={savePurchase} className="grid gap-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field id="merchant" label="Bought from">
-              <Input id="merchant" required placeholder="Store or website" />
+              <Input id="merchant" name="merchant" required placeholder="Store or website" />
             </Field>
             <Field id="date" label="Purchase date">
-              <Input id="date" type="date" required />
+              <Input id="date" name="date" type="date" required />
             </Field>
             <Field id="ref" label="Order reference" optional>
-              <Input id="ref" />
+              <Input id="ref" name="ref" />
             </Field>
-            <Field id="invoice" label="Invoice" optional>
-              <Input id="invoice" type="file" accept=".pdf,image/*" />
-            </Field>
+            {fileField("Invoice")}
           </div>
 
           <fieldset className="grid gap-3">
@@ -264,7 +375,7 @@ function ManualTab({ items }: { items: { id: string; name: string; isVehicle: bo
                   aria-label={`Item ${i + 1} category`}
                   wrapperClassName="w-full"
                   value={l.category}
-                  onChange={(e) => update(l.key, { category: e.target.value })}
+                  onChange={(e) => update(l.key, { category: e.target.value as Category })}
                 >
                   {CATEGORIES.map((c) => (
                     <NativeSelectOption key={c}>{c}</NativeSelectOption>
@@ -275,6 +386,7 @@ function ManualTab({ items }: { items: { id: string; name: string; isVehicle: bo
                   placeholder="Price"
                   type="number"
                   min="0"
+                  step="0.01"
                   value={l.price}
                   onChange={(e) => update(l.key, { price: e.target.value })}
                 />
@@ -305,11 +417,13 @@ function ManualTab({ items }: { items: { id: string; name: string; isVehicle: bo
             card attached.
           </p>
           <div className="flex justify-end">
-            <Button type="submit">Save purchase</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving…" : "Save purchase"}
+            </Button>
           </div>
         </form>
       ) : (
-        <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={saveService} className="grid gap-4 sm:grid-cols-2">
           <Field id="svc-item" label="Item serviced" className="sm:col-span-2">
             <NativeSelect
               id="svc-item"
@@ -318,7 +432,9 @@ function ManualTab({ items }: { items: { id: string; name: string; isVehicle: bo
               value={serviceItem}
               onChange={(e) => setServiceItem(e.target.value)}
             >
-              <NativeSelectOption value="">Choose an item…</NativeSelectOption>
+              <NativeSelectOption value="">
+                {items.length ? "Choose an item…" : "Save a purchase first to add its service"}
+              </NativeSelectOption>
               {items.map((it) => (
                 <NativeSelectOption key={it.id} value={it.id}>
                   {it.name}
@@ -327,30 +443,33 @@ function ManualTab({ items }: { items: { id: string; name: string; isVehicle: bo
             </NativeSelect>
           </Field>
           <Field id="svc-work" label="Work performed" className="sm:col-span-2">
-            <Input id="svc-work" required placeholder="e.g. AC servicing, filter cleaned" />
+            <Input id="svc-work" name="work" required placeholder="e.g. AC servicing, filter cleaned" />
           </Field>
           <Field id="svc-date" label="Date">
-            <Input id="svc-date" type="date" required />
+            <Input id="svc-date" name="date" type="date" required />
           </Field>
           <Field id="svc-provider" label="Provider">
-            <Input id="svc-provider" required placeholder="e.g. Urban Company" />
+            <Input id="svc-provider" name="provider" required placeholder="e.g. Urban Company" />
           </Field>
           <Field id="svc-parts" label="Parts replaced" optional>
-            <Input id="svc-parts" placeholder="Comma-separated" />
+            <Input id="svc-parts" name="parts" placeholder="Comma-separated" />
           </Field>
           <Field id="svc-cost" label="Total cost">
-            <Input id="svc-cost" type="number" min="0" required />
+            <Input id="svc-cost" name="cost" type="number" min="0" step="0.01" required />
           </Field>
           {isVehicle && (
             <Field id="svc-odo" label="Odometer (km)" optional>
-              <Input id="svc-odo" type="number" min="0" />
+              <Input id="svc-odo" name="odometer" type="number" min="0" />
             </Field>
           )}
+          {fileField("Receipt")}
           <Field id="svc-notes" label="Notes" optional className="sm:col-span-2">
-            <Textarea id="svc-notes" rows={2} />
+            <Textarea id="svc-notes" name="notes" rows={2} />
           </Field>
           <div className="flex justify-end sm:col-span-2">
-            <Button type="submit">Save service event</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving…" : "Save service event"}
+            </Button>
           </div>
         </form>
       )}

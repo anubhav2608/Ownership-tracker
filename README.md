@@ -3,10 +3,10 @@
 One place to find what you bought, retrieve its records, and track what happens to it
 while you own it.
 
-Status: signed-in users see their own data from Supabase, and uploading a document is
-real (stored privately, listed under Imports, openable and deletable). Next: saving
-purchases and service events, then the Resend inbound webhook and extraction. Without
-Supabase settings the app runs as a demo on fictional sample data.
+Status: signed-in users see their own data from Supabase. Uploading documents and entering
+purchases and service events by hand are real, including turning an uploaded invoice into
+a purchase with the file attached. Next: extraction from uploaded PDFs, then the Resend
+inbound webhook. Without Supabase settings the app runs as a demo on fictional sample data.
 
 ## Run it
 
@@ -77,7 +77,10 @@ Security model:
 - Files live in the private `documents` bucket under `<user_id>/`; storage policies limit
   each user to their own folder. Raw inbound mail goes to `inbound-raw`, which only the
   server can access.
-- `supabase/tests/database/security.test.sql` checks all of the above (46 assertions).
+- Manual purchases and service events are saved by `create_manual_purchase()` and
+  `create_manual_service_event()`: one transaction each, running under the caller's row
+  level security. Saving from an import attaches its documents and marks it imported.
+- `supabase/tests/database/*.test.sql` check all of the above (63 assertions).
 
 ## Stack
 
@@ -135,6 +138,7 @@ variants) live in `src/app/globals.css`, with a dark set that follows the system
 
 - Cache Components is on (Next 16 default). Request-time data goes through `lib/data.ts`;
   the server Supabase client calls `connection()` before it starts.
-- Real today: sign-in, reading your data, uploading / opening / deleting documents.
-  Still simulated (toast only): saving manual entries, editing and deleting records,
-  reviewing imports and retrying them.
+- Real today: sign-in, reading your data, uploading / opening / deleting documents, and
+  saving manual purchases and service events (from Add record, or from a queued import).
+  Still simulated (toast only): editing and deleting records, the item page's service
+  dialog, reviewing extracted imports and retrying them.

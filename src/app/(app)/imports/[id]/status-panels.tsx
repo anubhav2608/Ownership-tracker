@@ -71,12 +71,13 @@ export function ProcessingPanel({
             <AlertTitle>Queued</AlertTitle>
             <AlertDescription>
               Your file is stored privately (open it under Source). Automatic reading
-              isn&rsquo;t switched on yet, so it will stay queued until it is.
+              isn&rsquo;t switched on yet, so enter the details yourself and this file is
+              attached to what you save.
             </AlertDescription>
           </Alert>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
-              <Link href="/add?tab=manual">Enter the details manually</Link>
+              <Link href={`/add?tab=manual&import=${importId}`}>Enter the details manually</Link>
             </Button>
             <DiscardButton importId={importId} />
           </div>
@@ -147,7 +148,7 @@ export function FailedPanel({
                 <Link href="/add?tab=upload">Upload a better copy</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href="/add?tab=manual">Enter manually</Link>
+                <Link href={`/add?tab=manual&import=${importId}`}>Enter manually</Link>
               </Button>
             </>
           )}
