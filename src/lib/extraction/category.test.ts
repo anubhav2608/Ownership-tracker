@@ -7,6 +7,7 @@ describe("guessCategory", () => {
     expect(guessCategory("Silicone Case for iPhone 16")).toBe("Accessories");
     expect(guessCategory("LG 8 kg Front Load Washing Machine")).toBe("Appliances");
     expect(guessCategory("Ergonomic Office Chair")).toBe("Furniture");
+    expect(guessCategory("Philips Air Fryer HD9252")).toBe("Appliances");
   });
 
   it("doesn't match words inside other words", () => {

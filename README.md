@@ -3,10 +3,10 @@
 One place to find what you bought, retrieve its records, and track what happens to it
 while you own it.
 
-Status: signed-in users see their own data from Supabase. Uploaded PDFs are read
-automatically (text layer only; scans and photos need OCR, which comes later), checked, and
-wait for your review before anything is saved. Purchases and service events can also be
-entered by hand. Next: the Resend inbound webhook. Without Supabase settings the app runs as a demo on fictional sample data.
+Status: signed-in users see their own data from Supabase. Forwarded emails (body and PDF
+attachments) and uploaded PDFs are read automatically, checked, and wait for your review
+before anything is saved. Scans and photos need OCR, which comes later. Purchases and
+service events can also be entered by hand. Without Supabase settings the app runs as a demo on fictional sample data.
 
 ## Run it
 
@@ -39,6 +39,31 @@ sample data; "View demo" on the landing page goes straight to the dashboard.
 5. Optional, Google sign-in: create an OAuth client in Google Cloud, then enable Google
    under **Authentication → Sign In / Providers**.
 6. On Vercel, set the same `NEXT_PUBLIC_SUPABASE_*` variables for each environment.
+
+### Forwarded emails (Resend)
+
+Each user gets a private address, `u_<token>@<INBOUND_EMAIL_DOMAIN>` (Settings). Nothing
+connects to anyone's mailbox; users forward only what they choose.
+
+1. In Resend, set up receiving: a Resend-provided receiving address domain, or your own
+   domain with the MX record Resend gives you. Put that domain in `INBOUND_EMAIL_DOMAIN`.
+2. Add a webhook for the `email.received` event pointing at
+   `https://<your-app>/api/inbound/resend`, and put its signing secret in
+   `RESEND_WEBHOOK_SECRET`.
+3. Create an API key and put it in `RESEND_API_KEY`; the webhook only carries metadata,
+   so the app fetches the message and its attachments with it.
+4. Set `SUPABASE_SECRET_KEY` (Supabase → Project Settings → API keys → secret key).
+   Server only; never commit it or prefix it with `NEXT_PUBLIC_`.
+5. Set the same variables on Vercel. Resend can't reach `localhost`, so test the webhook
+   on a deployment (or through a tunnel such as `cloudflared tunnel --url localhost:3000`).
+
+How it works: the endpoint accepts only correctly signed deliveries, routes by the
+forwarding address (unknown addresses are acknowledged and dropped), and stores the
+message and its PDF / image attachments as private documents. Mail from an address that
+isn't a verified sender (your sign-in email is verified at signup) is held unread; the
+import page offers to trust the sender, after which their mail is read automatically.
+Redelivered webhooks and re-forwarded messages are recognised. Reading prefers an attached
+PDF invoice, then the email body, and runs after the webhook has responded.
 
 ### Local stack (needs Docker)
 
@@ -128,8 +153,11 @@ src/
     types.ts            domain model: Order, Item, StoredDocument, ServiceEvent, ImportRecord
     data.ts             data access: Supabase when configured, otherwise the sample data
     mock-data.ts        fictional sample data for demo mode
-    extraction/         PDF text (pdfjs), parsing with merchant templates, validation,
-                        service-item matching; tests generate fictional PDFs with pdf-lib
+    extraction/         PDF text (pdfjs), email bodies (HTML → lines), parsing with merchant
+                        templates, validation, service-item matching; tests use fictional
+                        PDFs (generated with pdf-lib) and emails
+    inbound/            storing forwarded emails from the Resend webhook
+                        (app/api/inbound/resend)
     format.ts           money / date formatting (locale and currency in one place)
     utils.ts            cn()
 ```
@@ -146,7 +174,8 @@ variants) live in `src/app/globals.css`, with a dark set that follows the system
 - Cache Components is on (Next 16 default). Request-time data goes through `lib/data.ts`;
   the server Supabase client calls `connection()` before it starts.
 - Real today: sign-in, reading your data, uploading / opening / deleting documents,
-  reading uploaded PDFs, reviewing and saving what was read (or retrying), manual
+  receiving forwarded emails, reading emails and uploaded PDFs, trusting a held
+  sender, reviewing and saving what was read (or retrying), manual
   purchases and service events, and editing and deleting purchases, items, warranties and
   service events. Still simulated (toast only): the Settings actions (new forwarding address, adding senders, export, account deletion).
 - Reading runs in a server action as the signed-in user (`imports/actions.ts`); the

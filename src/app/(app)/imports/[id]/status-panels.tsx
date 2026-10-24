@@ -22,7 +22,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { formatDate, formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { ImportError, ImportRecord, Item, ServiceEvent } from "@/lib/types";
-import { deleteImport, processImport, retryImport, type ProcessResult } from "../actions";
+import { approveSender, deleteImport, processImport, retryImport, type ProcessResult } from "../actions";
 
 // In demo mode (no Supabase) actions only confirm with a toast.
 
@@ -151,15 +151,27 @@ export function FailedPanel({
           <AlertTitle>{unverified ? "Sender not verified" : "We couldn't read this"}</AlertTitle>
           <AlertDescription>{error.message}</AlertDescription>
         </Alert>
+        {unverified && (
+          <p className="text-sm text-muted-foreground">
+            Only trust this sender if you forwarded this email yourself, for example from
+            another address of yours. Their future emails will then be read automatically.
+          </p>
+        )}
         <p className="font-mono text-xs text-muted-foreground">
           {error.code} · failed at {error.stage.replace("_", " ")} · attempt {attempts}
         </p>
         <div className="flex flex-wrap gap-2">
           {unverified && from ? (
             <Button
-              onClick={() => toast.success(`${from} verified. Import queued again.`)}
+              disabled={reading}
+              onClick={() =>
+                isSupabaseConfigured
+                  ? run(approveSender)
+                  : toast.success(`${from} verified. Import queued again.`)
+              }
             >
-              Verify {from} and import
+              {reading && <Loader2 className="animate-spin" />}
+              {reading ? "Reading…" : `Trust ${from} and read it`}
             </Button>
           ) : (
             error.retryable && (

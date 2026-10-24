@@ -131,6 +131,7 @@ export type Database = {
           error: Json | null;
           extracted: NonNullable<Json>;
           from_email: string | null;
+          inbound_event_id: string | null;
           id: string;
           message_id: string | null;
           next_attempt_at: string | null;
@@ -157,6 +158,7 @@ export type Database = {
           error?: Json | null;
           extracted?: NonNullable<Json>;
           from_email?: string | null;
+          inbound_event_id?: string | null;
           id?: string;
           message_id?: string | null;
           next_attempt_at?: string | null;
@@ -182,6 +184,7 @@ export type Database = {
           error?: Json | null;
           extracted?: NonNullable<Json>;
           from_email?: string | null;
+          inbound_event_id?: string | null;
           id?: string;
           message_id?: string | null;
           next_attempt_at?: string | null;
@@ -565,6 +568,7 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      approve_import_sender: { Args: { import_id: string }; Returns: string };
       create_manual_purchase: { Args: { purchase: Json }; Returns: Json };
       create_manual_service_event: { Args: { event: Json }; Returns: Json };
       is_valid_field_meta: { Args: { meta: Json }; Returns: boolean };

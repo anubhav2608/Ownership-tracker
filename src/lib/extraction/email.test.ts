@@ -1,0 +1,152 @@
+import { describe, expect, it } from "vitest";
+import {
+  bodyLines,
+  bodyOnlyEmail,
+  emailAddress,
+  forwardingTokens,
+  htmlToLines,
+  parseRawEmail,
+  textToLines,
+} from "./email";
+import { parseDocument } from "./parse";
+
+// Fictional order confirmation, laid out like marketplace emails: nested
+// tables, inline styles, entities, a hidden preheader and a forwarded header.
+const ORDER_HTML = `<!doctype html><html><head><style>td{font-family:Arial}</style><title>Your order</title></head>
+<body>
+<div style="display:none">Your order has shipped soon &zwnj;</div>
+<div>---------- Forwarded message ---------<br>From: Amazon.in &lt;auto-confirm@amazon.in&gt;<br>
+Subject: Your Amazon.in order #408-1938842-1173903</div>
+<table width="600"><tr><td>
+  <h2>Thank you for your order</h2>
+  <p>Order <b>#408-1938842-1173903</b></p>
+  <p>Order Date: 15 October 2026</p>
+  <table>
+    <tr><th>Item</th><th>Qty</th><th>Price</th></tr>
+    <tr><td><a href="#">Sony WH-1000XM6 Wireless Headphones</a></td><td>1</td><td>&#8377;29,990.00</td></tr>
+    <tr><td>Sony Headphone Carry Case</td><td>1</td><td>&#8377;1,499.00</td></tr>
+  </table>
+  <table>
+    <tr><td>Item Subtotal:</td><td>&#8377;31,489.00</td></tr>
+    <tr><td>Shipping:</td><td>&#8377;0.00</td></tr>
+    <tr><td><b>Order Total:</b></td><td><b>&#8377;31,489.00</b></td></tr>
+  </table>
+</td></tr></table>
+<!-- tracking pixel --><img src="https://example.com/p.gif">
+</body></html>`;
+
+describe("htmlToLines", () => {
+  it("keeps table cells apart and drops markup, styles and comments", () => {
+    const lines = htmlToLines(ORDER_HTML);
+    expect(lines).toContain("Sony WH-1000XM6 Wireless Headphones  1  ₹29,990.00");
+    expect(lines).toContain("Order Total:  ₹31,489.00");
+    expect(lines.join("\n")).not.toMatch(/font-family|tracking pixel|&zwnj;|<\/?(td|tr|div|p|b|img|a)\b|^Your order$/m);
+    expect(lines).toContain("From: Amazon.in <auto-confirm@amazon.in>");
+  });
+
+  it("reads a forwarded order confirmation end to end", () => {
+    const outcome = parseDocument(htmlToLines(ORDER_HTML));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const x = outcome.extraction;
+    expect(x.documentKind).toBe("order_confirmation");
+    expect(x.fields.merchant?.value).toBe("Amazon");
+    expect(x.fields.orderRef?.value).toBe("408-1938842-1173903");
+    expect(x.fields.date?.value).toBe("2026-10-15");
+    expect(x.fields.total?.value).toBe(31489);
+    expect(x.lines.map((l) => [l.name.value, l.price.value])).toEqual([
+      ["Sony WH-1000XM6 Wireless Headphones", 29990],
+      ["Sony Headphone Carry Case", 1499],
+    ]);
+  });
+});
+
+describe("textToLines / bodyLines", () => {
+  it("unquotes plain-text forwards", () => {
+    expect(textToLines("> Order Total:\tRs. 499.00\n>> Thanks\n\n")).toEqual(["Order Total:  Rs. 499.00", "Thanks"]);
+  });
+
+  it("falls back to the text part when the HTML part is empty", () => {
+    expect(bodyLines({ html: "<p> </p>", text: "Invoice No: 123\nGrand Total Rs. 500.00" })).toEqual([
+      "Invoice No: 123",
+      "Grand Total Rs. 500.00",
+    ]);
+  });
+});
+
+describe("addresses", () => {
+  it("extracts the address from a display name", () => {
+    expect(emailAddress('"Anu (Work)" <Anu@Example.COM>')).toBe("anu@example.com");
+    expect(emailAddress("orders@shop.example")).toBe("orders@shop.example");
+    expect(emailAddress("no address here")).toBeNull();
+  });
+
+  it("finds forwarding tokens only on our domain, allowing plus-addressing", () => {
+    expect(
+      forwardingTokens(
+        [
+          "Anu <u_0123456789abcdef@in.example.com>",
+          "u_fedcba9876543210+amazon@IN.example.com",
+          "u_0123456789abcdef@elsewhere.example",
+          "u_short@in.example.com",
+          "someone@in.example.com",
+        ],
+        "in.example.com",
+      ),
+    ).toEqual(["u_0123456789abcdef", "u_fedcba9876543210"]);
+  });
+});
+
+describe("parseRawEmail", () => {
+  it("round-trips the stored body-only message", async () => {
+    const eml = bodyOnlyEmail({
+      from: "Anu <anu@example.com>",
+      to: ["u_0123456789abcdef@in.example.com"],
+      subject: "Fwd: Your order ₹31,489",
+      date: "2026-10-16T09:00:00Z",
+      messageId: "<abc@mail.example.com>",
+      html: ORDER_HTML,
+      text: "Order Total: Rs. 31,489.00",
+    });
+    const email = await parseRawEmail(eml);
+    expect(email.from).toBe("anu@example.com");
+    expect(email.subject).toBe("Fwd: Your order ₹31,489");
+    expect(email.messageId).toBe("<abc@mail.example.com>");
+    expect(bodyLines(email)).toContain("Order Total:  ₹31,489.00");
+    expect(email.attachments).toEqual([]);
+  });
+
+  it("keeps real attachments and drops inline images", async () => {
+    const pdf = Buffer.from("%PDF-1.4 fictional").toString("base64");
+    const eml = [
+      "From: Shop <billing@shop.example>",
+      "To: u_0123456789abcdef@in.example.com",
+      "Subject: Invoice",
+      "MIME-Version: 1.0",
+      'Content-Type: multipart/mixed; boundary="x"',
+      "",
+      "--x",
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      "Please find your invoice attached.",
+      "--x",
+      'Content-Type: image/png; name="logo.png"',
+      "Content-Disposition: inline; filename=\"logo.png\"",
+      "Content-ID: <logo>",
+      "Content-Transfer-Encoding: base64",
+      "",
+      "iVBORw0KGgo=",
+      "--x",
+      'Content-Type: application/pdf; name="INV-0457.pdf"',
+      'Content-Disposition: attachment; filename="INV-0457.pdf"',
+      "Content-Transfer-Encoding: base64",
+      "",
+      pdf,
+      "--x--",
+      "",
+    ].join("\r\n");
+    const email = await parseRawEmail(eml);
+    expect(email.attachments.map((a) => [a.fileName, a.mimeType])).toEqual([["INV-0457.pdf", "application/pdf"]]);
+    expect(Buffer.from(email.attachments[0].content).toString()).toBe("%PDF-1.4 fictional");
+  });
+});
