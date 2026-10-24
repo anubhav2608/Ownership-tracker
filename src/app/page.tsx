@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileSearch, History, Mail, Search, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 const features = [
   {
@@ -57,9 +58,15 @@ export default function Landing() {
           <Button asChild size="lg">
             <Link href="/login?mode=signup">Get started free</Link>
           </Button>
-          <Button asChild size="lg" variant="outline">
-            <Link href="/dashboard">View demo</Link>
-          </Button>
+          {isSupabaseConfigured ? (
+            <Button asChild size="lg" variant="outline">
+              <Link href="/login">Log in</Link>
+            </Button>
+          ) : (
+            <Button asChild size="lg" variant="outline">
+              <Link href="/dashboard">View demo</Link>
+            </Button>
+          )}
         </div>
       </section>
 
