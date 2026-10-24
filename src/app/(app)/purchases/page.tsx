@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Receipt } from "lucide-react";
 import { Suspense } from "react";
 import { OrderStatusBadge, SourceLabel } from "@/components/badges";
+import { Deadline, RETURN_SOON_DAYS, WARRANTY_SOON_DAYS } from "@/components/deadline";
 import { EmptyCta } from "@/components/empty-cta";
 import { PageHeader } from "@/components/layout-bits";
 import { ListCardSkeleton } from "@/components/skeletons";
@@ -43,13 +44,20 @@ async function PurchasesContent() {
                 <TableHead className="pl-5">Merchant</TableHead>
                 <TableHead className="hidden sm:table-cell">Date</TableHead>
                 <TableHead className="hidden sm:table-cell">Items</TableHead>
-                <TableHead className="hidden md:table-cell">Source</TableHead>
+                <TableHead className="hidden lg:table-cell">Return by</TableHead>
+                <TableHead className="hidden lg:table-cell">Warranty expires</TableHead>
+                <TableHead className="hidden xl:table-cell">Source</TableHead>
                 <TableHead className="pr-5 text-right">Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sorted.map((o) => {
                 const orderItems = items.filter((i) => i.orderId === o.id);
+                // The deadlines that matter first: the earliest across the order's owned items.
+                const owned = orderItems.filter((i) => i.status === "owned");
+                const returnBy = earliest(owned.map((i) => i.returnBy));
+                const warrantyEnds = earliest(owned.map((i) => i.warranty?.expiresOn));
+                const several = (dates: (string | undefined)[]) => new Set(dates.filter(Boolean)).size > 1;
                 return (
                   <TableRow key={o.id} className="relative">
                     <TableCell className="pl-5">
@@ -63,6 +71,14 @@ async function PurchasesContent() {
                         {formatDate(o.orderDate)} · {orderItems.length} item
                         {orderItems.length === 1 ? "" : "s"}
                       </div>
+                      {(returnBy || warrantyEnds) && (
+                        <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs lg:hidden">
+                          {returnBy && <Deadline label="Return by" iso={returnBy} soonDays={RETURN_SOON_DAYS} />}
+                          {warrantyEnds && (
+                            <Deadline label="Warranty till" iso={warrantyEnds} soonDays={WARRANTY_SOON_DAYS} />
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell">
                       {formatDate(o.orderDate)}
@@ -72,7 +88,31 @@ async function PurchasesContent() {
                         {orderItems.map((i) => i.name).join(", ") || "—"}
                       </span>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">
+                    <TableCell className="hidden lg:table-cell">
+                      {returnBy ? (
+                        <>
+                          <Deadline stacked iso={returnBy} soonDays={RETURN_SOON_DAYS} />
+                          {several(owned.map((i) => i.returnBy)) && (
+                            <div className="text-xs text-muted-foreground">earliest of its items</div>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {warrantyEnds ? (
+                        <>
+                          <Deadline stacked iso={warrantyEnds} soonDays={WARRANTY_SOON_DAYS} />
+                          {several(owned.map((i) => i.warranty?.expiresOn)) && (
+                            <div className="text-xs text-muted-foreground">first to expire</div>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
                       <SourceLabel source={o.source} />
                     </TableCell>
                     <TableCell className="pr-5 text-right">
@@ -91,6 +131,9 @@ async function PurchasesContent() {
     </>
   );
 }
+
+const earliest = (dates: (string | undefined)[]) =>
+  dates.filter((d): d is string => Boolean(d)).sort()[0];
 
 export default function PurchasesPage() {
   return (
