@@ -12,7 +12,14 @@ export const metadata: Metadata = { title: "Log in" };
 
 const errors: Record<string, string> = {
   email: "Enter a valid email address.",
-  send: "We couldn't send the email. Please try again.",
+  send: "We couldn't send the email. Please try again. The terminal running the app shows the exact reason.",
+  not_authorized:
+    "Supabase's built-in email only sends to members of your Supabase team. Use the email you sign in to Supabase with, or set up a custom SMTP sender.",
+  unreachable:
+    "Couldn't reach Supabase. Check NEXT_PUBLIC_SUPABASE_URL in .env.local (it looks like https://abcd.supabase.co) and that the project isn't paused.",
+  key: "Supabase rejected the API key. Check NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in .env.local, then restart the app.",
+  disabled:
+    "Email sign-in is turned off for this project. Enable it under Authentication → Sign In / Providers → Email.",
   rate: "Too many attempts. Wait a minute and try again.",
   link: "That sign-in link has expired or was already used. Request a new one.",
   oauth: "Google sign-in didn't complete. Please try again.",

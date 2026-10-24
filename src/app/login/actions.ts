@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { isAuthRetryableFetchError, type AuthError } from "@supabase/supabase-js";
 import { z } from "zod";
 import { createClient, safeNextPath } from "@/lib/supabase/server";
 
@@ -35,10 +36,32 @@ export async function signInWithEmail(formData: FormData) {
   });
 
   if (error) {
-    const reason = error.status === 429 ? "rate" : "send";
-    redirect(`/login?mode=${mode}&error=${reason}`);
+    // Logged to the terminal running the app, to diagnose setup problems.
+    console.error("[login] signInWithOtp failed:", error.status, error.code, error.message);
+    redirect(`/login?mode=${mode}&error=${emailErrorReason(error)}`);
   }
   redirect(`/login?mode=${mode}&sent=${encodeURIComponent(email)}`);
+}
+
+/** Maps a Supabase auth error to a key of the messages on the login page. */
+function emailErrorReason(error: AuthError) {
+  if (isAuthRetryableFetchError(error)) return "unreachable";
+  switch (error.code) {
+    case "email_address_not_authorized":
+      return "not_authorized";
+    case "email_address_invalid":
+      return "email";
+    case "over_email_send_rate_limit":
+    case "over_request_rate_limit":
+      return "rate";
+    case "signup_disabled":
+    case "email_provider_disabled":
+    case "otp_disabled":
+      return "disabled";
+  }
+  if (error.status === 429) return "rate";
+  if (error.status === 401 || /api key/i.test(error.message)) return "key";
+  return "send";
 }
 
 export async function signInWithGoogle(formData: FormData) {
