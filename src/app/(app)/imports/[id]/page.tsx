@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Check, FileText, Loader2, Mail, X } from "lucide-react";
 import { documentKindLabel, ImportStatusBadge, Pill, SourceLabel } from "@/components/badges";
 import { DocumentList } from "@/components/document-list";
 import { DetailRow, SectionCard } from "@/components/layout-bits";
+import { DetailSkeleton } from "@/components/skeletons";
 import { formatDate } from "@/lib/format";
 import { getImport, getImportDocuments, getItems, getOrders, getServiceEvents } from "@/lib/data";
 import type { ImportRecord, ImportStage } from "@/lib/types";
@@ -30,8 +32,8 @@ const stages: { id: ImportStage; label: string }[] = [
   { id: "saved", label: "Saved" },
 ];
 
-export default async function ImportPage(props: PageProps<"/imports/[id]">) {
-  const { id } = await props.params;
+async function ImportDetail({ params }: Pick<PageProps<"/imports/[id]">, "params">) {
+  const { id } = await params;
   const record = await getImport(id);
   if (!record) notFound();
 
@@ -48,12 +50,6 @@ export default async function ImportPage(props: PageProps<"/imports/[id]">) {
 
   return (
     <>
-      <Link
-        href="/imports"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Imports
-      </Link>
 
       <div className="mb-6 min-w-0">
         <h1 className="text-xl font-semibold tracking-tight break-words">{record.title}</h1>
@@ -185,5 +181,21 @@ function Pipeline({ record }: { record: ImportRecord }) {
         );
       })}
     </ol>
+  );
+}
+
+export default function ImportPage({ params }: PageProps<"/imports/[id]">) {
+  return (
+    <>
+      <Link
+        href="/imports"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" /> Imports
+      </Link>
+      <Suspense fallback={<DetailSkeleton />}>
+        <ImportDetail params={params} />
+      </Suspense>
+    </>
   );
 }

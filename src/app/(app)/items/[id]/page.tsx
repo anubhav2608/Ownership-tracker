@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Info, ShieldCheck, ShieldQuestion } from "lucide-react";
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/components/badges";
 import { DocumentList } from "@/components/document-list";
 import { DetailRow, SectionCard } from "@/components/layout-bits";
+import { DetailSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { formatDate, formatMoney, fractionElapsed } from "@/lib/format";
@@ -24,8 +26,8 @@ export async function generateMetadata(props: PageProps<"/items/[id]">): Promise
   return { title: (await getItem(id))?.name ?? "Item" };
 }
 
-export default async function ItemPage(props: PageProps<"/items/[id]">) {
-  const { id } = await props.params;
+async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) {
+  const { id } = await params;
   const item = await getItem(id);
   if (!item) notFound();
 
@@ -40,12 +42,6 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
 
   return (
     <>
-      <Link
-        href="/items"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Items
-      </Link>
 
       <div className="mb-6 flex flex-wrap items-start gap-4">
         <CategoryIcon category={item.category} size="lg" />
@@ -185,6 +181,22 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
           />
         </div>
       </div>
+    </>
+  );
+}
+
+export default function ItemPage({ params }: PageProps<"/items/[id]">) {
+  return (
+    <>
+      <Link
+        href="/items"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" /> Items
+      </Link>
+      <Suspense fallback={<DetailSkeleton />}>
+        <ItemDetail params={params} />
+      </Suspense>
     </>
   );
 }

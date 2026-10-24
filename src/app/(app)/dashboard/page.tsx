@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { ArrowRight, CheckCircle2, Receipt, Wrench } from "lucide-react";
 import { ImportStatusBadge, OrderStatusBadge } from "@/components/badges";
 import { EmptyCta } from "@/components/empty-cta";
 import { PageHeader, SectionCard } from "@/components/layout-bits";
+import { ListCardSkeleton, StatTilesSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -19,9 +21,49 @@ import {
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-export default async function DashboardPage() {
-  const [user, items, orders, documents, events, imports] = await Promise.all([
-    getCurrentUser(),
+export default function DashboardPage() {
+  return (
+    <>
+      <PageHeader
+        title={
+          <Suspense fallback="Welcome back">
+            <Greeting />
+          </Suspense>
+        }
+        description="Your purchases, documents and service history in one place."
+        action={
+          <Button asChild>
+            <Link href="/add">Add record</Link>
+          </Button>
+        }
+      />
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent />
+      </Suspense>
+    </>
+  );
+}
+
+async function Greeting() {
+  const user = await getCurrentUser();
+  return <>Hi, {user.name}</>;
+}
+
+function DashboardSkeleton() {
+  return (
+    <>
+      <StatTilesSkeleton />
+      <ListCardSkeleton rows={2} className="mt-6" />
+      <div className="mt-6 grid gap-6 lg:grid-cols-5">
+        <ListCardSkeleton rows={3} className="lg:col-span-3" />
+        <ListCardSkeleton rows={3} className="lg:col-span-2" />
+      </div>
+    </>
+  );
+}
+
+async function DashboardContent() {
+  const [items, orders, documents, events, imports] = await Promise.all([
     getItems(),
     getOrders(),
     getDocuments(),
@@ -49,15 +91,6 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader
-        title={`Hi, ${user.name}`}
-        description="Your purchases, documents and service history in one place."
-        action={
-          <Button asChild>
-            <Link href="/add">Add record</Link>
-          </Button>
-        }
-      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map((s) => {

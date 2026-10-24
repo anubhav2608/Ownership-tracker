@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import {
@@ -11,6 +12,7 @@ import {
 } from "@/components/badges";
 import { DocumentList } from "@/components/document-list";
 import { DetailRow, SectionCard } from "@/components/layout-bits";
+import { DetailSkeleton } from "@/components/skeletons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatDate, formatMoney } from "@/lib/format";
 import { getDocuments, getImport, getItems, getOrder } from "@/lib/data";
@@ -18,8 +20,8 @@ import { OrderActions } from "./order-actions";
 
 export const metadata: Metadata = { title: "Purchase" };
 
-export default async function PurchasePage(props: PageProps<"/purchases/[id]">) {
-  const { id } = await props.params;
+async function PurchaseDetail({ params }: Pick<PageProps<"/purchases/[id]">, "params">) {
+  const { id } = await params;
   const order = await getOrder(id);
   if (!order) notFound();
 
@@ -32,12 +34,6 @@ export default async function PurchasePage(props: PageProps<"/purchases/[id]">) 
 
   return (
     <>
-      <Link
-        href="/purchases"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Purchases
-      </Link>
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
@@ -121,6 +117,22 @@ export default async function PurchasePage(props: PageProps<"/purchases/[id]">) 
           </ul>
         </SectionCard>
       </div>
+    </>
+  );
+}
+
+export default function PurchasePage({ params }: PageProps<"/purchases/[id]">) {
+  return (
+    <>
+      <Link
+        href="/purchases"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" /> Purchases
+      </Link>
+      <Suspense fallback={<DetailSkeleton />}>
+        <PurchaseDetail params={params} />
+      </Suspense>
     </>
   );
 }

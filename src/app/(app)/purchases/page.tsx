@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Receipt } from "lucide-react";
+import { Suspense } from "react";
 import { OrderStatusBadge, SourceLabel } from "@/components/badges";
 import { EmptyCta } from "@/components/empty-cta";
 import { PageHeader } from "@/components/layout-bits";
+import { ListCardSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -19,21 +21,12 @@ import { getItems, getOrders } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Purchases" };
 
-export default async function PurchasesPage() {
+async function PurchasesContent() {
   const [orders, items] = await Promise.all([getOrders(), getItems()]);
   const sorted = [...orders].sort((a, b) => b.orderDate.localeCompare(a.orderDate));
 
   return (
     <>
-      <PageHeader
-        title="Purchases"
-        description="Orders from every retailer. One order can hold several items."
-        action={
-          <Button asChild>
-            <Link href="/add">Add record</Link>
-          </Button>
-        }
-      />
       {sorted.length === 0 ? (
         <Card className="gap-0 py-0">
           <EmptyCta
@@ -95,6 +88,25 @@ export default async function PurchasesPage() {
           </Table>
         </Card>
       )}
+    </>
+  );
+}
+
+export default function PurchasesPage() {
+  return (
+    <>
+      <PageHeader
+        title="Purchases"
+        description="Orders from every retailer. One order can hold several items."
+        action={
+          <Button asChild>
+            <Link href="/add">Add record</Link>
+          </Button>
+        }
+      />
+      <Suspense fallback={<ListCardSkeleton rows={5} />}>
+        <PurchasesContent />
+      </Suspense>
     </>
   );
 }

@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { PageHeader } from "@/components/layout-bits";
+import { ListCardSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { getItems, getOrders, getServiceEvents } from "@/lib/data";
 import { ItemsList, type ItemRow } from "./items-list";
 
 export const metadata: Metadata = { title: "Items" };
 
-export default async function ItemsPage() {
+async function ItemsContent() {
   const [items, orders, events] = await Promise.all([
     getItems(),
     getOrders(),
@@ -20,6 +22,10 @@ export default async function ItemsPage() {
     serviceCount: events.filter((e) => e.itemId === item.id).length,
   }));
 
+  return <ItemsList rows={rows} />;
+}
+
+export default function ItemsPage() {
   return (
     <>
       <PageHeader
@@ -31,7 +37,9 @@ export default async function ItemsPage() {
           </Button>
         }
       />
-      <ItemsList rows={rows} />
+      <Suspense fallback={<ListCardSkeleton rows={5} />}>
+        <ItemsContent />
+      </Suspense>
     </>
   );
 }

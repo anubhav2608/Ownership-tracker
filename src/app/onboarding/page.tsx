@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Mail, ShieldCheck, Sparkles } from "lucide-react";
+import { Suspense } from "react";
 import { ForwardingAddress } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getCurrentUser } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Welcome" };
@@ -25,24 +27,21 @@ const steps = [
   },
 ];
 
-export default async function OnboardingPage() {
-  const currentUser = await getCurrentUser();
+export default function OnboardingPage() {
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-xl">
-        <p className="text-sm font-medium text-primary">Welcome, {currentUser.name}</p>
+        <p className="text-sm font-medium text-primary">
+          <Suspense fallback="Welcome">
+            <WelcomeName />
+          </Suspense>
+        </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">
           This is your private forwarding address
         </h1>
-        <p className="mt-2 text-muted-foreground">
-          Anything you forward here becomes a record. We only accept mail sent from{" "}
-          <span className="font-medium text-foreground">{currentUser.email}</span>, so nobody
-          else can add to your account.
-        </p>
-
-        <div className="mt-6 rounded-xl border bg-card p-4">
-          <ForwardingAddress address={currentUser.forwardingAddress} />
-        </div>
+        <Suspense fallback={<AddressSkeleton />}>
+          <AddressDetails />
+        </Suspense>
         <p className="mt-2 text-xs text-muted-foreground">
           Tip: save it as a contact named &ldquo;Ownership&rdquo; so it autocompletes.
         </p>
@@ -74,6 +73,38 @@ export default async function OnboardingPage() {
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+async function WelcomeName() {
+  const user = await getCurrentUser();
+  return <>Welcome, {user.name}</>;
+}
+
+async function AddressDetails() {
+  const user = await getCurrentUser();
+  return (
+    <>
+      <p className="mt-2 text-muted-foreground">
+        Anything you forward here becomes a record. We only accept mail sent from{" "}
+        <span className="font-medium text-foreground">{user.email}</span>, so nobody else can
+        add to your account.
+      </p>
+
+      <div className="mt-6 rounded-xl border bg-card p-4">
+        <ForwardingAddress address={user.forwardingAddress} />
+      </div>
+    </>
+  );
+}
+
+function AddressSkeleton() {
+  return (
+    <div aria-busy="true">
+      <Skeleton className="mt-3 h-4 w-full" />
+      <Skeleton className="mt-2 h-4 w-2/3" />
+      <Skeleton className="mt-6 h-20 rounded-xl" />
     </div>
   );
 }
