@@ -77,6 +77,11 @@ their own account and runs `setup()`; every 15 minutes it posts each email they'
 the verified-sender check (the key proves it's the user's). Needs `SUPABASE_SECRET_KEY` and
 a public address for the app (a deployment, or a tunnel to your computer).
 
+Senders listed in Settings (addresses or domains) are written into the script's `SENDERS`;
+their emails with an order word in the subject are sent without a label (the last 30 days
+on `setup()`, then 3 days on each check), with `X-Ownership-Auto: 1`. The app drops those
+that turn out not to be purchases, or duplicates, instead of keeping an import.
+
 ### Local stack (needs Docker)
 
 ```bash
