@@ -203,3 +203,45 @@ describe("shop emails with product details", () => {
     expect(x.fields.total?.value).toBe(9197);
   });
 });
+
+describe("sportswear-style order emails", () => {
+  // Fictional layouts: long detail blocks, labelled or struck-through prices, unlabelled details.
+  const order = (items: string) =>
+    htmlToLines(`<html><body><p>Thanks for your order!</p><p>Order number: AEX12345678</p>
+<p>Order date: 24 October 2026</p>${items}
+<table><tr><td>Delivery</td><td>FREE</td></tr><tr><td>Total</td><td>₹ 13,397.00</td></tr></table>
+<h3>You may also like</h3><p>Example Tee  ₹1,999.00</p></body></html>`);
+  const read = (lines: string[]) => {
+    const outcome = parseDocument(lines);
+    if (!outcome.ok) throw new Error(outcome.reason);
+    return outcome.extraction.lines.map((l) => [l.name.value, l.quantity, l.price.value]);
+  };
+  const expected = [
+    ["EXAMPLE OG SHOES", 1, 10999],
+    ["EXAMPLE TREFOIL SOCKS", 2, 2398],
+  ];
+
+  it("reads items with article, colour, size and quantity lines before the price", () => {
+    const block = (name: string, qty: number, price: string) =>
+      `<table><tr><td>${name}</td></tr><tr><td>Article number: EX3437</td></tr><tr><td>Colour: Cloud White / Core Black</td></tr><tr><td>Size: UK 9</td></tr><tr><td>Quantity: ${qty}</td></tr><tr><td>₹ ${price}</td></tr></table>`;
+    expect(read(order(block("EXAMPLE OG SHOES", 1, "10,999.00") + block("EXAMPLE TREFOIL SOCKS", 2, "2,398.00")))).toEqual(expected);
+  });
+
+  it("reads labelled and struck-through prices", () => {
+    expect(
+      read(
+        order(`<table><tr><td>EXAMPLE OG SHOES</td></tr><tr><td>Size: UK 9</td><td>Qty: 1</td></tr><tr><td>Price: ₹10,999.00</td></tr>
+<tr><td>EXAMPLE TREFOIL SOCKS</td></tr><tr><td>Size M | Qty: 2</td></tr><tr><td>₹2,998.00</td><td>INR 2,398.00</td></tr></table>`),
+      ),
+    ).toEqual(expected);
+  });
+
+  it("skips unlabelled colour and size lines", () => {
+    expect(
+      read(
+        order(`<table><tr><td>EXAMPLE OG SHOES</td></tr><tr><td>Cloud White / Core Black / Gum</td></tr><tr><td>UK 9</td></tr><tr><td>1 x ₹10,999.00</td></tr>
+<tr><td>EXAMPLE TREFOIL SOCKS</td></tr><tr><td>White / Black</td></tr><tr><td>Size M</td></tr><tr><td>2 x ₹2,398.00</td></tr></table>`),
+      ),
+    ).toEqual(expected);
+  });
+});

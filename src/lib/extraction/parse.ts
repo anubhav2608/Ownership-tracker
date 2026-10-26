@@ -323,8 +323,21 @@ export function documentSections(lines: string[]) {
 const TERMS_LINE =
   /\bwarranty\b|\bguarantee\b|\bnon[- ]?returnable\b|\b(returns?|replacement|exchange)\b.{0,40}\b(days?|by|till|until|before|window|policy|eligible|within|closes?)\b/i;
 
-/** A product detail printed under its name in shop emails. */
-const ITEM_DETAIL = /^\s*(colou?r|size|style|variant|article( no\.?| number)?|fit|material|width)\s*[:\-]\s*\S/i;
+/**
+ * A product detail printed under its name in shop emails: "Colour: Core Black",
+ * "Size UK 9", or a bare "Cloud White / Core Black / Gum" or "UK 9".
+ */
+const ITEM_DETAIL = new RegExp(
+  [
+    /^\s*(colou?r|size|style|variant|article( no\.?| number)?|fit|material|width)\s*[:\-]\s*\S/.source,
+    /^\s*size\s+((uk|us|eu|in)\s*)?(\d{1,2}(\.5)?|xxs|xs|s|m|l|xl|xxl|xxxl|free size)\b/.source,
+    /^\s*(uk|us|eu)\s*\d{1,2}(\.5)?\s*$/.source,
+    /^\s*[a-z]+( [a-z]+)*( \/ [a-z]+( [a-z]+)*)+\s*$/.source,
+  ].join("|"),
+  "i",
+);
+/** Words that label a price, so "Price: ₹7,999.00" is still a row of amounts only. */
+const PRICE_WORDS = /\b(unit price|price|mrp|amount|you pay|each|inr|rs)\b\.?|\bx\b|[:×]/gi;
 
 /** Items, and the line each one's description starts on (to find terms printed under it). */
 function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] } {
@@ -332,7 +345,9 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
   const starts: number[] = [];
   // A name waiting for its amounts: some invoices print the name, then tax
   // codes, then a row of amounts ("1  Rs 1799.00 … Rs 755.00").
-  let pending: { text: string; at: number; quantity?: number } | null = null;
+  let pending: { text: string; at: number; quantity?: number; last?: number } | null = null;
+  // Still close enough to the name: details under it ("Colour:", "Size:") keep it close.
+  const near = (i: number) => pending !== null && i - (pending.last ?? pending.at) <= MAX_ROW_GAP;
   // Address blocks run until the items table; a bill of supply (transport) and
   // the declarations after the items hold no items at all.
   let inAddress = false;
@@ -356,9 +371,18 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
       continue;
     }
     // "Sold by: Example Retail" right under an item's name (shop emails) is about that item.
-    if (pending && i - pending.at <= MAX_ROW_GAP && /^\s*sold by\b/i.test(raw)) continue;
+    if (pending && near(i) && /^\s*sold by\b/i.test(raw)) {
+      pending.last = i;
+      continue;
+    }
     // "Colour: Core Black", "Size: UK 9" under a name describe that item; they aren't its name.
-    if (pending && i - pending.at <= MAX_ROW_GAP && ITEM_DETAIL.test(raw) && moneyIn(raw).length === 0) continue;
+    if (pending && near(i) && ITEM_DETAIL.test(raw) && moneyIn(raw).length === 0) {
+      // "Size: UK 9 | Qty: 2"
+      const qty = raw.match(/\b(?:qty|quantity)\s*[:.]?\s*(\d{1,3})\b/i);
+      if (qty) pending.quantity = Number(qty[1]) || 1;
+      pending.last = i;
+      continue;
+    }
     if (ADDRESS_START.test(raw)) {
       inAddress = !isTableHeader(raw);
       pending = null;
@@ -371,7 +395,7 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
     if (TAX_CODE_LINE.test(raw)) continue;
     // Shop emails: the name, then "Quantity: 1  ₹299.00".
     const qtyRow = raw.match(/^\s*(?:qty|quantity)\s*[:.]?\s*(\d{1,3})\b/i);
-    if (qtyRow && pending && i - pending.at <= MAX_ROW_GAP) {
+    if (qtyRow && pending && near(i)) {
       const price = moneyIn(raw).at(-1);
       const description = cleanDescription(pending.text);
       if (price !== undefined && /[a-z]{3}/i.test(description) && description.length <= 160) {
@@ -384,15 +408,18 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
       // "Quantity: 1" with the price on the next line.
       if (price === undefined) {
         pending.quantity = Number(qtyRow[1]) || 1;
+        pending.last = i;
         continue;
       }
     }
     const tableRow = TABLE_ROW.test(raw);
-    if (!tableRow && NOT_AN_ITEM.test(raw)) {
+    const prices = moneyIn(raw);
+    // Only amounts, perhaps labelled: "₹ 7,999.00", "Price: ₹7,999.00", "INR 7,999.00".
+    const amountsOnly = prices.length > 0 && !/[a-z]{3}/i.test(raw.replace(PRICE_WORDS, " "));
+    if (!tableRow && !(amountsOnly && pending) && NOT_AN_ITEM.test(raw)) {
       pending = null;
       continue;
     }
-    const prices = moneyIn(raw);
     if (prices.length === 0) {
       if (!/[a-z]{3}/i.test(raw) && !/^\(.*\)$/.test(raw.trim())) continue;
       // "1 Year Manufacturer Warranty" under a name belongs to the item but isn't its name.
@@ -401,9 +428,9 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
       continue;
     }
 
-    if (!/[a-z]{3}/i.test(raw)) {
+    if (amountsOnly) {
       // A row of amounts only: it belongs to the name just above, if there is one.
-      if (pending && i - pending.at <= MAX_ROW_GAP) {
+      if (pending && near(i)) {
         const description = cleanDescription(pending.text);
         const qty = raw.trim().match(/^(\d{1,3})(?:\.0+)?\s/);
         if (/[a-z]{3}/i.test(description) && description.length <= 160) {
