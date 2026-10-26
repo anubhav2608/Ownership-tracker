@@ -45,7 +45,8 @@ function sendLabelled() {
   for (const thread of label.getThreads(0, 20)) {
     let sent = true;
     for (const message of thread.getMessages()) {
-      const response = UrlFetchApp.fetch(APP_URL + '/api/inbound/raw', {
+      // Without trailing slashes: "https://app.example//api/…" would redirect and lose the email.
+      const response = UrlFetchApp.fetch(APP_URL.trim().replace(/\\/+$/, '') + '/api/inbound/raw', {
         method: 'post',
         contentType: 'message/rfc822',
         payload: message.getRawContent(),
