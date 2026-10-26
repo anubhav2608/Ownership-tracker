@@ -1,12 +1,13 @@
 import { after } from "next/server";
-import { ingestRawEmail, readStoredEmail } from "@/lib/inbound/ingest";
+import { ingestRawEmail, readStoredEmail, removeImport } from "@/lib/inbound/ingest";
 import { sha256 } from "@/lib/stored-documents";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Emails sent by the user's own Google Apps Script (Settings → Gmail script):
 // the raw message as the body, the user's personal key as a bearer token. The
-// script runs in the user's Google account and sends only what they label;
-// this app never gets access to Gmail.
+// script runs in the user's Google account and sends only what they label, or
+// order emails from senders they listed ("X-Ownership-Auto: 1"); this app
+// never gets access to Gmail.
 
 export const maxDuration = 60;
 
@@ -59,7 +60,19 @@ export async function POST(request: Request) {
 
   try {
     const result = await ingestRawEmail(db, profile.id, raw);
-    if (result.status === "stored") after(() => readStoredEmail(db, profile.id, result.importId));
+    // Sent automatically, not chosen by the user: only purchases are kept.
+    const auto = request.headers.get("x-ownership-auto") === "1";
+    if (auto && result.status === "duplicate") {
+      await removeImport(db, profile.id, result.importId);
+      return json(200, { status: "duplicate" });
+    }
+    if (result.status === "stored") {
+      after(async () => {
+        const status = await readStoredEmail(db, profile.id, result.importId);
+        // "Your order has shipped" and the like: not a purchase, so not worth an import.
+        if (auto && status === "unsupported") await removeImport(db, profile.id, result.importId);
+      });
+    }
     const url = new URL(`/imports/${result.importId}`, request.url).toString();
     return json(200, { status: result.status, importId: result.importId, url });
   } catch (e) {

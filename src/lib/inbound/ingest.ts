@@ -258,7 +258,8 @@ async function duplicateAttachmentsImport(db: Db, userId: string, attachments: A
   return data.find((d) => d.import_id)?.import_id ?? null;
 }
 
-async function removeImport(db: Db, userId: string, importId: string) {
+/** Deletes an import with its documents and raw message. */
+export async function removeImport(db: Db, userId: string, importId: string) {
   const { data: docs } = await db
     .from("documents")
     .select("id, storage_path")
