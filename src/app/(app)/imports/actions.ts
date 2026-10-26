@@ -1,5 +1,6 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { z } from "zod";
 import { readImport, readingCrashed, type Outcome } from "@/lib/extraction/read-import";
 import type { Database, Json } from "@/lib/supabase/database.types";
@@ -52,6 +53,8 @@ export async function deleteImport(importId: string): Promise<{ ok: boolean }> {
 
   const { error } = await supabase.from("imports").delete().eq("id", importId);
   if (error) console.error("[imports] delete failed:", error.message);
+  // The "needs you" count in the menu changes too.
+  refresh();
   return { ok: !error };
 }
 
@@ -99,6 +102,7 @@ export async function processImport(importId: string): Promise<ProcessResult> {
     console.error("[imports] recording result failed:", recordError.code, recordError.message);
     return { ok: false, message: missingFunction(recordError) ? NOT_MIGRATED : "Couldn't save what was read. Try again." };
   }
+  refresh();
   return { ok: true, status: outcome.status };
 }
 

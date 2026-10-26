@@ -150,3 +150,56 @@ describe("parseRawEmail", () => {
     expect(Buffer.from(email.attachments[0].content).toString()).toBe("%PDF-1.4 fictional");
   });
 });
+
+describe("shop emails with recommendations", () => {
+  // Fictional, laid out like a marketplace "Ordered:" email: the order, then advertising.
+  const html = `<html><body>
+<p>Hello Asha,</p><p>Thank you for your order. We'll send a confirmation when your item ships.</p>
+<table><tr><td>Order #407-1234567-7654321</td></tr><tr><td>Placed on Friday, 23 October 2026</td></tr></table>
+<table><tr><td><a href="#">ExampleBrand TPU Shockproof Back Cover for Example Phone 14</a></td></tr>
+<tr><td>Sold by: Example Retail Private Limited</td></tr>
+<tr><td>Quantity: 1</td><td>₹299.00</td></tr></table>
+<table><tr><td>Order Total:</td><td>₹299.00</td></tr></table>
+<h3>Related to items you've viewed</h3>
+<table><tr><td>Example Tempered Glass Screen Guard</td><td>₹199.00</td></tr>
+<tr><td>Example 20W Fast Charger with Cable</td><td>₹899.00</td></tr></table>
+<h3>Customers who bought this also bought</h3>
+<table><tr><td>Example Phone Stand</td><td>₹349.00</td></tr></table>
+</body></html>`;
+
+  it("reads the order and ignores the recommended products", () => {
+    const outcome = parseDocument(htmlToLines(html));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const x = outcome.extraction;
+    expect(x.lines.map((l) => [l.name.value, l.price.value])).toEqual([
+      ["ExampleBrand TPU Shockproof Back Cover for Example Phone 14", 299],
+    ]);
+    expect(x.fields.total?.value).toBe(299);
+    expect(x.fields.orderRef?.value).toBe("407-1234567-7654321");
+  });
+});
+
+describe("shop emails with product details", () => {
+  // Fictional: each product's colour and size under its name, the price on its own line.
+  const html = `<html><body>
+<h1>Thanks for your order!</h1><p>Order number: EXM123456789</p><p>Order date: 24/10/2026</p>
+<table><tr><td>Example Runner 5 Shoes</td></tr><tr><td>Colour: Core Black</td></tr>
+<tr><td>Size: UK 9</td></tr><tr><td>Quantity: 1</td></tr><tr><td>₹ 7,999.00</td></tr></table>
+<table><tr><td>Example Crew Socks 3 Pairs</td></tr><tr><td>Colour: White</td></tr>
+<tr><td>Size: M</td></tr><tr><td>Quantity: 2</td></tr><tr><td>₹ 1,198.00</td></tr></table>
+<table><tr><td>Total</td><td>₹ 9,197.00</td></tr></table>
+</body></html>`;
+
+  it("keeps the names and reads quantity and price from the lines below", () => {
+    const outcome = parseDocument(htmlToLines(html));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const x = outcome.extraction;
+    expect(x.lines.map((l) => [l.name.value, l.quantity, l.price.value])).toEqual([
+      ["Example Runner 5 Shoes", 1, 7999],
+      ["Example Crew Socks 3 Pairs", 2, 1198],
+    ]);
+    expect(x.fields.total?.value).toBe(9197);
+  });
+});

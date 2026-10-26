@@ -223,7 +223,9 @@ function findWarranty(lines: string[]) {
 // ── Line items ──────────────────────────────────────────────────────────
 
 const NOT_AN_ITEM =
-  /\b(sub ?total|total|tax|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|charges?|freight|transport(ation)?|handling|packing|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|pan|gstin|address|phone|email|page|qty|quantity|description|unit price|rate)\b/i;
+  /\b(sub ?total|total|tax|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|charges?|freight|transport(ation)?|handling|packing|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|gstin|qty|quantity|description|unit price)\b|\b(pan|phone|mobile|e-?mail|address|rate)\s*(no\.?|number)?\s*[:#]|\bpage\s+\d/i;
+// Labels like "PAN:", "Phone:", "Rate:" only count as labels: a "Non-stick Pan" or a
+// "Heart Rate Monitor" is an item.
 const LABOUR = /\b(labou?r|service|servicing|visit charge|inspection|installation)\b/i;
 /** A numbered table row: "1  Description  ...amounts". */
 const TABLE_ROW = /^\d{1,3}[.)]?\s+(?=.*[a-z]{3})/i;
@@ -247,7 +249,7 @@ const ADDRESS_START =
   /\b(bill(ed)? (to|from)|ship(ped)? (to|from)|deliver(y|ed)? to|billing address|shipping address|delivery address|sold by|seller details|customer details|consignor|consignee|destination|place of origin|reg(istered)?\.? address)\b/i;
 /** Registration numbers and invoice metadata, never items. */
 const IDENTITY_LINE =
-  /\b(gstin|gst ?(no|number|reg)|pan|cin|fssai|state code|place of supply|customer type|nature of (transaction|supply)|packet ?id|e\.? ?& ?o\.? ?e)\b/i;
+  /\b(pan|cin)\s*(no\.?|number)?\s*[:#]|\b(gstin|gst ?(no|number|reg)|fssai|state code|place of supply|customer type|nature of (transaction|supply)|packet ?id|e\.? ?& ?o\.? ?e)\b/i;
 /** The items table's header: several column names on one line. */
 const TABLE_HEADER_WORDS = /\b(qty|quantity|description|particulars|item|product|amount|total|rate|price|mrp|hsn|sac|value|gross|discount|taxable)\b/gi;
 const isTableHeader = (line: string) => new Set(line.toLowerCase().match(TABLE_HEADER_WORDS) ?? []).size >= 2;
@@ -321,13 +323,16 @@ export function documentSections(lines: string[]) {
 const TERMS_LINE =
   /\bwarranty\b|\bguarantee\b|\bnon[- ]?returnable\b|\b(returns?|replacement|exchange)\b.{0,40}\b(days?|by|till|until|before|window|policy|eligible|within|closes?)\b/i;
 
+/** A product detail printed under its name in shop emails. */
+const ITEM_DETAIL = /^\s*(colou?r|size|style|variant|article( no\.?| number)?|fit|material|width)\s*[:\-]\s*\S/i;
+
 /** Items, and the line each one's description starts on (to find terms printed under it). */
 function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] } {
   const items: ExtractedLine[] = [];
   const starts: number[] = [];
   // A name waiting for its amounts: some invoices print the name, then tax
   // codes, then a row of amounts ("1  Rs 1799.00 … Rs 755.00").
-  let pending: { text: string; at: number } | null = null;
+  let pending: { text: string; at: number; quantity?: number } | null = null;
   // Address blocks run until the items table; a bill of supply (transport) and
   // the declarations after the items hold no items at all.
   let inAddress = false;
@@ -350,6 +355,10 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
       if (isTableHeader(raw)) inAddress = false;
       continue;
     }
+    // "Sold by: Example Retail" right under an item's name (shop emails) is about that item.
+    if (pending && i - pending.at <= MAX_ROW_GAP && /^\s*sold by\b/i.test(raw)) continue;
+    // "Colour: Core Black", "Size: UK 9" under a name describe that item; they aren't its name.
+    if (pending && i - pending.at <= MAX_ROW_GAP && ITEM_DETAIL.test(raw) && moneyIn(raw).length === 0) continue;
     if (ADDRESS_START.test(raw)) {
       inAddress = !isTableHeader(raw);
       pending = null;
@@ -360,6 +369,24 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
       continue;
     }
     if (TAX_CODE_LINE.test(raw)) continue;
+    // Shop emails: the name, then "Quantity: 1  ₹299.00".
+    const qtyRow = raw.match(/^\s*(?:qty|quantity)\s*[:.]?\s*(\d{1,3})\b/i);
+    if (qtyRow && pending && i - pending.at <= MAX_ROW_GAP) {
+      const price = moneyIn(raw).at(-1);
+      const description = cleanDescription(pending.text);
+      if (price !== undefined && /[a-z]{3}/i.test(description) && description.length <= 160) {
+        items.push({ name: extracted(description, 0.8), quantity: Number(qtyRow[1]) || 1, price: extracted(price, 0.8) });
+        starts.push(pending.at);
+        pending = null;
+        if (items.length >= 30) break;
+        continue;
+      }
+      // "Quantity: 1" with the price on the next line.
+      if (price === undefined) {
+        pending.quantity = Number(qtyRow[1]) || 1;
+        continue;
+      }
+    }
     const tableRow = TABLE_ROW.test(raw);
     if (!tableRow && NOT_AN_ITEM.test(raw)) {
       pending = null;
@@ -382,7 +409,7 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
         if (/[a-z]{3}/i.test(description) && description.length <= 160) {
           items.push({
             name: extracted(description, 0.8),
-            quantity: Number(qty?.[1] ?? 1) || 1,
+            quantity: pending.quantity ?? (Number(qty?.[1] ?? 1) || 1),
             price: extracted(prices.at(-1)!, 0.8),
           });
           starts.push(pending.at);
@@ -455,8 +482,17 @@ function itemTerms(lines: string[], items: ExtractedLine[], starts: number[], or
 
 // ── Putting it together ─────────────────────────────────────────────────
 
+/**
+ * Where a shop's email turns to advertising: other products, with prices, that
+ * weren't bought. Nothing from there on is read.
+ */
+const MARKETING =
+  /^(related to items you.?ve viewed|recommended for you|recommendations? for you|customers who (bought|viewed)|frequently bought together|you (may|might) also like|inspired by your|top picks for you|deals (for|recommended for) you|buy it again|continue shopping|sponsored( products)?|more items to (consider|explore)|similar (items|products)|people also (bought|viewed))\b/i;
+
 export function parseDocument(lines: string[]): ParseOutcome {
-  const clean = lines.map((l) => l.trim()).filter(Boolean);
+  const all = lines.map((l) => l.trim()).filter(Boolean);
+  const adsAt = all.findIndex((l, i) => i > 0 && MARKETING.test(l));
+  const clean = adsAt > 0 ? all.slice(0, adsAt) : all;
   const text = clean.join("\n");
   if (text.replace(/\s/g, "").length < 20) return { ok: false, reason: "no_text" };
 

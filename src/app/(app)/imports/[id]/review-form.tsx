@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Trash2, Undo2 } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { FieldStateBadge, LOW_CONFIDENCE } from "@/components/badges";
@@ -106,6 +106,15 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   function setField(key: string, value: string) {
     setFields((prev) => ({ ...prev, [key]: confirmed(value) }));
   }
+  /** Takes a line the reader got wrong out of what's saved; it stays listed so it can be restored. */
+  function removeLine(i: number) {
+    updateLine(i, { target: "skip" });
+    const name = lines[i].name.value;
+    toast(`Removed ${name ? `"${name.length > 40 ? `${name.slice(0, 40)}…` : name}"` : "the item"}`, {
+      action: { label: "Undo", onClick: () => updateLine(i, { target: "new" }) },
+    });
+  }
+
   function updateLine(i: number, patch: Partial<LineDraft>) {
     setLines((prev) => prev.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   }
@@ -269,7 +278,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       </SectionCard>
 
       {!isService && (
-        <SectionCard title={`Items in this order (${lines.length})`}>
+        <SectionCard title={`Items in this order (${kept.length})`}>
           {lines.length === 0 && (
             <p className="px-5 py-4 text-sm text-muted-foreground">
               We couldn&rsquo;t find the items on this document.{" "}
@@ -287,7 +296,33 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
           )}
           <ul className="divide-y">
             {lines.map((l, i) => (
-              <li key={i} className={cn("grid gap-3 p-5 sm:grid-cols-[1fr_13rem]", l.target === "skip" && "opacity-60")}>
+              l.target === "skip" ? (
+                <li key={i} className="flex items-center gap-3 bg-muted/40 px-5 py-3 text-sm">
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground line-through">
+                    {l.name.value || `Item ${i + 1}`}
+                  </span>
+                  <span className="text-xs text-muted-foreground">Removed</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => updateLine(i, { target: "new" })}>
+                    <Undo2 /> Restore
+                  </Button>
+                </li>
+              ) : (
+              <li key={i} className="grid gap-3 p-5 sm:grid-cols-[1fr_13rem]">
+                <div className="flex items-center justify-between gap-3 sm:col-span-2">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Item {lines.slice(0, i + 1).filter((x) => x.target === "new").length} of {kept.length}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label={`Remove ${l.name.value || `item ${i + 1}`}`}
+                    onClick={() => removeLine(i)}
+                  >
+                    <Trash2 /> Remove
+                  </Button>
+                </div>
                 <DraftInput id={`${fid}-line-${i}-name`} label="Item name" draft={l.name} onChange={(v) => updateLine(i, { name: confirmed(v) })} />
                 <DraftInput id={`${fid}-line-${i}-price`} label="Price" type="number" draft={l.price} onChange={(v) => updateLine(i, { price: confirmed(v) })} />
                 <div className="grid gap-2">
@@ -303,18 +338,6 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
                         {c}
                       </NativeSelectOption>
                     ))}
-                  </NativeSelect>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor={`${fid}-line-${i}-target`}>Save as</Label>
-                  <NativeSelect
-                    id={`${fid}-line-${i}-target`}
-                    wrapperClassName="w-full"
-                    value={l.target}
-                    onChange={(e) => updateLine(i, { target: e.target.value as LineDraft["target"] })}
-                  >
-                    <NativeSelectOption value="new">A new item</NativeSelectOption>
-                    <NativeSelectOption value="skip">Don&rsquo;t track this line</NativeSelectOption>
                   </NativeSelect>
                 </div>
                 <DraftInput
@@ -348,6 +371,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
                   )
                 )}
               </li>
+              )
             ))}
           </ul>
           {totalMismatch && (

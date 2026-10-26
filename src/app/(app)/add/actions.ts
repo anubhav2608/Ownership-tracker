@@ -1,5 +1,6 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { z } from "zod";
 import {
   purchaseDocumentIds,
@@ -196,6 +197,8 @@ export async function createPurchase(input: PurchaseInput): Promise<SaveResult> 
   }
   if (error) return saveFailed("create_manual_purchase", error);
   if (replaced) await removeOrphanDocuments(supabase, replaced.documentIds);
+  // Saving an import takes it off the "needs you" count in the menu.
+  if (p.importId) refresh();
   return { ok: true, id: (data as { order_id: string }).order_id };
 }
 
@@ -236,5 +239,6 @@ export async function createServiceEvent(input: ServiceEventInput): Promise<Save
     },
   });
   if (error) return saveFailed("create_manual_service_event", error);
+  if (e.importId) refresh();
   return { ok: true, id: (data as { service_event_id: string }).service_event_id };
 }

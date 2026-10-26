@@ -1,5 +1,6 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { z } from "zod";
 import {
   linkedDocumentIds,
@@ -107,6 +108,7 @@ export async function deleteItem(itemId: string): Promise<ActionResult> {
   if (!data.length) return NOT_FOUND;
 
   await removeOrphanDocuments(supabase, docIds);
+  refresh();
   return { ok: true };
 }
 
@@ -238,6 +240,7 @@ export async function deleteOrder(orderId: string): Promise<ActionResult> {
   if (order.import_id) await supabase.from("imports").delete().eq("id", order.import_id);
 
   await removeOrphanDocuments(supabase, documentIds);
+  refresh();
   return { ok: true };
 }
 
@@ -296,6 +299,7 @@ export async function deleteServiceEvent(eventId: string): Promise<ActionResult>
   const importId = data[0].import_id;
   if (importId) await supabase.from("imports").delete().eq("id", importId);
   await removeOrphanDocuments(supabase, docIds);
+  refresh();
   return { ok: true };
 }
 

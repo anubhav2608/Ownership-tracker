@@ -164,6 +164,7 @@ const SIZE = /\bsize\s*[:-]?\s*(xxs|xs|s|m|l|xl|xxl|xxxl|\d{1,2}y?|\d{2})\b|\(\s
 
 export function guessCategory(name: string, merchant?: string | null): Category {
   const text = normalise(name);
+  const forAt = text.search(/ (for|compatible with|suitable for) /);
   const scores = new Map<Category, number>();
   // Where the category's product word ends: in "car charger" the last noun is the thing bought.
   const headAt = new Map<Category, number>();
@@ -175,7 +176,11 @@ export function guessCategory(name: string, merchant?: string | null): Category 
       const hits = patterns.map((p) => text.search(p)).filter((at) => at >= 0);
       if (!hits.length) continue;
       score += weight;
-      if (weight === PRODUCT) headAt.set(category, Math.max(...hits));
+      if (weight === PRODUCT) {
+        // "Back Cover for Example Phone": what follows "for" is what it fits, not what it is.
+        const own = hits.filter((at) => forAt < 0 || at < forAt);
+        if (own.length) headAt.set(category, Math.max(...own));
+      }
     }
     if (score) scores.set(category, score);
   }

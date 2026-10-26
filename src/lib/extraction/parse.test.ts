@@ -296,3 +296,22 @@ describe("mergeExtractions", () => {
     expect(merged.fields.date?.confidence).toBeGreaterThanOrEqual(0.95);
   });
 });
+
+describe("product names that contain label words", () => {
+  it("keeps items named like phone, pan or rate", () => {
+    const o = parseDocument([
+      "Tax Invoice",
+      "Invoice No: EX-1  Date: 01/10/2026",
+      "1  Example Phone Stand  Rs. 349.00",
+      "2  Example Non-stick Fry Pan 24 cm  Rs. 899.00",
+      "3  Example Band with Heart Rate Monitor  Rs. 2,499.00",
+      "Phone: 98765 43210  Rs. 0.00",
+      "Grand Total  Rs. 3,747.00",
+    ]);
+    expect(o.ok && o.extraction.lines.map((l) => l.name.value)).toEqual([
+      "Example Phone Stand",
+      "Example Non-stick Fry Pan 24 cm",
+      "Example Band with Heart Rate Monitor",
+    ]);
+  });
+});

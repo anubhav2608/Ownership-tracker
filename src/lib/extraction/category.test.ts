@@ -32,6 +32,8 @@ describe("guessCategory", () => {
     expect(guessCategory("Washing Machine Cover")).toBe("Accessories");
     expect(guessCategory("Silicone Case for iPhone 16")).toBe("Accessories");
     expect(guessCategory("Back Cover for Samsung Galaxy S24")).toBe("Accessories");
+    expect(guessCategory("ExampleBrand TPU Shockproof Back Cover for Example Phone 14")).toBe("Accessories");
+    expect(guessCategory("Example Stand for Laptop and Tablet")).toBe("Accessories");
     expect(guessCategory("Samsung Galaxy S24 5G (8 GB RAM, 256 GB)")).toBe("Electronics");
     expect(guessCategory("Whirlpool 1.5 Ton 3 Star Inverter Split AC")).toBe("Appliances");
     expect(guessCategory("Prestige Pressure Cooker 5 Litre")).toBe("Home");
