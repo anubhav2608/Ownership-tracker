@@ -51,9 +51,13 @@ function sendLabelled() {
         payload: message.getRawContent(),
         headers: { Authorization: 'Bearer ' + KEY },
         muteHttpExceptions: true,
+        // A redirect would turn this POST into a GET and lose the email: report it instead.
+        followRedirects: false,
       });
-      console.log(message.getSubject() + ' → ' + response.getResponseCode() + ' ' + response.getContentText());
-      if (response.getResponseCode() >= 300) sent = false;
+      const code = response.getResponseCode();
+      const moved = code >= 300 && code < 400 ? ' Redirected to ' + response.getHeaders()['Location'] + ': set APP_URL to the main https address of your app.' : '';
+      console.log(message.getSubject() + ' → ' + code + ' ' + response.getContentText() + moved);
+      if (code >= 300) sent = false;
     }
     // Sent emails move to Ownership/Sent; failed ones stay labelled and are tried again.
     if (sent) {

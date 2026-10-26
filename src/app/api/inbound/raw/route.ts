@@ -15,6 +15,17 @@ const KEY = /^ik_[0-9a-f]{48}$/;
 
 const json = (status: number, body: object) => Response.json(body, { status });
 
+/**
+ * A GET here usually means a redirect turned the script's POST into a GET (a
+ * deployment-specific or http:// address). Say so, rather than a bare 405.
+ */
+export function GET() {
+  return json(405, {
+    error:
+      "This address only accepts emails sent with POST. If the Gmail script got this, its APP_URL redirects: use your app's main https address (Vercel → your project → Domains), with no path.",
+  });
+}
+
 export async function POST(request: Request) {
   if (!process.env.SUPABASE_SECRET_KEY) {
     console.error("[inbound/raw] not configured: set SUPABASE_SECRET_KEY");
