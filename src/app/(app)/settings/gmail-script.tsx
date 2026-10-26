@@ -56,9 +56,21 @@ function sendLabelled() {
         followRedirects: false,
       });
       const code = response.getResponseCode();
-      const moved = code >= 300 && code < 400 ? ' Redirected to ' + response.getHeaders()['Location'] + ': set APP_URL to the main https address of your app.' : '';
-      console.log(message.getSubject() + ' → ' + code + ' ' + response.getContentText() + moved);
-      if (code >= 300) sent = false;
+      const text = response.getContentText();
+      // Only the app's own answer counts: a login page (e.g. Vercel's Deployment Protection) is a 200 too.
+      let reply = null;
+      try {
+        reply = JSON.parse(text);
+      } catch (e) {}
+      const accepted = code === 200 && reply !== null && typeof reply.status === 'string';
+      let note = '';
+      if (code >= 300 && code < 400) {
+        note = ' Redirected to ' + response.getHeaders()['Location'] + ': set APP_URL to the main https address of your app.';
+      } else if (code === 200 && !accepted) {
+        note = ' This is not the app: if it is a Vercel login page, turn off Vercel Authentication for your main domain (Vercel: Settings, Deployment Protection).';
+      }
+      console.log(message.getSubject() + ' → ' + code + ' ' + (reply ? text : text.slice(0, 120).replace(/\\s+/g, ' ') + '…') + note);
+      if (!accepted) sent = false;
     }
     // Sent emails move to Ownership/Sent; failed ones stay labelled and are tried again.
     if (sent) {
