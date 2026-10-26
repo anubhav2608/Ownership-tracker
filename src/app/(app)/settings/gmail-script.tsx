@@ -2,23 +2,22 @@
 
 import { useRouter } from "next/navigation";
 import { KeyRound, TriangleAlert } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { CopyButton } from "@/components/copy-button";
-import { SectionCard } from "@/components/layout-bits";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createGmailKey, revokeGmailKey } from "./gmail-script-actions";
 
 const KEY_PLACEHOLDER = "PASTE_YOUR_KEY_HERE";
-/** Remembered in this browser, so the script can be copied again later with the same senders. */
-const SENDERS_STORE = "gmail-script-senders";
+/** Subject words of the order emails sent automatically (Gmail search syntax). */
+export const ORDER_WORDS =
+  "order OR ordered OR invoice OR receipt OR bill OR purchase OR purchased OR payment OR booking";
 
 /** A sender to send automatically: a domain ("amazon.in") or an address ("orders@shop.example"). */
 const SENDER = /^([a-z0-9._%+-]+@)?([a-z0-9-]+\.)+[a-z]{2,}$/i;
@@ -43,7 +42,7 @@ const DONE = 'Ownership/Sent';
 // Emails from these senders (an address, or a domain like 'amazon.in') are sent
 // without labelling, when the subject mentions an order, invoice or receipt.
 const SENDERS = [${senders.map((x) => `'${x}'`).join(", ")}];
-const SUBJECT = 'order OR ordered OR invoice OR receipt OR bill OR purchase OR purchased OR payment OR booking';
+const SUBJECT = '${ORDER_WORDS}';
 
 // Run once: creates the labels, checks every 15 minutes, and sends what's there now
 // (for the senders above, the last 30 days).
@@ -122,38 +121,25 @@ function label_(name) {
 `;
 }
 
+/** The Apps Script tab of Settings → Automatic import from Gmail. */
 export function GmailScript({
   gmailKey,
   defaultAppUrl,
+  senders,
 }: {
   gmailKey: { hint: string; createdAt: string } | null;
   /** The address this page was requested at; on a laptop that's localhost, which Google can't reach. */
   defaultAppUrl: string;
+  /** From the senders box above the tabs. */
+  senders: string[];
 }) {
   const router = useRouter();
   const fid = useId();
   const [newKey, setNewKey] = useState<string | null>(null);
   const [appUrl, setAppUrl] = useState(defaultAppUrl);
-  const [sendersText, setSendersText] = useState("");
   const [busy, setBusy] = useState(false);
   const [revoking, setRevoking] = useState(false);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(SENDERS_STORE);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- browser storage is read after hydration
-      if (saved) setSendersText(saved);
-    } catch {}
-  }, []);
-
-  function changeSenders(value: string) {
-    setSendersText(value);
-    try {
-      localStorage.setItem(SENDERS_STORE, value);
-    } catch {}
-  }
-
-  const { senders, invalid } = parseSenders(sendersText);
   const local = /^https?:\/\/(localhost|127\.|0\.0\.0\.0|\[::1\])/i.test(appUrl);
 
   async function create() {
@@ -177,13 +163,13 @@ export function GmailScript({
   const script = scriptFor(appUrl || "https://your-app.example.com", newKey ?? KEY_PLACEHOLDER, senders);
 
   return (
-    <SectionCard title="Gmail (Apps Script)">
-      <div className="space-y-5 p-5 text-sm">
+    <>
+      <div className="space-y-5 text-sm">
         <p className="text-muted-foreground">
-          Instead of forwarding, a small script in your own Google account can send the emails you
-          label <span className="font-medium text-foreground">Ownership</span> to this app, with
-          their attachments, every 15 minutes, and order emails from senders you list. It sends only
-          those, and this app never gets access to your Gmail.
+          A small script in your own Google account sends the emails you label{" "}
+          <span className="font-medium text-foreground">Ownership</span> to this app, with their
+          attachments, every 15 minutes, and order emails from the senders above. Unlike a filter, it
+          can also send older emails. It sends only those, and this app never gets access to your Gmail.
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -239,34 +225,6 @@ export function GmailScript({
           )}
         </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor={`${fid}-senders`}>Send automatically from these senders</Label>
-          <Textarea
-            id={`${fid}-senders`}
-            value={sendersText}
-            onChange={(e) => changeSenders(e.target.value)}
-            rows={3}
-            placeholder={"amazon.in\nmyntra.com\norders@shop.example"}
-          />
-          <p className="text-xs text-muted-foreground">
-            One address or domain per line. Their emails with order, invoice or receipt in the subject
-            are sent without labelling (the last 30 days when you run setup). Ones that turn out not
-            to be purchases, like shipping updates, are dropped. Leave empty to send only what you label.
-          </p>
-          {gmailKey && !newKey && (
-            <p className="text-xs text-muted-foreground">
-              Script already set up? Edit the SENDERS line at the top of it in Apps Script instead,
-              since the script below no longer has your key.
-            </p>
-          )}
-          {invalid.length > 0 && (
-            <p className="flex items-start gap-2 text-xs text-warning">
-              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-              Not an address or domain, left out: {invalid.join(", ")}
-            </p>
-          )}
-        </div>
-
         <ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground">
           <li>{gmailKey || newKey ? "Copy the script below." : "Create a key, then copy the script below."}</li>
           <li>
@@ -291,7 +249,7 @@ export function GmailScript({
             <CopyButton value={script} label="Copy script" />
           </div>
           <pre
-            aria-label="Apps Script"
+            aria-label="Script for Apps Script"
             className="max-h-72 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs leading-relaxed"
           >
             {script}
@@ -299,7 +257,7 @@ export function GmailScript({
           {!newKey && (
             <p className="text-xs text-muted-foreground">
               Keys are shown only when created. If you&rsquo;ve lost yours, replace it and update the
-              script.
+              script.{gmailKey && " Script already set up? To change senders, edit its SENDERS line in Apps Script instead."}
             </p>
           )}
         </div>
@@ -313,6 +271,6 @@ export function GmailScript({
         confirmLabel="Revoke"
         onConfirm={revoke}
       />
-    </SectionCard>
+    </>
   );
 }

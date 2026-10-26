@@ -65,10 +65,23 @@ export const getCurrentUser = cache(async () => {
   const claims = data?.claims;
   if (!claims) throw new Error("Not signed in");
 
-  const [profile, senders] = await Promise.all([
+  const [profile, senders, held] = await Promise.all([
     query<Row<"profiles"> | null>(supabase.from("profiles").select("*").eq("id", claims.sub).maybeSingle()),
     query<Row<"verified_senders">[]>(supabase.from("verified_senders").select("*").order("created_at")),
+    query<Pick<Row<"imports">, "id" | "extracted" | "created_at">[]>(
+      supabase
+        .from("imports")
+        .select("id, extracted, created_at")
+        .eq("source", "email")
+        .eq("status", "failed")
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ),
   ]);
+  // Gmail's latest "confirm forwarding" email from the last week, if it's still there.
+  const confirmation = held.find(
+    (i) => (i.extracted as { forwarding?: unknown } | null)?.forwarding && Date.parse(i.created_at) > Date.now() - 7 * 864e5,
+  );
 
   const email = typeof claims.email === "string" ? claims.email : "";
   return {
@@ -76,6 +89,17 @@ export const getCurrentUser = cache(async () => {
     name: profile?.display_name || email.split("@")[0] || "there",
     email,
     forwardingAddress: profile ? `${profile.forwarding_token}@${INBOUND_DOMAIN}` : "",
+    /** Whether mail sent to forwarding addresses reaches this app (Resend receiving is set up). */
+    forwardingReady: Boolean(process.env.INBOUND_EMAIL_DOMAIN && process.env.RESEND_WEBHOOK_SECRET),
+    /** Gmail's request to confirm forwarding to this account, shown in Settings. */
+    forwardingConfirmation: confirmation
+      ? {
+          importId: confirmation.id,
+          receivedAt: confirmation.created_at,
+          ...(confirmation.extracted as unknown as { forwarding: { gmail: string; code: string; link: string | null } })
+            .forwarding,
+        }
+      : null,
     verifiedSenders: senders.filter((s) => s.verified_at).map((s) => s.email),
     pendingSenders: senders.filter((s) => !s.verified_at).map((s) => s.email),
     /** The personal key for the Gmail script; only its hint is ever shown again. */

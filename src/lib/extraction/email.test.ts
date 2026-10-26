@@ -3,7 +3,9 @@ import {
   bodyLines,
   bodyOnlyEmail,
   emailAddress,
+  forwardedBy,
   forwardingTokens,
+  gmailForwardingConfirmation,
   htmlToLines,
   parseRawEmail,
   textToLines,
@@ -243,5 +245,45 @@ describe("sportswear-style order emails", () => {
 <tr><td>EXAMPLE TREFOIL SOCKS</td></tr><tr><td>White / Black</td></tr><tr><td>Size M</td></tr><tr><td>2 x ₹2,398.00</td></tr></table>`),
       ),
     ).toEqual(expected);
+  });
+});
+
+describe("Gmail forwarding", () => {
+  const confirmationText = [
+    "asha.example@gmail.com has requested to automatically forward mail to your email",
+    "address u_0123456789abcdef@in.example.com.",
+    "Confirmation code: 987654321",
+    "",
+    "To allow asha.example@gmail.com to automatically forward mail to your address, please click the link below to confirm the request:",
+    "",
+    "https://mail-settings.google.com/mail/vf-%5BEXAMPLE%5D-fictional",
+  ].join("\n");
+  const confirmation = {
+    from: "Gmail Team <forwarding-noreply@google.com>",
+    subject: "(#987654321) Gmail Forwarding Confirmation - Receive Mail from asha.example@gmail.com",
+    text: confirmationText,
+  };
+
+  it("reads Gmail's confirmation email", () => {
+    expect(gmailForwardingConfirmation(confirmation)).toEqual({
+      gmail: "asha.example@gmail.com",
+      code: "987654321",
+      link: "https://mail-settings.google.com/mail/vf-%5BEXAMPLE%5D-fictional",
+    });
+  });
+
+  it("ignores look-alikes: another sender, a failed signature, or a link off Google", () => {
+    expect(gmailForwardingConfirmation({ ...confirmation, from: "forwarding-noreply@g00gle.example" })).toBeNull();
+    expect(
+      gmailForwardingConfirmation({ ...confirmation, headers: { "Authentication-Results": "mx.example; dkim=fail header.d=google.com" } }),
+    ).toBeNull();
+    const phishy = gmailForwardingConfirmation({ ...confirmation, text: confirmationText.replace("https://mail-settings.google.com", "https://mail-settings.google.com.evil.example") });
+    expect(phishy?.link ?? "").not.toMatch(/evil/);
+  });
+
+  it("finds who forwarded an email automatically", () => {
+    expect(forwardedBy({ "x-forwarded-for": "asha.example@gmail.com u_0123456789abcdef@in.example.com" })).toBe("asha.example@gmail.com");
+    expect(forwardedBy({ "Resent-From": "Asha <asha@example.com>" })).toBe("asha@example.com");
+    expect(forwardedBy({ from: "orders@shop.example" })).toBeNull();
   });
 });

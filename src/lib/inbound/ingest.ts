@@ -1,8 +1,15 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Resend } from "resend";
-import { bodyOnlyEmail, emailAddress, parseRawEmail } from "@/lib/extraction/email";
-import { isVerifiedSender, readImport, readingCrashed, unverifiedSender, type Outcome } from "@/lib/extraction/read-import";
+import { bodyOnlyEmail, emailAddress, forwardedBy, gmailForwardingConfirmation, parseRawEmail } from "@/lib/extraction/email";
+import {
+  failure,
+  isVerifiedSender,
+  readImport,
+  readingCrashed,
+  unverifiedSender,
+  type Outcome,
+} from "@/lib/extraction/read-import";
 import {
   extensionFor,
   isKeptType,
@@ -20,9 +27,15 @@ import type { Database, Json } from "@/lib/supabase/database.types";
 
 type Db = SupabaseClient<Database>;
 
-export type IngestResult =
-  | { status: "redelivered" | "duplicate" | "held"; importId: string }
-  | { status: "stored"; importId: string };
+export type IngestResult = {
+  status: "redelivered" | "duplicate" | "held" | "stored";
+  importId: string;
+  /**
+   * Forwarded by a Gmail filter rather than chosen one by one: if it turns out
+   * not to be a purchase (or a duplicate), it needn't be kept.
+   */
+  auto?: boolean;
+};
 
 export async function ingestEmail({
   db,
@@ -57,6 +70,7 @@ export async function ingestEmail({
     html: email.html ?? parsed?.html ?? null,
     text: email.text ?? parsed?.text ?? null,
     attachments: parsed ? parsed.attachments : await fetchAttachments(resend, emailId),
+    headers: parsed?.headers ?? email.headers ?? {},
     senderTrusted: false,
   });
 }
@@ -85,6 +99,7 @@ export async function ingestRawEmail(db: Db, userId: string, raw: Uint8Array): P
     html: parsed.html,
     text: parsed.text,
     attachments: parsed.attachments,
+    headers: parsed.headers,
     senderTrusted: true,
   });
 }
@@ -101,14 +116,27 @@ interface IncomingEmail {
   html: string | null;
   text: string | null;
   attachments: Attachment[];
+  headers: Record<string, string>;
   /** Sent with the user's own key, so the sender needn't be verified. */
   senderTrusted: boolean;
 }
 
 async function storeEmail(db: Db, userId: string, email: IncomingEmail): Promise<IngestResult> {
   const { eventId, raw, subject, messageId, html, text } = email;
-  const from = emailAddress(email.from);
   const attachments = keptAttachments(email.attachments);
+
+  // Gmail asking to confirm forwarding: held, with the Gmail address as its
+  // sender, so the user sees the code and can trust that address (Settings).
+  const confirmation = email.senderTrusted
+    ? null
+    : gmailForwardingConfirmation({ from: email.from, subject, text, html, headers: email.headers });
+  const from = confirmation?.gmail ?? emailAddress(email.from);
+
+  // Forwarded automatically from one of the user's own (verified) addresses:
+  // theirs, whoever wrote it, like mail sent with their Gmail script key.
+  const forwarder = confirmation || email.senderTrusted ? null : forwardedBy(email.headers);
+  const auto = Boolean(forwarder && forwarder !== from && (await isVerifiedSender(db, userId, forwarder)));
+  const trusted = email.senderTrusted || auto;
 
   const base = {
     user_id: userId,
@@ -117,7 +145,7 @@ async function storeEmail(db: Db, userId: string, email: IncomingEmail): Promise
     from_email: from,
     message_id: messageId,
     inbound_event_id: eventId,
-    sender_trusted: email.senderTrusted,
+    sender_trusted: trusted,
   };
 
   // The same message forwarded again, or the same attachments sent again.
@@ -133,7 +161,7 @@ async function storeEmail(db: Db, userId: string, email: IncomingEmail): Promise
       .select("id")
       .single();
     if (dupError) throw new Error(`recording duplicate failed: ${dupError.message}`);
-    return { status: "duplicate", importId: dup.id };
+    return { status: "duplicate", importId: dup.id, auto };
   }
 
   const { data: imp, error: importError } = await db
@@ -177,11 +205,23 @@ async function storeEmail(db: Db, userId: string, email: IncomingEmail): Promise
     throw e;
   }
 
-  if (!email.senderTrusted && !(await isVerifiedSender(db, userId, from))) {
+  if (confirmation) {
+    await recordOutcome(db, userId, imp.id, {
+      ...failure(
+        "SENDER_NOT_VERIFIED",
+        `Gmail asks to confirm forwarding from ${confirmation.gmail}. Confirmation code: ${confirmation.code}. Enter it in Gmail (Settings → Forwarding), then trust ${confirmation.gmail} so the emails it forwards are read.`,
+        false,
+        "verified",
+      ),
+      extracted: { forwarding: confirmation },
+    });
+    return { status: "held", importId: imp.id };
+  }
+  if (!trusted && !(await isVerifiedSender(db, userId, from))) {
     await recordOutcome(db, userId, imp.id, unverifiedSender(from));
     return { status: "held", importId: imp.id };
   }
-  return { status: "stored", importId: imp.id };
+  return { status: "stored", importId: imp.id, auto };
 }
 
 /** Reads a stored email now; the outcome is written straight onto the import. */

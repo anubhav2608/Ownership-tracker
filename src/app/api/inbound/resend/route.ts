@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import { Resend } from "resend";
 import { forwardingTokens } from "@/lib/extraction/email";
-import { ingestEmail, readStoredEmail } from "@/lib/inbound/ingest";
+import { ingestEmail, readStoredEmail, removeImport } from "@/lib/inbound/ingest";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Resend's inbound webhook (spec §4A). Only signed deliveries are accepted. Mail
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     return json(500, { error: "lookup failed" });
   }
 
-  const toRead: { userId: string; importId: string }[] = [];
+  const toRead: { userId: string; importId: string; auto: boolean }[] = [];
   try {
     for (const { id: userId } of profiles ?? []) {
       const result = await ingestEmail({
@@ -61,7 +61,9 @@ export async function POST(request: Request) {
         eventId: `${deliveryId || data.email_id}:${userId}`,
         emailId: data.email_id,
       });
-      if (result.status === "stored") toRead.push({ userId, importId: result.importId });
+      if (result.status === "stored") toRead.push({ userId, importId: result.importId, auto: Boolean(result.auto) });
+      // A Gmail filter forwarding the same email again: nothing to keep.
+      if (result.status === "duplicate" && result.auto) await removeImport(db, userId, result.importId);
     }
   } catch (e) {
     // Resend retries failed deliveries; anything stored so far is recognised then.
@@ -70,7 +72,11 @@ export async function POST(request: Request) {
   }
 
   after(async () => {
-    for (const { userId, importId } of toRead) await readStoredEmail(db, userId, importId);
+    for (const { userId, importId, auto } of toRead) {
+      const status = await readStoredEmail(db, userId, importId);
+      // Forwarded by a filter and not a purchase ("your order has shipped"): not worth an import.
+      if (auto && status === "unsupported") await removeImport(db, userId, importId);
+    }
   });
   return json(200, { accepted: profiles?.length ?? 0 });
 }

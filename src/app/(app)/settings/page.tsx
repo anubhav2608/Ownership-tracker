@@ -9,7 +9,7 @@ import { FormCardSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { GmailScript } from "./gmail-script";
+import { GmailSetup } from "./gmail-setup";
 import { AddSender, DangerZone } from "./settings-actions";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -48,7 +48,14 @@ async function AccountSettings() {
         </div>
       </SectionCard>
 
-      <GmailScript gmailKey={user.gmailKey} defaultAppUrl={`${proto}://${host}`} />
+      <GmailSetup
+        forwardingAddress={user.forwardingAddress}
+        forwardingReady={user.forwardingReady}
+        confirmation={user.forwardingConfirmation}
+        verifiedSenders={user.verifiedSenders}
+        gmailKey={user.gmailKey}
+        defaultAppUrl={`${proto}://${host}`}
+      />
 
       <SectionCard title="Verified senders">
         <div className="p-5">

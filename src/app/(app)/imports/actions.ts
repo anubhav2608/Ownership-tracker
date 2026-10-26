@@ -132,3 +132,20 @@ export async function approveSender(importId: string): Promise<ProcessResult> {
   }
   return processImport(importId);
 }
+
+/**
+ * Gmail's "confirm forwarding" email, dealt with in Settings: trusts the Gmail
+ * address that asked (so what it forwards is read), then removes the email.
+ */
+export async function finishForwarding(importId: string, trust: boolean): Promise<{ ok: boolean; message?: string }> {
+  if (!id.safeParse(importId).success) return { ok: false, message: "Unknown import." };
+  if (trust) {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("approve_import_sender", { import_id: importId });
+    if (error) {
+      console.error("[imports] approve_import_sender failed:", error.code, error.message);
+      return { ok: false, message: "Couldn't trust this address. Please try again." };
+    }
+  }
+  return deleteImport(importId);
+}

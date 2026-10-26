@@ -67,6 +67,14 @@ import page offers to trust the sender, after which their mail is read automatic
 Redelivered webhooks and re-forwarded messages are recognised. Reading prefers an attached
 PDF invoice, then the email body, and runs after the webhook has responded.
 
+Users then set up Gmail themselves (Settings → Automatic import from Gmail → Gmail filter):
+they add their address as a forwarding address in Gmail; Gmail's confirmation email is
+recognised and its code shown in Settings, where the user trusts their Gmail address; a
+filter (generated from their senders) forwards new order emails. Gmail marks those with
+`X-Forwarded-For: <their gmail>`, so they're read although the shop isn't a verified sender;
+ones that aren't purchases, or duplicates, are dropped. A confirmation whose
+`Authentication-Results` shows `dkim=fail` is ignored, and only google.com links are shown.
+
 ### Gmail without forwarding (Apps Script)
 
 Settings → Gmail creates a personal key (shown once; only its SHA-256 hash is stored) and
