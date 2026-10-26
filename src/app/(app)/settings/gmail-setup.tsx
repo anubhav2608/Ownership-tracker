@@ -154,8 +154,17 @@ function GmailFilter({
       <ol className="list-decimal space-y-4 pl-5 text-muted-foreground">
         <li className="space-y-2">
           <p>
-            In Gmail, open <span className={strong}>Settings → See all settings → Forwarding and POP/IMAP</span>{" "}
-            and click <span className={strong}>Add a forwarding address</span>. Paste:
+            On a computer (the Gmail phone app doesn&rsquo;t have this), open{" "}
+            <a
+              href="https://mail.google.com/mail/u/0/#settings/fwdandpop"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Gmail&rsquo;s forwarding settings
+            </a>{" "}
+            (gear icon → See all settings → Forwarding and POP/IMAP tab) and click{" "}
+            <span className={strong}>Add a forwarding address</span>. Paste:
           </p>
           <ForwardingAddress address={forwardingAddress} />
         </li>
@@ -175,7 +184,16 @@ function GmailFilter({
         </li>
         <li className="space-y-2">
           <p>
-            Open <span className={strong}>Filters and Blocked Addresses → Create a new filter</span>, paste
+            Open{" "}
+            <a
+              href="https://mail.google.com/mail/u/0/#settings/filters"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Filters and Blocked Addresses
+            </a>{" "}
+            → <span className={strong}>Create a new filter</span>, paste
             this into <span className={strong}>Has the words</span>, click{" "}
             <span className={strong}>Create filter</span>, tick{" "}
             <span className={strong}>Forward it to</span> and choose your address.
