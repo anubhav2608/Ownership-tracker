@@ -521,8 +521,8 @@ const MARKETING = new RegExp(
       "frequently bought together", "you (may|might) also like", "you (may|might) like", "inspired by your", "top picks",
       "picked for you", "deals (for|recommended for|related to) you", "deals related to", "buy it again",
       "continue shopping", "keep shopping", "sponsored( products)?", "more items to (consider|explore)",
-      "similar (items|products)", "people also (bought|viewed)", "products related to", "more like this",
-      "trending (now|deals)", "explore more",
+      "similar (items|products|deals)", "people also (bought|viewed)", "products related to", "more like this",
+      "trending (now|deals)", "explore more", "saved items", "(related|more|top|today.?s|best) deals",
     ].join("|") +
     ")\\b",
   "i",
@@ -543,13 +543,19 @@ function raisedPaise(items: ExtractedLine[], total: ExtractedFields["total"]) {
   }
 }
 
+/** "-38% ₹93.00": a discounted product advertised after the order. */
+const DEAL_BADGE = /^-\s?\d{1,2}\s?%\s*(₹|rs\.?|inr)\s?\d/i;
+
 export function parseDocument(lines: string[]): ParseOutcome {
   const all = lines.map((l) => l.trim()).filter(Boolean);
   // Shops' advertising follows the order: a short heading like "Keep shopping for…",
   // once something has been priced (a "Buy it again" link in the top menu isn't it).
   const firstPrice = all.findIndex((l) => moneyIn(l).length > 0);
+  // Advertised products also show a discount badge ("-38% ₹93.00"); an order's own items don't.
   const adsAt =
-    firstPrice < 0 ? -1 : all.findIndex((l, i) => i > firstPrice && l.length <= 80 && MARKETING.test(l));
+    firstPrice < 0
+      ? -1
+      : all.findIndex((l, i) => i > firstPrice && ((l.length <= 80 && MARKETING.test(l)) || DEAL_BADGE.test(l)));
   const clean = adsAt > 0 ? all.slice(0, adsAt) : all;
   const text = clean.join("\n");
   if (text.replace(/\s/g, "").length < 20) return { ok: false, reason: "no_text" };

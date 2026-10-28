@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mergeExtractions, parseDocument, type Extraction } from "./parse";
 import { moneyIn } from "./values";
+import { guessCategory } from "./category";
 
 // Fictional documents modelled on common Indian invoice layouts. Columns are
 // separated by two spaces, as extractPdfText produces for table gaps.
@@ -348,5 +349,33 @@ describe("marketplace order email, forwarded by hand", () => {
     expect(moneyIn("₹1,29900")).toEqual([1299]);
     expect(moneyIn("₹1,24,90000")).toEqual([124900]);
     expect(moneyIn("₹1,299")).toEqual([1299]);
+  });
+
+  it("ignores products under any heading when they carry a discount badge", () => {
+    // Fictional "Shipped:" email: "Saved items and similar deals", each with a "-38%" badge.
+    const shipped = [
+      "---------- Forwarded message ---------", "From: Amazon.in <shipment-tracking@amazon.in>",
+      "Date: Sun, Oct 18, 2026 at 10:29 AM", "Subject: Shipped: “Example Instant Water Heater 25...”",
+      "Your Orders Your Account Buy Again", "Your package was shipped!", "Ordered", "Shipped", "Out for delivery",
+      "Delivered", "Arriving today", "Asha – EXAMPLE CITY, EXAMPLE STATE", "Order # \u202b407-7654321-1234567",
+      "Track package", "Havells Example Prime 25 Litre S...", "Quantity: 1", "₹9,25000", "Total  ₹9,255.00",
+      "Saved items and similar deals", "-38% ₹93.00", "Example Book by Someone...", "-22% ₹499.00",
+      "Example Thermal Top...", "-48% ₹471.00", "Example Bangle Stand...",
+    ];
+    const outcome = parseDocument(shipped);
+    if (!outcome.ok) throw new Error(outcome.reason);
+    const x = outcome.extraction;
+    expect(x.lines.map((l) => [l.name.value, l.quantity, l.price.value])).toEqual([
+      ["Havells Example Prime 25 Litre S...", 1, 9250],
+    ]);
+    expect(x.fields.total?.value).toBe(9255);
+    expect(x.fields.orderRef?.value).toBe("407-7654321-1234567");
+    expect(guessCategory("Havells Example Prime 25 Litre S...", "Amazon")).toBe("Appliances");
+
+    // A deal heading worded some other way is caught by the badges alone.
+    const renamed = shipped.map((l) => (l === "Saved items and similar deals" ? "Picks we think you'll love" : l));
+    const again = parseDocument(renamed);
+    if (!again.ok) throw new Error(again.reason);
+    expect(again.extraction.lines).toHaveLength(1);
   });
 });
