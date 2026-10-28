@@ -346,7 +346,7 @@ export function ImportedPanel({
                 {formatMoney(serviceEvent.totalCost)}
               </span>
               <Link
-                href={serviceEvent.itemId ? `/items/${serviceEvent.itemId}` : "/purchases#services"}
+                href={serviceEvent.itemId ? `/items/${serviceEvent.itemId}` : "/services"}
                 className="text-primary hover:underline"
               >
                 View

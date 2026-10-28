@@ -246,7 +246,7 @@ async function DashboardContent() {
             {recentEvents.map((e) => (
               <li key={e.id}>
                 <Link
-                  href={e.itemId ? `/items/${e.itemId}` : "/purchases#services"}
+                  href={e.itemId ? `/items/${e.itemId}` : "/services"}
                   className="flex items-start gap-3 px-5 py-3 hover:bg-accent"
                 >
                   <Wrench className="mt-0.5 size-4 shrink-0 text-muted-foreground" />

@@ -335,7 +335,7 @@ function ManualTab({
     const form = new FormData(formElement);
     if (!isSupabaseConfigured) {
       toast.success(kind === "purchase" ? "Purchase saved" : "Service event saved");
-      router.push(kind === "purchase" ? "/purchases" : serviceItem ? `/items/${serviceItem}` : "/purchases#services");
+      router.push(kind === "purchase" ? "/purchases" : serviceItem ? `/items/${serviceItem}` : "/services");
       return;
     }
     setSaving(true);
@@ -432,7 +432,7 @@ function ManualTab({
         return false;
       }
       toast.success("Service saved");
-      router.push(serviceItem ? `/items/${serviceItem}` : "/purchases#services");
+      router.push(serviceItem ? `/items/${serviceItem}` : "/services");
       return { serviceEventId: result.id };
     });
 

@@ -230,7 +230,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       importId: record.id,
     });
     if (!result.ok) return toast.error(result.message);
-    done("Service saved", serviceItem ? `/items/${serviceItem}` : "/purchases#services");
+    done("Service saved", serviceItem ? `/items/${serviceItem}` : "/services");
   }
 
   async function onSubmit(e: FormEvent) {
@@ -451,7 +451,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">Not for an item I own</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Saved as a service on its own (under Purchases → Services); it counts in your expenses.
+                    Saved as a service on its own (under Services); it counts in your expenses.
                   </p>
                 </div>
               </Label>

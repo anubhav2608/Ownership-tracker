@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FileText, MoreHorizontal, Pencil, Plus, Trash2, Wrench } from "lucide-react";
 import { useState } from "react";
@@ -35,6 +36,7 @@ export function ServiceHistory({
   showOdometer,
   title = "Service history",
   emptyText = "Add repairs, servicing and installations, or forward the service receipt.",
+  itemNames,
 }: {
   initial: ServiceEvent[];
   /** Unset for services on no item (Purchases → Services). */
@@ -42,6 +44,8 @@ export function ServiceHistory({
   showOdometer: boolean;
   title?: string;
   emptyText?: string;
+  /** On the Services page: each service links to the item it was on. */
+  itemNames?: Record<string, string>;
 }) {
   const router = useRouter();
   const [events, setEvents] = useState(initial);
@@ -89,7 +93,7 @@ export function ServiceHistory({
         ? prev.map((e) => (e.id === saved.id ? saved : e))
         : [...prev, saved],
     );
-    toast.success(isNew ? "Service event added" : "Service event updated");
+    toast.success(isNew ? "Service added" : "Service updated");
     setEditing(null);
     return true;
   }
@@ -101,7 +105,7 @@ export function ServiceHistory({
       router.refresh();
     }
     setEvents((prev) => prev.filter((e) => e.id !== event.id));
-    toast.success("Service event deleted");
+    toast.success("Service deleted");
   }
 
   return (
@@ -109,7 +113,7 @@ export function ServiceHistory({
       title={title}
       action={
         <Button variant="outline" size="sm" onClick={() => setEditing("new")}>
-          <Plus /> Add event
+          <Plus /> Add service
         </Button>
       }
     >
@@ -147,7 +151,16 @@ export function ServiceHistory({
                     <div className="min-w-0 flex-1 pt-1">
                       <p className="text-sm font-medium">{e.workPerformed}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {formatDate(e.date)} · {e.provider}
+                        {formatDate(e.date)}
+                        {e.provider && ` · ${e.provider}`}
+                        {itemNames && e.itemId && itemNames[e.itemId] && (
+                          <>
+                            {" · on "}
+                            <Link href={`/items/${e.itemId}`} className="text-primary hover:underline">
+                              {itemNames[e.itemId]}
+                            </Link>
+                          </>
+                        )}
                         {e.odometerKm !== undefined &&
                           ` · ${e.odometerKm.toLocaleString("en-IN")} km`}
                       </p>

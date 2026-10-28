@@ -10,6 +10,7 @@ import {
   Plus,
   Receipt,
   Settings,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -41,6 +42,7 @@ const nav: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/items", label: "Items", icon: Boxes },
   { href: "/purchases", label: "Purchases", icon: Receipt },
+  { href: "/services", label: "Services", icon: Wrench },
   { href: "/imports", label: "Imports", icon: Inbox },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -114,6 +116,17 @@ export function AppShell({
                 <Plus className="size-5" />
               </Link>
             </Button>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              aria-label="Settings"
+              className={cn(isActive("/settings") && "text-primary")}
+            >
+              <Link href="/settings">
+                <Settings className="size-5" />
+              </Link>
+            </Button>
             <LogOutButton compact />
           </div>
         </header>
@@ -122,9 +135,9 @@ export function AppShell({
           {children}
         </main>
 
-        {/* Mobile bottom nav */}
+        {/* Mobile bottom nav: five tabs fit a phone; Settings is in the top bar. */}
         <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden">
-          {nav.map(({ href, label, icon: Icon }) => (
+          {nav.filter(({ href }) => href !== "/settings").map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
