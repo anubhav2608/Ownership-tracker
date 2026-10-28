@@ -81,7 +81,7 @@ async function DashboardContent() {
     .sort((a, b) => b.orderDate.localeCompare(a.orderDate))
     .slice(0, 5);
   const recentEvents = [...events].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4);
-  const itemName = (id: string) => items.find((i) => i.id === id)?.name;
+  const itemName = (id?: string) => items.find((i) => i.id === id)?.name;
   const orderItems = (orderId: string) => items.filter((i) => i.orderId === orderId);
 
   const stats = [
@@ -135,8 +135,9 @@ async function DashboardContent() {
           return {
             date: e.date,
             cost: e.totalCost,
-            category: item?.category,
-            merchant: orders.find((o) => o.id === item?.orderId)?.merchant,
+            // A service on no item (a home service booking) counts as Miscellaneous.
+            category: item?.category ?? "Miscellaneous",
+            merchant: item ? orders.find((o) => o.id === item.orderId)?.merchant : e.provider || undefined,
           };
         })}
       />
@@ -244,14 +245,14 @@ async function DashboardContent() {
             {recentEvents.map((e) => (
               <li key={e.id}>
                 <Link
-                  href={`/items/${e.itemId}`}
+                  href={e.itemId ? `/items/${e.itemId}` : "/purchases#services"}
                   className="flex items-start gap-3 px-5 py-3 hover:bg-accent"
                 >
                   <Wrench className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{e.workPerformed}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {itemName(e.itemId)} · {formatDate(e.date)}
+                      {itemName(e.itemId) || e.provider || "Service"} · {formatDate(e.date)}
                     </p>
                   </div>
                   <p className="text-sm tabular-nums">

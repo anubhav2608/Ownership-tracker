@@ -14,12 +14,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { ServiceEvent } from "@/lib/types";
+import type { ServiceEvent, ServiceLineKind } from "@/lib/types";
 
 interface PartRow {
   key: number;
   name: string;
   cost: string;
+  /** Kept as read from the bill (service, fee); rows added here are parts. */
+  kind?: ServiceLineKind;
 }
 
 let nextKey = 0;
@@ -31,7 +33,8 @@ export function ServiceEventDialog({
   onSave,
   onClose,
 }: {
-  itemId: string;
+  /** Unset for a service on no item. */
+  itemId?: string;
   event?: ServiceEvent;
   showOdometer: boolean;
   /** Resolves to true once saved; the dialog stays open on failure. */
@@ -44,6 +47,7 @@ export function ServiceEventDialog({
       key: nextKey++,
       name: p.name,
       cost: p.cost?.toString() ?? "",
+      kind: p.kind,
     })) ?? [],
   );
   const [labour, setLabour] = useState(event?.labourCost?.toString() ?? "");
@@ -74,7 +78,7 @@ export function ServiceEventDialog({
       workPerformed: data.get("work") as string,
       parts: parts
         .filter((p) => p.name.trim())
-        .map((p) => ({ name: p.name.trim(), cost: p.cost === "" ? undefined : Number(p.cost) })),
+        .map((p) => ({ name: p.name.trim(), cost: p.cost === "" ? undefined : Number(p.cost), kind: p.kind })),
       labourCost: labour === "" ? undefined : Number(labour),
       totalCost: total,
       odometerKm: odometer ? Number(odometer) : undefined,

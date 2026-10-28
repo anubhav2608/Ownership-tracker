@@ -85,14 +85,20 @@ export interface Item {
   notes?: string;
 }
 
+/** What a line of a service bill is: the work, a booking or platform fee, or a part. */
+export type ServiceLineKind = "service" | "fee" | "part";
+
 export interface Part {
   name: string;
   cost?: number;
+  /** Lines saved before kinds existed are parts. */
+  kind?: ServiceLineKind;
 }
 
 export interface ServiceEvent {
   id: string;
-  itemId: string;
+  /** Unset for a service not on an item the user owns (e.g. a home service booking). */
+  itemId?: string;
   date: string;
   provider: string;
   workPerformed: string;
@@ -159,6 +165,8 @@ export interface ExtractedLine {
   warrantyMonths?: Tracked<number>;
   warrantyEvidence?: Tracked<string>;
   returnBy?: Tracked<string>;
+  /** On a service bill: the work, a fee or a part. */
+  kind?: ServiceLineKind;
   /** The document says this item can't be returned. */
   nonReturnable?: boolean;
 }

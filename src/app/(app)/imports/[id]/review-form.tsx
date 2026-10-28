@@ -18,7 +18,15 @@ import { otherCharges } from "@/lib/charges";
 import { formatDate, formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
-import { CATEGORIES, type Category, type ExtractedLine, type FieldState, type ImportRecord, type Tracked } from "@/lib/types";
+import {
+  CATEGORIES,
+  type Category,
+  type ExtractedLine,
+  type FieldState,
+  type ImportRecord,
+  type ServiceLineKind,
+  type Tracked,
+} from "@/lib/types";
 import { createPurchase, createServiceEvent, type PurchaseInput } from "../../add/actions";
 import { DiscardButton } from "./status-panels";
 import { ReplacePurchaseDialog } from "@/components/replace-purchase-dialog";
@@ -90,7 +98,8 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       nonReturnable: l.nonReturnable,
     })),
   );
-  const [parts] = useState(() => (record.parts ?? []).map(lineDraft));
+  const [parts] = useState(() => (record.parts ?? []).map((l) => ({ ...lineDraft(l), kind: l.kind })));
+  const isBreakdown = parts.some((p) => p.kind);
   const [saving, setSaving] = useState(false);
   const [existing, setExisting] = useState<ExistingPurchase | null>(null);
 
@@ -100,9 +109,10 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   const [top, second] = candidates;
   const clearWinner =
     top && top.score >= AUTO_MATCH_SCORE && (!second || top.score - second.score > AMBIGUITY_GAP);
-  const [assetChoice, setAssetChoice] = useState(clearWinner ? top.itemId : "");
+  // Never attached on a guess: unless the match is clear, it's saved on no item until the user picks one.
+  const [assetChoice, setAssetChoice] = useState(clearWinner ? top.itemId : NO_ITEM);
   const [otherItem, setOtherItem] = useState("");
-  const serviceItem = assetChoice === "other" ? otherItem : assetChoice;
+  const serviceItem = assetChoice === NO_ITEM ? undefined : assetChoice === "other" ? otherItem : assetChoice;
 
   function setField(key: string, value: string) {
     setFields((prev) => ({ ...prev, [key]: confirmed(value) }));
@@ -216,11 +226,11 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       provider: fields.provider?.value || undefined,
       totalCost,
       labourCost: number(fields.labourCost),
-      parts: parts.map((p) => ({ name: p.name.value, cost: number(p.price) })),
+      parts: parts.map((p) => ({ name: p.name.value, cost: number(p.price), kind: p.kind })),
       importId: record.id,
     });
     if (!result.ok) return toast.error(result.message);
-    done("Service event saved", `/items/${serviceItem}`);
+    done("Service saved", serviceItem ? `/items/${serviceItem}` : "/purchases#services");
   }
 
   async function onSubmit(e: FormEvent) {
@@ -400,12 +410,13 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       )}
 
       {isService && parts.length > 0 && (
-        <SectionCard title="Parts replaced">
+        <SectionCard title={isBreakdown ? `Bill breakdown (${parts.length})` : "Parts replaced"}>
           <ul className="divide-y">
             {parts.map((p, i) => (
               <li key={i} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
-                <span className="flex items-center gap-2">
+                <span className="flex flex-wrap items-center gap-2">
                   {p.name.value}
+                  {p.kind && <ServiceLineBadge kind={p.kind} />}
                   <FieldStateBadge state={p.name.state} confidence={p.name.confidence} />
                 </span>
                 <span className="tabular-nums">{p.price.value ? formatMoney(Number(p.price.value)) : "—"}</span>
@@ -418,73 +429,82 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       {isService && (
         <SectionCard title="Which item was serviced?">
           <div className="p-5">
-            {items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                You don&rsquo;t have any items yet. Add the purchase of the serviced item first,
-                then come back to save this receipt.
+            {!clearWinner && (
+              <p className="mb-4 text-sm text-muted-foreground">
+                {items.length
+                  ? "We couldn't tell for sure, so it isn't attached to an item. Pick one if it was for something you own; we won't attach it on a guess."
+                  : "It's saved on its own. Add the item later if you want its service history in one place."}
               </p>
-            ) : (
-              <>
-                {!clearWinner && (
-                  <p className="mb-4 text-sm text-muted-foreground">
-                    We couldn&rsquo;t tell for sure, so nothing is selected. Pick the right one;
-                    we won&rsquo;t attach it to an item on a guess.
-                  </p>
+            )}
+            <RadioGroup value={assetChoice} onValueChange={setAssetChoice} className="gap-3">
+              <Label
+                htmlFor={`${fid}-cand-none`}
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-lg border p-4 font-normal",
+                  assetChoice === NO_ITEM && "border-primary bg-accent",
                 )}
-                <RadioGroup value={assetChoice} onValueChange={setAssetChoice} className="gap-3">
-                  {candidates.map((c) => {
-                    const item = items.find((i) => i.id === c.itemId);
-                    return (
-                      <Label
-                        key={c.itemId}
-                        htmlFor={`${fid}-cand-${c.itemId}`}
-                        className={cn(
-                          "flex cursor-pointer items-start gap-3 rounded-lg border p-4 font-normal",
-                          assetChoice === c.itemId && "border-primary bg-accent",
-                        )}
-                      >
-                        <RadioGroupItem id={`${fid}-cand-${c.itemId}`} value={c.itemId} className="mt-0.5" />
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">{item?.name}</p>
-                          <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">
-                            {c.evidence.map((ev) => (
-                              <li key={ev}>{ev}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </Label>
-                    );
-                  })}
+              >
+                <RadioGroupItem id={`${fid}-cand-none`} value={NO_ITEM} className="mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">Not for an item I own</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Saved as a service on its own (under Purchases → Services); it counts in your expenses.
+                  </p>
+                </div>
+              </Label>
+              {candidates.map((c) => {
+                const item = items.find((i) => i.id === c.itemId);
+                return (
                   <Label
-                    htmlFor={`${fid}-cand-other`}
+                    key={c.itemId}
+                    htmlFor={`${fid}-cand-${c.itemId}`}
                     className={cn(
                       "flex cursor-pointer items-start gap-3 rounded-lg border p-4 font-normal",
-                      assetChoice === "other" && "border-primary bg-accent",
+                      assetChoice === c.itemId && "border-primary bg-accent",
                     )}
                   >
-                    <RadioGroupItem id={`${fid}-cand-other`} value="other" className="mt-0.5" />
+                    <RadioGroupItem id={`${fid}-cand-${c.itemId}`} value={c.itemId} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium">{candidates.length ? "A different item" : "Choose the item"}</p>
-                      {assetChoice === "other" && (
-                        <NativeSelect
-                          wrapperClassName="mt-2 w-full"
-                          value={otherItem}
-                          onChange={(e) => setOtherItem(e.target.value)}
-                          aria-label="Choose item"
-                        >
-                          <NativeSelectOption value="">Choose an item…</NativeSelectOption>
-                          {items.map((it) => (
-                            <NativeSelectOption key={it.id} value={it.id}>
-                              {it.name}
-                            </NativeSelectOption>
-                          ))}
-                        </NativeSelect>
-                      )}
+                      <p className="font-medium">{item?.name}</p>
+                      <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">
+                        {c.evidence.map((ev) => (
+                          <li key={ev}>{ev}</li>
+                        ))}
+                      </ul>
                     </div>
                   </Label>
-                </RadioGroup>
-              </>
-            )}
+                );
+              })}
+              {items.length > 0 && (
+              <Label
+                htmlFor={`${fid}-cand-other`}
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-lg border p-4 font-normal",
+                  assetChoice === "other" && "border-primary bg-accent",
+                )}
+              >
+                <RadioGroupItem id={`${fid}-cand-other`} value="other" className="mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">{candidates.length ? "A different item" : "Choose the item"}</p>
+                  {assetChoice === "other" && (
+                    <NativeSelect
+                      wrapperClassName="mt-2 w-full"
+                      value={otherItem}
+                      onChange={(e) => setOtherItem(e.target.value)}
+                      aria-label="Choose item"
+                    >
+                      <NativeSelectOption value="">Choose an item…</NativeSelectOption>
+                      {items.map((it) => (
+                        <NativeSelectOption key={it.id} value={it.id}>
+                          {it.name}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  )}
+                </div>
+              </Label>
+              )}
+            </RadioGroup>
           </div>
         </SectionCard>
       )}
@@ -501,6 +521,17 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
         </Button>
       </div>
     </form>
+  );
+}
+
+/** The "Which item was serviced?" choice for a service on no item. */
+const NO_ITEM = "none";
+
+const SERVICE_LINE_LABEL: Record<ServiceLineKind, string> = { service: "Service", fee: "Fee", part: "Part" };
+
+function ServiceLineBadge({ kind }: { kind: ServiceLineKind }) {
+  return (
+    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{SERVICE_LINE_LABEL[kind]}</span>
   );
 }
 

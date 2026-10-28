@@ -1,4 +1,4 @@
-import type { DocumentKind, ExtractedLine, Tracked } from "@/lib/types";
+import type { DocumentKind, ExtractedLine, ServiceLineKind, Tracked } from "@/lib/types";
 import { otherCharges } from "@/lib/charges";
 import { amountsIn, moneyIn, parseDate } from "./values";
 
@@ -561,16 +561,17 @@ function raisedPaise(items: ExtractedLine[], total: ExtractedFields["total"]) {
  */
 function urbanCompanyBooking(lines: string[]) {
   const sections: { rows: { name: string; amount: number }[]; subtotal: number | null }[] = [];
+  const amount = String.raw`(?:inr|₹|rs\.?)\s*([\d,]+(?:\.\d{1,2})?)`;
   for (const [i, line] of lines.entries()) {
     if (/^(tax invoice|receipt)\b/i.test(line) || sections.length === 0) sections.push({ rows: [], subtotal: null });
     const section = sections[sections.length - 1];
-    const row = line.match(/^(.+?)\s{2,}gross amount\s{2,}(?:inr|₹|rs\.?)\s*([\d,]+(?:\.\d{1,2})?)\s*$/i);
+    const row = line.match(new RegExp(String.raw`^(.+?)\s{2,}gross amount\s{2,}${amount}\s*$`, "i"));
     if (row) {
       const next = lines[i + 1] ?? "";
       const wrapped = /[a-z]{3}/i.test(next) && moneyIn(next).length === 0 && !/^(sac|hsn|discount|taxable|subtotal)\b/i.test(next);
       section.rows.push({ name: `${row[1]}${wrapped ? ` ${next}` : ""}`.trim(), amount: Number(row[2].replace(/,/g, "")) });
     }
-    const subtotal = line.match(/^sub ?total\s{2,}(?:inr|₹|rs\.?)\s*([\d,]+(?:\.\d{1,2})?)\s*$/i);
+    const subtotal = line.match(new RegExp(String.raw`^(?:sub ?total|total amount)\s{2,}${amount}\s*$`, "i"));
     if (subtotal) section.subtotal = Number(subtotal[1].replace(/,/g, ""));
   }
   const billed = sections.filter((s) => s.rows.length && s.subtotal !== null);
@@ -578,27 +579,38 @@ function urbanCompanyBooking(lines: string[]) {
 
   const isFee = (name: string) => /\b(convenience|platform|booking) fee/i.test(name);
   const isWork = (name: string) => /\b(service|visit|labou?r|repair|installation|inspection|cleaning|uninstallation)\b/i.test(name);
+  // One line per thing paid for: the work, the platform's fee, any parts.
+  const bill: ExtractedLine[] = [];
+  const line = (name: string, price: number, kind: ServiceLineKind): ExtractedLine => ({
+    name: extracted(name, 0.85),
+    quantity: 1,
+    price: extracted(price, 0.85),
+    kind,
+  });
   let labour = 0;
   let fees = 0;
   let work: string | null = null;
-  const parts: ExtractedLine[] = [];
   for (const s of billed) {
     const rows = s.rows.filter((r) => !isFee(r.name));
-    // A fee's row is before tax; its subtotal is what was charged for it.
-    if (rows.length === 0) fees += s.subtotal!;
+    if (rows.length === 0) {
+      // A fee's row is before tax; its subtotal is what was charged for it.
+      fees += s.subtotal!;
+      bill.push(line(s.rows.map((r) => r.name).join(", "), s.subtotal!, "fee"));
+    }
     for (const r of rows) {
       if (isWork(r.name)) {
         labour += r.amount;
         // "Service Charge - Chimney" → "Chimney service": what was serviced, for finding the item.
         const thing = r.name.match(/\s-\s*([^-]+)$/)?.[1].trim();
-        work ??= thing ? `${thing} service` : r.name;
+        work ??= thing ? (/\bservice\b/i.test(thing) ? thing : `${thing} service`) : r.name;
+        bill.push(line(r.name, r.amount, "service"));
       } else {
-        parts.push({ name: extracted(r.name, 0.85), quantity: 1, price: extracted(r.amount, 0.85) });
+        bill.push(line(r.name, r.amount, "part"));
       }
     }
   }
   const total = Math.round(billed.reduce((sum, s) => sum + s.subtotal!, 0) * 100) / 100;
-  return { total, labour, fees, work, parts };
+  return { total, labour, fees, work, bill };
 }
 
 /** "-38% ₹93.00": a discounted product advertised after the order. */
@@ -648,7 +660,7 @@ export function parseDocument(
     fields.total = extracted(booking.total, 0.9);
     if (booking.labour) fields.labourCost = extracted(booking.labour, 0.9);
     fields.workPerformed = booking.work ? extracted(booking.work, 0.85) : missing();
-    parts = booking.parts;
+    parts = booking.bill;
   } else if (documentKind === "service_receipt") {
     fields.provider = merchant;
     const labour = found.filter((l) => LABOUR.test(l.name.value ?? ""));
@@ -747,10 +759,19 @@ export function mergeExtractions(primary: Extraction, others: Extraction[]): Ext
 }
 
 /** Items that add up exactly to the total vouch for each other's amounts. */
+/**
+ * The amounts a bill's rows account for. A full breakdown (lines marked service,
+ * fee or part) already includes the work; otherwise labour is listed apart from parts.
+ */
+function billAmounts(fields: ExtractedFields, rows: ExtractedLine[]) {
+  const prices = rows.map((l) => l.price.value);
+  return rows.some((l) => l.kind) || !fields.labourCost ? prices : [...prices, fields.labourCost.value];
+}
+
 function corroborate(fields: ExtractedFields, rows: ExtractedLine[]) {
   const total = fields.total;
   if (!total?.value || rows.length === 0) return;
-  const sum = rows.reduce((s, l) => s + (l.price.value ?? 0), 0) + (fields.labourCost?.value ?? 0);
+  const sum = billAmounts(fields, rows).reduce<number>((s, p) => s + (p ?? 0), 0);
   if (Math.abs(sum - total.value) > 1) return;
   const raise = (f: Tracked<number>) => {
     if (f.state === "extracted") f.confidence = Math.max(f.confidence ?? 0, 0.95);
@@ -777,7 +798,7 @@ function validate(
   // Line prices are line totals, so they add up without multiplying by quantity. A small
   // difference is taxes, delivery or a discount (shown as its own line); a big one is
   // more likely a misread price.
-  const prices = [...rows.map((l) => l.price.value), ...(fields.labourCost ? [fields.labourCost.value] : [])];
+  const prices = billAmounts(fields, rows);
   if (rows.length && otherCharges(fields.total?.value, prices)?.suspicious) {
     reasons.push("Items don't add up to the total. Check for shipping, fees, discounts or a misread price.");
   }

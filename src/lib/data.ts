@@ -12,6 +12,7 @@ import type {
   ImportRecord,
   Item,
   Order,
+  Part,
   ServiceEvent,
   StoredDocument,
   Tracked,
@@ -262,13 +263,17 @@ export async function getServiceEvents(itemId?: string): Promise<ServiceEvent[]>
 
   return events.map((e) => ({
     id: e.id,
-    itemId: e.item_id,
+    itemId: e.item_id ?? undefined,
     date: e.service_date,
     provider: e.provider ?? "",
     workPerformed: e.work_performed,
     parts: parts
       .filter((p) => p.service_event_id === e.id)
-      .map((p) => ({ name: p.name, cost: p.cost === null ? undefined : Number(p.cost) })),
+      .map((p) => ({
+        name: p.name,
+        cost: p.cost === null ? undefined : Number(p.cost),
+        kind: (p.kind ?? "part") as Part["kind"],
+      })),
     labourCost: e.labour_cost === null ? undefined : Number(e.labour_cost),
     totalCost: Number(e.total_cost),
     odometerKm: e.odometer_km ?? undefined,

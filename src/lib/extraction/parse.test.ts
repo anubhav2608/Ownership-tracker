@@ -431,7 +431,7 @@ describe("home service booking (platform invoice + partner receipt in one PDF)",
     "Discount  - INR 0", "Subtotal  INR 939",
   ];
 
-  it("reads the work, the service charge and the whole amount paid", () => {
+  it("reads the work, each service and fee as its own line, and the whole amount paid", () => {
     const outcome = parseDocument(lines);
     if (!outcome.ok) throw new Error(outcome.reason);
     const x = outcome.extraction;
@@ -441,7 +441,10 @@ describe("home service booking (platform invoice + partner receipt in one PDF)",
     expect(x.fields.workPerformed?.value).toBe("Chimney service");
     expect(x.fields.labourCost?.value).toBe(939);
     expect(x.fields.total?.value).toBe(1398);
-    expect(x.parts).toEqual([]);
+    expect(x.parts.map((p) => [p.name.value, p.price.value, p.kind])).toEqual([
+      ["Convenience Fee & Platform Fee - Chimney", 459, "fee"],
+      ["Service Charge - Chimney", 939, "service"],
+    ]);
     expect(x.reviewReasons).toContain("The total includes Urban Company's fees of ₹459 (with tax).");
     expect(x.reviewReasons.some((r) => r.startsWith("Items don't add up"))).toBe(false);
   });
@@ -450,7 +453,11 @@ describe("home service booking (platform invoice + partner receipt in one PDF)",
     const withPart = [...lines.slice(0, -1), "Filter Mesh - Chimney  Gross Amount  INR 450", "SAC: 999729", "Subtotal  INR 1,389"];
     const outcome = parseDocument(withPart);
     if (!outcome.ok) throw new Error(outcome.reason);
-    expect(outcome.extraction.parts.map((p) => [p.name.value, p.price.value])).toEqual([["Filter Mesh - Chimney", 450]]);
+    expect(outcome.extraction.parts.map((p) => [p.name.value, p.price.value, p.kind])).toEqual([
+      ["Convenience Fee & Platform Fee - Chimney", 459, "fee"],
+      ["Service Charge - Chimney", 939, "service"],
+      ["Filter Mesh - Chimney", 450, "part"],
+    ]);
     expect(outcome.extraction.fields.labourCost?.value).toBe(939);
     expect(outcome.extraction.fields.total?.value).toBe(1848);
   });

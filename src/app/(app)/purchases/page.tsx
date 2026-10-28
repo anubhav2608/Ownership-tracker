@@ -18,12 +18,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate, formatMoney } from "@/lib/format";
-import { getItems, getOrders } from "@/lib/data";
+import { getItems, getOrders, getServiceEvents } from "@/lib/data";
+import { ServiceHistory } from "../items/[id]/service-history";
 
 export const metadata: Metadata = { title: "Purchases" };
 
 async function PurchasesContent() {
-  const [orders, items] = await Promise.all([getOrders(), getItems()]);
+  const [orders, items, events] = await Promise.all([getOrders(), getItems(), getServiceEvents()]);
+  // Services on no item (a home service booking) are listed here, after the orders.
+  const services = events.filter((e) => !e.itemId);
   const sorted = [...orders].sort((a, b) => b.orderDate.localeCompare(a.orderDate));
 
   return (
@@ -127,6 +130,16 @@ async function PurchasesContent() {
             </TableBody>
           </Table>
         </Card>
+      )}
+      {services.length > 0 && (
+        <div id="services" className="mt-6 scroll-mt-6">
+          <ServiceHistory
+            initial={services}
+            showOdometer={false}
+            title="Services"
+            emptyText="Services not tied to an item you own, like home service bookings."
+          />
+        </div>
       )}
     </>
   );

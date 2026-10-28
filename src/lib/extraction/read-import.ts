@@ -59,7 +59,7 @@ const FAILURES = {
     false,
   ],
   NO_TEXT_LAYER: [
-    "This PDF is a scan with no text in it, which can't be read automatically yet. Enter the details yourself.",
+    "This PDF has no readable text: it's a scan, or its words are stored as images or shapes (some shops' apps make PDFs like this). It can't be read automatically yet. Enter the details yourself.",
     false,
   ],
   OCR_NOT_AVAILABLE: [
@@ -218,7 +218,7 @@ async function review(db: Db, userId: string, x: Extraction, text: string): Prom
       score: c.score,
       evidence: c.evidence,
     }));
-    if ((candidates as unknown[]).length === 0) reviewReasons.push("Couldn't tell which item was serviced. Choose it below.");
+    if ((candidates as unknown[]).length === 0) reviewReasons.push("Not matched to an item you own: it can be saved on its own, or choose the item below.");
   } else {
     const existing = await existingPurchase(db, userId, x.fields.orderRef?.value, x.fields.invoiceRef?.value);
     if (existing) {

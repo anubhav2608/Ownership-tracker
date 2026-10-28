@@ -386,6 +386,7 @@ export type Database = {
         Row: {
           cost: number | null;
           id: string;
+          kind: string;
           name: string;
           position: number;
           service_event_id: string;
@@ -395,6 +396,7 @@ export type Database = {
         Insert: {
           cost?: number | null;
           id?: string;
+          kind?: string;
           name: string;
           position?: number;
           service_event_id: string;
@@ -403,6 +405,7 @@ export type Database = {
         Update: {
           cost?: number | null;
           id?: string;
+          kind?: string;
           name?: string;
           position?: number;
           service_event_id?: string;
@@ -426,7 +429,7 @@ export type Database = {
           field_meta: NonNullable<Json>;
           id: string;
           import_id: string | null;
-          item_id: string;
+          item_id: string | null;
           labour_cost: number | null;
           notes: string | null;
           odometer_km: number | null;
@@ -445,7 +448,7 @@ export type Database = {
           field_meta?: NonNullable<Json>;
           id?: string;
           import_id?: string | null;
-          item_id: string;
+          item_id?: string | null;
           labour_cost?: number | null;
           notes?: string | null;
           odometer_km?: number | null;
@@ -463,7 +466,7 @@ export type Database = {
           field_meta?: NonNullable<Json>;
           id?: string;
           import_id?: string | null;
-          item_id?: string;
+          item_id?: string | null;
           labour_cost?: number | null;
           notes?: string | null;
           odometer_km?: number | null;

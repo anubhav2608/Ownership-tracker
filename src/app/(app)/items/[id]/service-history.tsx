@@ -33,10 +33,15 @@ export function ServiceHistory({
   initial,
   itemId,
   showOdometer,
+  title = "Service history",
+  emptyText = "Add repairs, servicing and installations, or forward the service receipt.",
 }: {
   initial: ServiceEvent[];
-  itemId: string;
+  /** Unset for services on no item (Purchases → Services). */
+  itemId?: string;
   showOdometer: boolean;
+  title?: string;
+  emptyText?: string;
 }) {
   const router = useRouter();
   const [events, setEvents] = useState(initial);
@@ -46,7 +51,7 @@ export function ServiceHistory({
   const newestFirst = [...events].sort((a, b) => b.date.localeCompare(a.date));
   const total = events.reduce((s, e) => s + e.totalCost, 0);
   const partsTotal = events.reduce(
-    (s, e) => s + e.parts.reduce((p, part) => p + (part.cost ?? 0), 0),
+    (s, e) => s + e.parts.reduce((p, part) => p + (!part.kind || part.kind === "part" ? (part.cost ?? 0) : 0), 0),
     0,
   );
 
@@ -101,7 +106,7 @@ export function ServiceHistory({
 
   return (
     <SectionCard
-      title="Service history"
+      title={title}
       action={
         <Button variant="outline" size="sm" onClick={() => setEditing("new")}>
           <Plus /> Add event
@@ -115,9 +120,7 @@ export function ServiceHistory({
               <Wrench />
             </EmptyMedia>
             <EmptyTitle>No service recorded</EmptyTitle>
-            <EmptyDescription>
-              Add repairs, servicing and installations, or forward the service receipt.
-            </EmptyDescription>
+            <EmptyDescription>{emptyText}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -175,13 +178,21 @@ export function ServiceHistory({
                       <tbody className="text-muted-foreground">
                         {e.parts.map((p) => (
                           <tr key={p.name}>
-                            <td className="py-0.5">{p.name}</td>
+                            <td className="py-0.5">
+                              {p.name}
+                              {p.kind && p.kind !== "part" && (
+                                <span className="ml-1.5 rounded-full bg-muted px-1.5 text-[11px]">
+                                  {p.kind === "fee" ? "Fee" : "Service"}
+                                </span>
+                              )}
+                            </td>
                             <td className="py-0.5 text-right tabular-nums">
                               {p.cost === undefined ? "—" : p.cost === 0 ? "Covered" : formatMoney(p.cost)}
                             </td>
                           </tr>
                         ))}
-                        {e.labourCost !== undefined && (
+                        {/* A bill broken into services already lists the work. */}
+                        {e.labourCost !== undefined && !e.parts.some((p) => p.kind === "service") && (
                           <tr>
                             <td className="py-0.5">Labour</td>
                             <td className="py-0.5 text-right tabular-nums">{formatMoney(e.labourCost)}</td>

@@ -256,7 +256,15 @@ const serviceEditSchema = z.object({
   labourCost: money.optional(),
   odometerKm: z.number().int().nonnegative().max(10_000_000).optional(),
   notes: optionalText(2000),
-  parts: z.array(z.object({ name: z.string().trim().min(1).max(200), cost: money.optional() })).max(50),
+  parts: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(200),
+        cost: money.optional(),
+        kind: z.enum(["service", "fee", "part"]).optional(),
+      }),
+    )
+    .max(50),
 });
 
 export async function updateServiceEvent(eventId: string, input: ServiceEdit): Promise<ActionResult> {
@@ -275,7 +283,7 @@ export async function updateServiceEvent(eventId: string, input: ServiceEdit): P
       labour_cost: e.labourCost ?? null,
       odometer_km: e.odometerKm ?? null,
       notes: e.notes ?? null,
-      parts: e.parts.map((p) => ({ name: p.name, cost: p.cost ?? null })),
+      parts: e.parts.map((p) => ({ name: p.name, cost: p.cost ?? null, kind: p.kind ?? "part" })),
     },
   });
   if (error) return failed("update_service_event", error);

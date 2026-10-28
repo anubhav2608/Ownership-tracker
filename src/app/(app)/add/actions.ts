@@ -208,7 +208,8 @@ export async function createPurchase(input: PurchaseInput): Promise<SaveResult> 
 }
 
 const serviceSchema = z.object({
-  itemId: z.uuid(),
+  /** Left out for a service not on an item the user owns. */
+  itemId: z.uuid().optional(),
   serviceDate: isoDate,
   workPerformed: z.string().trim().min(1).max(500),
   provider: z.string().trim().max(200).optional(),
@@ -216,22 +217,30 @@ const serviceSchema = z.object({
   labourCost: money.optional(),
   odometerKm: z.number().int().nonnegative().max(10_000_000).optional(),
   notes: z.string().trim().max(2000).optional(),
-  parts: z.array(z.object({ name: z.string().trim().min(1).max(200), cost: money.optional() })).max(50),
+  parts: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(200),
+        cost: money.optional(),
+        kind: z.enum(["service", "fee", "part"]).optional(),
+      }),
+    )
+    .max(50),
   importId: z.uuid().optional(),
 });
 
 export type ServiceEventInput = z.input<typeof serviceSchema>;
 
-/** Saves a service event (and its replaced parts) on one of the user's items. */
+/** Saves a service event and its lines, on one of the user's items or on none. */
 export async function createServiceEvent(input: ServiceEventInput): Promise<SaveResult> {
   const parsed = serviceSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, message: "Please fill in the item, date, work and cost." };
+  if (!parsed.success) return { ok: false, message: "Please fill in the date, work and cost." };
   const e = parsed.data;
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_manual_service_event", {
     event: {
-      item_id: e.itemId,
+      item_id: e.itemId ?? null,
       service_date: e.serviceDate,
       work_performed: e.workPerformed,
       provider: e.provider ?? null,
@@ -240,7 +249,7 @@ export async function createServiceEvent(input: ServiceEventInput): Promise<Save
       odometer_km: e.odometerKm ?? null,
       notes: e.notes ?? null,
       import_id: e.importId ?? null,
-      parts: e.parts.map((part) => ({ name: part.name, cost: part.cost ?? null })),
+      parts: e.parts.map((part) => ({ name: part.name, cost: part.cost ?? null, kind: part.kind ?? "part" })),
     },
   });
   if (error) return saveFailed("create_manual_service_event", error);
