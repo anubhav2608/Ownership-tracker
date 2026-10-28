@@ -10,6 +10,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { formatMoney } from "@/lib/format";
 import type { Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { MonthlyChart, type MonthTotals } from "./monthly-chart";
 
 // What was spent, for a period (this month by default) and optionally one
 // category or merchant: purchases (less refunds) plus maintenance, month by
@@ -65,9 +66,6 @@ function rangeFor(preset: Preset, today: string): { from: string; to: string } {
   }
 }
 
-const monthLabel = (ym: string) =>
-  new Intl.DateTimeFormat("en-IN", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${ym}-01T00:00:00Z`));
-
 export function ExpensesCard({
   orders,
   items,
@@ -106,7 +104,6 @@ export function ExpensesCard({
 
   const result = useMemo(() => {
     const inRange = (d: string) => (!range.from || d >= range.from) && (!range.to || d <= range.to);
-    const orderById = new Map(orders.map((o) => [o.id, o]));
     const theOrders = orders.filter((o) => inRange(o.date) && (merchant === "all" || o.merchant === merchant));
     const shownOrders = new Set(theOrders.map((o) => o.id));
     // Items of the orders in view; returned ones weren't kept, so they don't count.
@@ -118,24 +115,14 @@ export function ExpensesCard({
         (merchant === "all" || e.merchant === merchant),
     );
 
-    const byMonth = new Map<string, number>();
-    const add = (date: string, amount: number) => byMonth.set(date.slice(0, 7), (byMonth.get(date.slice(0, 7)) ?? 0) + amount);
-
     let purchases = 0;
     if (category === "all") {
       // Whole orders: shipping and fees count too.
-      for (const o of theOrders) {
-        purchases += o.spent;
-        add(o.date, o.spent);
-      }
+      for (const o of theOrders) purchases += o.spent;
     } else {
-      for (const i of theItems.filter((i) => i.category === category)) {
-        purchases += i.price!;
-        add(orderById.get(i.orderId!)!.date, i.price!);
-      }
+      for (const i of theItems.filter((i) => i.category === category)) purchases += i.price!;
     }
     const maintenance = theEvents.reduce((s, e) => s + e.cost, 0);
-    for (const e of theEvents) add(e.date, e.cost);
 
     const byCategory = new Map<Category, number>();
     for (const i of theItems) byCategory.set(i.category, (byCategory.get(i.category) ?? 0) + i.price!);
@@ -144,13 +131,39 @@ export function ExpensesCard({
       purchases,
       maintenance,
       orderCount: category === "all" ? theOrders.length : new Set(theItems.filter((i) => i.category === category).map((i) => i.orderId)).size,
-      months: [...byMonth].sort((a, b) => b[0].localeCompare(a[0])),
       categories: [...byCategory].sort((a, b) => b[1] - a[1]),
     };
   }, [orders, items, events, range, category, merchant]);
 
+  // The last 12 months, whatever the period: purchases and services month by month,
+  // for the chosen category and merchant.
+  const monthly = useMemo<MonthTotals[]>(() => {
+    const [y, m] = today.split("-").map(Number);
+    const months = Array.from({ length: 12 }, (_, i) => iso(y, m - 12 + i, 1).slice(0, 7));
+    const totals = new Map(months.map((ym) => [ym, { month: ym, purchases: 0, services: 0 }]));
+    const at = (date: string) => totals.get(date.slice(0, 7));
+    const byMerchant = (o: ExpenseOrder) => merchant === "all" || o.merchant === merchant;
+    if (category === "all") {
+      for (const o of orders) {
+        const month = at(o.date);
+        if (month && byMerchant(o)) month.purchases += o.spent;
+      }
+    } else {
+      const orderById = new Map(orders.map((o) => [o.id, o]));
+      for (const i of items) {
+        const o = i.orderId ? orderById.get(i.orderId) : undefined;
+        if (o && byMerchant(o) && i.category === category && !i.returned && i.price !== null && at(o.date)) at(o.date)!.purchases += i.price;
+      }
+    }
+    for (const e of events) {
+      if ((category === "all" || e.category === category) && (merchant === "all" || e.merchant === merchant) && at(e.date)) {
+        at(e.date)!.services += e.cost;
+      }
+    }
+    return [...totals.values()];
+  }, [orders, items, events, category, merchant, today]);
+
   const total = result.purchases + result.maintenance;
-  const topMonth = Math.max(0, ...result.months.map((m) => m[1]));
   const topCategory = result.categories[0]?.[1] ?? 0;
   const periodLabel =
     preset === "custom"
@@ -227,6 +240,10 @@ export function ExpensesCard({
         </Filter>
       </div>
 
+      <div className="border-b px-5 py-4">
+        <MonthlyChart months={monthly} />
+      </div>
+
       <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <div className="min-w-0">
           <p className="text-xs text-muted-foreground">
@@ -252,16 +269,6 @@ export function ExpensesCard({
             </p>
           )}
 
-          {result.months.length > 1 && (
-            <div className="mt-5">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">Month by month</p>
-              <ul className="space-y-2" aria-label="Spending by month">
-                {result.months.map(([ym, value]) => (
-                  <Bar key={ym} label={monthLabel(ym)} value={value} max={topMonth} />
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
 
         <div className="min-w-0">

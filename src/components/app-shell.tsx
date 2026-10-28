@@ -6,6 +6,7 @@ import {
   Boxes,
   Inbox,
   LayoutDashboard,
+  LogOut,
   Plus,
   Receipt,
   Settings,
@@ -13,7 +14,28 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
+
+/** Log out (a POST, so a link or prefetch can't sign anyone out); in the demo, back to the front page. */
+function LogOutButton({ compact = false }: { compact?: boolean }) {
+  const label = isSupabaseConfigured ? "Log out" : "Leave demo";
+  const inner = compact ? <LogOut className="size-5" /> : <><LogOut /> {label}</>;
+  const props = compact
+    ? ({ variant: "ghost", size: "icon", "aria-label": label } as const)
+    : ({ variant: "ghost", className: "w-full justify-start gap-3 px-2.5 text-muted-foreground" } as const);
+  return isSupabaseConfigured ? (
+    <form action="/auth/signout" method="post">
+      <Button type="submit" {...props}>
+        {inner}
+      </Button>
+    </form>
+  ) : (
+    <Button asChild {...props}>
+      <Link href="/">{inner}</Link>
+    </Button>
+  );
+}
 
 const nav: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -77,17 +99,23 @@ export function AppShell({
             </Link>
           ))}
         </nav>
+        <div className="mt-auto border-t pt-3">
+          <LogOutButton />
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
         <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-card px-4 md:hidden">
           <Logo />
-          <Button asChild size="icon" aria-label="Add record">
-            <Link href="/add">
-              <Plus className="size-5" />
-            </Link>
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button asChild size="icon" aria-label="Add record">
+              <Link href="/add">
+                <Plus className="size-5" />
+              </Link>
+            </Button>
+            <LogOutButton compact />
+          </div>
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-24 md:px-8 md:py-8">

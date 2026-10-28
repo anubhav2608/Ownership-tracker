@@ -76,7 +76,8 @@ export async function updateSession(request: NextRequest) {
   };
 
   if (!signedIn && isProtected(pathname)) return redirectTo("/login");
-  if (signedIn && pathname === "/login") return redirectTo("/dashboard");
+  // Signed in, the front page and the login page lead to the dashboard.
+  if (signedIn && (pathname === "/login" || pathname === "/")) return redirectTo("/dashboard");
 
   return response;
 }

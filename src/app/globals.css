@@ -34,6 +34,9 @@
   --danger-soft: oklch(0.96 0.025 27);
   --info: oklch(0.5 0.15 265);
   --info-soft: oklch(0.95 0.025 265);
+  /* Chart series (validated pair: CVD-safe, contrast >= 3:1 on the card). */
+  --chart-purchases: #2a78d6;
+  --chart-services: #eb6834;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -46,6 +49,8 @@
     --popover-foreground: oklch(0.94 0.003 100);
     --primary: oklch(0.78 0.12 182);
     --primary-foreground: oklch(0.2 0.03 186);
+    --chart-purchases: #3987e5;
+    --chart-services: #d95926;
     --secondary: oklch(0.26 0.003 100);
     --secondary-foreground: oklch(0.94 0.003 100);
     --muted: oklch(0.26 0.003 100);
@@ -69,6 +74,8 @@
 }
 
 @theme inline {
+  --color-chart-purchases: var(--chart-purchases);
+  --color-chart-services: var(--chart-services);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
