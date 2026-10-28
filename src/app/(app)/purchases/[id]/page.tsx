@@ -15,6 +15,7 @@ import { DocumentList } from "@/components/document-list";
 import { DetailRow, SectionCard } from "@/components/layout-bits";
 import { DetailSkeleton } from "@/components/skeletons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { otherCharges } from "@/lib/charges";
 import { formatDate, formatMoney } from "@/lib/format";
 import { getCurrentUser, getDocuments, getImport, getItems, getOrder } from "@/lib/data";
 import { AttachDocuments } from "@/components/attach-documents";
@@ -34,6 +35,8 @@ async function PurchaseDetail({ params }: Pick<PageProps<"/purchases/[id]">, "pa
     getCurrentUser(),
   ]);
   const orderItems = items.filter((i) => i.orderId === order.id);
+  // The rest of the total: taxes, delivery and fees, or a discount.
+  const charges = otherCharges(order.total, orderItems.map((i) => i.price.value));
 
   return (
     <>
@@ -129,6 +132,15 @@ async function PurchaseDetail({ params }: Pick<PageProps<"/purchases/[id]">, "pa
               </li>
             ))}
           </ul>
+          {charges && (
+            <div className="flex items-center gap-3 border-t px-5 py-3.5 text-sm">
+              <span className="flex-1 text-muted-foreground">{charges.label}</span>
+              <p className="text-right tabular-nums">
+                {charges.amount < 0 ? "−" : ""}
+                {formatMoney(Math.abs(charges.amount))}
+              </p>
+            </div>
+          )}
         </SectionCard>
       </div>
     </>

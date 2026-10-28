@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mergeExtractions, parseDocument, type Extraction } from "./parse";
 import { moneyIn } from "./values";
 import { guessCategory } from "./category";
+import { otherCharges } from "@/lib/charges";
 
 // Fictional documents modelled on common Indian invoice layouts. Columns are
 // separated by two spaces, as extractPdfText produces for table gaps.
@@ -140,18 +141,27 @@ describe("service receipt (Urban Company-style)", () => {
 });
 
 describe("validation", () => {
-  it("flags totals that don't match the items", () => {
-    const doc = parse([
+  it("treats a small difference from the total as charges, and flags a big one", () => {
+    const lines = [
       "Croma",
       "Tax Invoice  Invoice No: CRM-91022-0007  Date: 01/10/2026",
       "1  Refrigerator 340 L  Rs. 42,000.00",
       "2  Voltage stabiliser  Rs. 2,500.00",
       "Grand Total  Rs. 45,000.00",
-    ]);
-    expect(doc.fields.merchant?.value).toBe("Croma");
-    expect(doc.reviewReasons).toContain(
-      "Items don't add up to the total. Check for shipping, fees, discounts or a misread price.",
-    );
+    ];
+    const reason = "Items don't add up to the total. Check for shipping, fees, discounts or a misread price.";
+    const small = parse(lines);
+    expect(small.fields.merchant?.value).toBe("Croma");
+    expect(small.reviewReasons).not.toContain(reason);
+    expect(otherCharges(small.fields.total?.value, small.lines.map((l) => l.price.value))).toEqual({
+      amount: 500,
+      label: "Taxes, delivery & other charges",
+      suspicious: false,
+    });
+    const big = parse(lines.map((l) => l.replace("45,000.00", "90,000.00")));
+    expect(big.reviewReasons).toContain(reason);
+    const discounted = parse(lines.map((l) => l.replace("45,000.00", "43,000.00")));
+    expect(otherCharges(discounted.fields.total?.value, discounted.lines.map((l) => l.price.value))?.label).toBe("Discounts");
   });
 
   it("asks for items when none are found", () => {
@@ -343,6 +353,32 @@ describe("marketplace order email, forwarded by hand", () => {
     expect(x.fields.orderRef?.value).toBe("402-1234567-7654321");
     expect(x.fields.merchant?.value).toBe("Amazon");
     expect(x.fields.date?.value).toBe("2026-10-28");
+  });
+
+  it("dates an email forwarded by a filter (no date in its text) by when it was sent", () => {
+    const filtered = lines.slice(5); // without the "Forwarded message" header and its Date line
+    const undated = parseDocument(filtered);
+    if (!undated.ok) throw new Error(undated.reason);
+    expect(undated.extraction.fields.date?.state).toBe("missing");
+    const dated = parseDocument(filtered, { sentOn: "2026-10-28" });
+    if (!dated.ok) throw new Error(dated.reason);
+    expect(dated.extraction.fields.date).toEqual({ value: "2026-10-28", state: "extracted", confidence: 0.7 });
+    expect(dated.extraction.reviewReasons).not.toContain("No date found.");
+  });
+
+  it("names the shop from the sender when the text doesn't", () => {
+    const filtered = lines.slice(5).filter((l) => !l.startsWith("©"));
+    const amazon = parseDocument(filtered, { sender: "Amazon.in <auto-confirm@amazon.in>" });
+    if (!amazon.ok) throw new Error(amazon.reason);
+    expect(amazon.extraction.fields.merchant).toEqual({ value: "Amazon", state: "extracted", confidence: 0.9 });
+    const unknown = filtered.map((l) => l.replace(/Amazon/g, "Shop"));
+    const shop = parseDocument(unknown, { sender: '"Example Kids Store" <orders@kids.example>' });
+    if (!shop.ok) throw new Error(shop.reason);
+    expect(shop.extraction.fields.merchant?.value).toBe("Example Kids Store");
+    // Forwarded by hand from a personal mailbox: the sender is the person, not the shop.
+    const person = parseDocument(unknown, { sender: "Asha <asha.example@gmail.com>" });
+    if (!person.ok) throw new Error(person.reason);
+    expect(person.extraction.fields.merchant?.value).not.toBe("Asha");
   });
 
   it("reads raised paise after a thousands group", () => {

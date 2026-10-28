@@ -1,4 +1,5 @@
 import type { DocumentKind, ExtractedLine, Tracked } from "@/lib/types";
+import { otherCharges } from "@/lib/charges";
 import { amountsIn, moneyIn, parseDate } from "./values";
 
 // Deterministic extraction from a document's text lines (spec §4C). Known
@@ -81,7 +82,10 @@ function classify(text: string, merchant?: KnownMerchant): DocumentKind {
 
 const label = (words: string) => new RegExp(`\\b(?:${words})\\b\\s*(?:no\\.?|number|#|id)?\\s*[:#-]?\\s*`, "i");
 
-function findMerchant(lines: string[], text: string) {
+/** Personal mailboxes: mail from one was forwarded by a person, not sent by a shop. */
+const PERSONAL_MAIL = /@(gmail|googlemail|yahoo|ymail|outlook|hotmail|live|msn|icloud|me|aol|proton|protonmail|rediffmail|zoho)\./i;
+
+function findMerchant(lines: string[], text: string, sender?: string | null) {
   // Several marketplaces can appear (a Myntra order's transport bill comes from
   // Flipkart): the one named most often is the seller, the earliest breaks ties.
   const mentions = (m: KnownMerchant) => {
@@ -92,12 +96,18 @@ function findMerchant(lines: string[], text: string) {
     .filter((x) => x.count > 0)
     .sort((a, b) => b.count - a.count || a.first - b.first)[0]?.m;
   if (known) return { known, field: extracted(known.name, 0.95) };
+  // An email forwarded by a Gmail filter may name the shop only in its sender ("auto-confirm@amazon.in").
+  const byAddress = sender ? MERCHANTS.find((m) => m.pattern.test(sender)) : undefined;
+  if (byAddress) return { known: byAddress, field: extracted(byAddress.name, 0.9) };
 
   for (const line of lines) {
     // "Sold By : Example Mobiles Pvt Ltd  Invoice Number : …": the name ends at the column gap.
     const m = line.match(/\b(?:sold by|seller|billed by|from)\s*[:-]\s*(\S.{2,59}?)(?:\s{2,}|$)/i);
     if (m) return { field: extracted(cleanName(m[1]), 0.75) };
   }
+  // A shop's own email: its display name ("Example Shoes <orders@shoes.example>").
+  const shopName = sender && !PERSONAL_MAIL.test(sender) ? sender.match(/^\s*"?([^"<]{2,60}?)"?\s*</)?.[1] : undefined;
+  if (shopName && /[a-z]{2}/i.test(shopName)) return { field: extracted(cleanName(shopName), 0.7) };
   const first = lines.find((l) => /[a-z]{3}/i.test(l) && !/invoice|receipt|order|page \d/i.test(l) && !isTableHeader(l));
   return { field: first ? extracted(cleanName(first), 0.5) : missing<string>() };
 }
@@ -546,7 +556,15 @@ function raisedPaise(items: ExtractedLine[], total: ExtractedFields["total"]) {
 /** "-38% ₹93.00": a discounted product advertised after the order. */
 const DEAL_BADGE = /^-\s?\d{1,2}\s?%\s*(₹|rs\.?|inr)\s?\d/i;
 
-export function parseDocument(lines: string[]): ParseOutcome {
+export function parseDocument(
+  lines: string[],
+  options: {
+    /** When an email was sent (YYYY-MM-DD): its order date when the text gives none. */
+    sentOn?: string | null;
+    /** An email's From header: the shop, when the text doesn't name it. */
+    sender?: string | null;
+  } = {},
+): ParseOutcome {
   const all = lines.map((l) => l.trim()).filter(Boolean);
   // Shops' advertising follows the order: a short heading like "Keep shopping for…",
   // once something has been priced (a "Buy it again" link in the top menu isn't it).
@@ -560,9 +578,11 @@ export function parseDocument(lines: string[]): ParseOutcome {
   const text = clean.join("\n");
   if (text.replace(/\s/g, "").length < 20) return { ok: false, reason: "no_text" };
 
-  const { known, field: merchant } = findMerchant(clean, text);
+  const { known, field: merchant } = findMerchant(clean, text, options.sender);
   const documentKind = classify(text, known);
-  const date = findDate(clean);
+  let date = findDate(clean);
+  // Order emails often say only "Arriving today"; they were sent when the order was placed.
+  if (date.state === "missing" && options.sentOn) date = extracted(options.sentOn, 0.7);
   const total = findTotal(clean);
   if (documentKind === "other" && (date.value === null || total.state === "missing")) {
     return { ok: false, reason: "not_a_receipt" };
@@ -692,10 +712,11 @@ function validate(
   if (fields.date?.state === "missing") reasons.push("No date found.");
   if (!isService && rows.length === 0) reasons.push("Couldn't find the items. Add them below.");
 
-  const total = fields.total?.value;
-  // Line prices are line totals, so they add up without multiplying by quantity.
-  const sum = rows.reduce((s, l) => s + (l.price.value ?? 0), 0) + (fields.labourCost?.value ?? 0);
-  if (total && rows.length && Math.abs(sum - total) > 1) {
+  // Line prices are line totals, so they add up without multiplying by quantity. A small
+  // difference is taxes, delivery or a discount (shown as its own line); a big one is
+  // more likely a misread price.
+  const prices = [...rows.map((l) => l.price.value), ...(fields.labourCost ? [fields.labourCost.value] : [])];
+  if (rows.length && otherCharges(fields.total?.value, prices)?.suspicious) {
     reasons.push("Items don't add up to the total. Check for shipping, fees, discounts or a misread price.");
   }
 

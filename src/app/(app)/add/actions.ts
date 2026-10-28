@@ -155,7 +155,12 @@ function saveFailed(where: string, error: { message: string; code?: string }): S
     message:
       error.code === "P0002"
         ? "That import was already saved or no longer exists."
-        : "Couldn't save. Please check the details and try again.",
+        : // A category the database doesn't have yet: its latest update (migration) wasn't applied.
+          error.code === "22P02" && /item_category/.test(error.message)
+          ? `Your database doesn't have the "${error.message.match(/"([^"]+)"/)?.[1] ?? "new"}" category yet. Apply the latest database update (npx supabase db push), or choose another category for now.`
+          : error.code === "PGRST202" || error.code === "42883"
+            ? "Your database is missing the latest update. Apply it (npx supabase db push) and try again."
+            : `Couldn't save. Please check the details and try again.${error.code ? ` (error ${error.code})` : ""}`,
   };
 }
 

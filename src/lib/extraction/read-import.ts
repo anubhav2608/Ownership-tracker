@@ -135,6 +135,8 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
 
   for (const doc of ordered.slice(0, MAX_SOURCES)) {
     let lines: string[];
+    let sentOn: string | null = null;
+    let sender: string | null = null;
     if (doc.mime_type.startsWith("image/")) {
       problems.add("OCR_NOT_AVAILABLE");
       continue;
@@ -152,13 +154,16 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
         continue;
       }
     } else if (doc.mime_type === EMAIL) {
-      lines = bodyLines(await parseRawEmail(await download(db, doc.storage_path)));
+      const email = await parseRawEmail(await download(db, doc.storage_path));
+      lines = bodyLines(email);
+      sentOn = indianDay(email.date);
+      sender = email.fromHeader;
     } else {
       continue;
     }
 
     if (lines.length) seen.push(`── ${doc.file_name} ──`, ...lines);
-    const parsed = parseDocument(lines);
+    const parsed = parseDocument(lines, { sentOn, sender });
     if (!parsed.ok) {
       if (parsed.reason === "no_text" && doc.mime_type === "application/pdf") problems.add("NO_TEXT_LAYER");
       continue;
@@ -252,6 +257,12 @@ async function existingPurchase(db: Db, userId: string, orderRef?: string | null
     if (data) return { merchant: data.merchant, on };
   }
   return null;
+}
+
+/** The day (YYYY-MM-DD, Indian time) of an email's Date header, if it has a valid one. */
+function indianDay(date: string | null): string | null {
+  const t = date ? Date.parse(date) : NaN;
+  return Number.isNaN(t) ? null : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(t);
 }
 
 async function download(db: Db, path: string): Promise<Uint8Array> {

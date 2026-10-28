@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { guessCategory } from "@/lib/extraction/category";
+import { otherCharges } from "@/lib/charges";
 import { formatDate, formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
@@ -127,8 +128,9 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
     record.reviewReasons?.find((r) => r.startsWith("The items come to"))?.match(/₹([\d,.]+)/)?.[1].replace(/,/g, "") ?? NaN,
   );
   const explainedByFees = Math.abs(lineSum - itemsInvoice) <= 0.005;
-  const totalMismatch =
-    !isService && kept.length > 0 && total > 0 && Math.abs(lineSum - total) > 0.005 && !explainedByFees;
+  // The rest of the total (taxes, delivery, fees, or a discount), shown as its own line.
+  const charges = isService || kept.length === 0 ? null : otherCharges(total, kept.map((l) => Number(l.price.value) || 0));
+  const totalMismatch = Boolean(charges?.suspicious) && !explainedByFees;
 
   const assetResolved = !isService || serviceItem !== "";
   const lowConfidenceLeft = [...Object.values(fields), ...lines.flatMap((l) => [l.name, l.price])].some(
@@ -374,11 +376,24 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
               )
             ))}
           </ul>
+          {charges && (
+            <div className="flex items-center justify-between gap-3 border-t px-5 py-3 text-sm">
+              <div>
+                <p className="font-medium">{charges.label}</p>
+                <p className="text-xs text-muted-foreground">
+                  Order total {formatMoney(total)} minus items {formatMoney(lineSum)}. Saved with the order, not as an item.
+                </p>
+              </div>
+              <p className="tabular-nums" aria-label={charges.label}>
+                {charges.amount < 0 ? "−" : ""}
+                {formatMoney(Math.abs(charges.amount))}
+              </p>
+            </div>
+          )}
           {totalMismatch && (
             <p className="flex items-center gap-2 border-t bg-warning-soft px-5 py-3 text-sm text-warning">
               <AlertTriangle className="size-4 shrink-0" />
-              Items add up to {formatMoney(lineSum)}, but the order total is {formatMoney(total)}.
-              Check for shipping, discounts, or a misread price.
+              That&rsquo;s a big difference from the order total of {formatMoney(total)}: check for a misread price.
             </p>
           )}
         </SectionCard>
