@@ -688,6 +688,7 @@ export type Database = {
         | "clothing"
         | "accessories"
         | "home"
+        | "toys"
         | "other";
       item_status: "owned" | "returned" | "sold" | "disposed";
       order_status: "completed" | "refunded" | "partially_refunded";
@@ -857,6 +858,7 @@ export const Constants = {
         "clothing",
         "accessories",
         "home",
+        "toys",
         "other",
       ],
       item_status: ["owned", "returned", "sold", "disposed"],

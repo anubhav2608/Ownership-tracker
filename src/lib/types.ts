@@ -9,6 +9,7 @@ export const CATEGORIES = [
   "Clothing",
   "Accessories",
   "Home",
+  "Toys",
   "Miscellaneous",
 ] as const;
 

@@ -34,6 +34,7 @@ const categories: Record<Database["public"]["Enums"]["item_category"], Category>
   clothing: "Clothing",
   accessories: "Accessories",
   home: "Home",
+  toys: "Toys",
   other: "Miscellaneous",
 };
 

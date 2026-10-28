@@ -287,3 +287,23 @@ describe("Gmail forwarding", () => {
     expect(forwardedBy({ from: "orders@shop.example" })).toBeNull();
   });
 });
+
+describe("marketplace emails with other recommendation headings", () => {
+  // Fictional: a "Buy it again" link in the menu above the order, "Keep shopping for" after it.
+  const html = `<p>Your Orders | Your Account | Buy it again</p>
+<p>Ordered: "Example 3D Baby Car Toy with 360 D..."</p><p>Hi Asha, thanks for your order.</p>
+<p>Order # 407-1111111-2222222</p>
+<table><tr><td>Example 3D Baby Car Toy with 360 D...</td></tr><tr><td>Quantity: 1</td></tr><tr><td>₹</td><td>349</td><td>00</td></tr></table>
+<table><tr><td>Grand Total:</td><td>₹</td><td>349</td><td>00</td></tr></table>
+<h3>Keep shopping for</h3><table><tr><td>Example Doll House</td><td>₹1,299.00</td></tr></table>
+<h3>Recommended based on your purchase</h3><table><tr><td>Example Ride On Car</td><td>₹2,499.00</td></tr></table>`;
+
+  it("reads the order up to the recommendations, whatever they're called", () => {
+    const outcome = parseDocument(htmlToLines(html));
+    if (!outcome.ok) throw new Error(outcome.reason);
+    expect(outcome.extraction.lines.map((l) => [l.name.value, l.price.value])).toEqual([
+      ["Example 3D Baby Car Toy with 360 D...", 349],
+    ]);
+    expect(outcome.extraction.fields.total?.value).toBe(349);
+  });
+});

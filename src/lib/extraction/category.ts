@@ -139,6 +139,26 @@ const RULES: Record<Exclude<Category, "Miscellaneous">, Rule[]> = {
     { weight: DETAIL, words: ["kitchen", "bathroom", "living room", "bedroom", "home"] },
     { weight: BRAND, words: ["milton", "cello", "borosil", "pigeon", "hawkins", "solimo", "home centre", "bombay dyeing"] },
   ],
+  // Toys, and baby and kids' gear: a "Baby Car Toy" is a toy, not a vehicle.
+  Toys: [
+    {
+      weight: PRODUCT,
+      words: [
+        "toy", "ride on", "doll", "teddy", "teddy bear", "soft toy", "plush", "puzzle", "lego", "building block",
+        "blocks", "board game", "action figure", "rc car", "remote control car", "play set", "playset", "kitchen set",
+        "tricycle", "baby walker", "walker", "stroller", "pram", "rattle", "teether", "diaper", "nappy",
+        "feeding bottle", "sipper", "baby carrier", "crib", "cradle", "play mat", "play gym", "bath tub", "baby wipes",
+      ],
+    },
+    { weight: DETAIL, words: ["baby", "kids", "toddler", "infant", "newborn", "years old", "yrs", "for boys", "for girls"] },
+    {
+      weight: BRAND,
+      words: [
+        "fisher price", "funskool", "hot wheels", "hasbro", "mattel", "barbie", "storio", "chicco", "mee mee",
+        "luvlap", "pampers", "huggies", "mamypoko", "babyhug", "firstcry", "mothercare", "toyzone",
+      ],
+    },
+  ],
 };
 
 /** Merchants that mostly sell one kind of thing tip close calls. */

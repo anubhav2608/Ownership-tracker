@@ -18,6 +18,7 @@ import {
   type LucideIcon,
   Package,
   Shirt,
+  ToyBrick,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { daysUntil, formatDate } from "@/lib/format";
@@ -65,6 +66,7 @@ const categoryIcons: Record<Category, LucideIcon> = {
   Clothing: Shirt,
   Accessories: Headphones,
   Home: Home,
+  Toys: ToyBrick,
   Miscellaneous: Package,
 };
 

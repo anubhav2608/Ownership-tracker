@@ -44,4 +44,11 @@ describe("guessCategory", () => {
     expect(guessCategory("Roadster Men Regular Fit")).toBe("Clothing");
     expect(guessCategory("Graphic Print Co-ord Set", "Myntra")).toBe("Clothing");
   });
+  it("files toys and baby gear as toys, even toy cars", () => {
+    expect(guessCategory("Example 3D Baby Car Toy with 360 Degree Rotation")).toBe("Toys");
+    expect(guessCategory("Example Remote Control Car for Kids")).toBe("Toys");
+    expect(guessCategory("Example Baby Walker with Music")).toBe("Toys");
+    expect(guessCategory("Example Teddy Bear 60 cm")).toBe("Toys");
+    expect(guessCategory("Example Hatchback Car Cover")).not.toBe("Toys");
+  });
 });

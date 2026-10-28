@@ -513,12 +513,28 @@ function itemTerms(lines: string[], items: ExtractedLine[], starts: number[], or
  * Where a shop's email turns to advertising: other products, with prices, that
  * weren't bought. Nothing from there on is read.
  */
-const MARKETING =
-  /^(related to items you.?ve viewed|recommended for you|recommendations? for you|customers who (bought|viewed)|frequently bought together|you (may|might) also like|inspired by your|top picks for you|deals (for|recommended for) you|buy it again|continue shopping|sponsored( products)?|more items to (consider|explore)|similar (items|products)|people also (bought|viewed))\b/i;
+const MARKETING = new RegExp(
+  "\\b(" +
+    [
+      "related to items you.?ve viewed", "recommended for you", "recommendations? for you", "recommended based on",
+      "based on your (purchase|order|browsing|shopping)", "customers who (bought|viewed)", "customers also (bought|viewed)",
+      "frequently bought together", "you (may|might) also like", "you (may|might) like", "inspired by your", "top picks",
+      "picked for you", "deals (for|recommended for|related to) you", "deals related to", "buy it again",
+      "continue shopping", "keep shopping", "sponsored( products)?", "more items to (consider|explore)",
+      "similar (items|products)", "people also (bought|viewed)", "products related to", "more like this",
+      "trending (now|deals)", "explore more",
+    ].join("|") +
+    ")\\b",
+  "i",
+);
 
 export function parseDocument(lines: string[]): ParseOutcome {
   const all = lines.map((l) => l.trim()).filter(Boolean);
-  const adsAt = all.findIndex((l, i) => i > 0 && MARKETING.test(l));
+  // Shops' advertising follows the order: a short heading like "Keep shopping for…",
+  // once something has been priced (a "Buy it again" link in the top menu isn't it).
+  const firstPrice = all.findIndex((l) => moneyIn(l).length > 0);
+  const adsAt =
+    firstPrice < 0 ? -1 : all.findIndex((l, i) => i > firstPrice && l.length <= 80 && MARKETING.test(l));
   const clean = adsAt > 0 ? all.slice(0, adsAt) : all;
   const text = clean.join("\n");
   if (text.replace(/\s/g, "").length < 20) return { ok: false, reason: "no_text" };
