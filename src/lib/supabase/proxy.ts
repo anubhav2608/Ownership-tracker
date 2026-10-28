@@ -22,6 +22,20 @@ const isProtected = (path: string) =>
  * security is what actually protects the data.
  */
 export async function updateSession(request: NextRequest) {
+  // A sign-in code that landed anywhere but the callback (Supabase sends it to the Site
+  // URL when the callback isn't in its Redirect URLs): finish signing in there.
+  const code = request.nextUrl.searchParams.get("code");
+  if (code && !request.nextUrl.pathname.startsWith("/auth/")) {
+    const callback = request.nextUrl.clone();
+    callback.pathname = "/auth/callback";
+    callback.search = "";
+    callback.searchParams.set("code", code);
+    const next = request.nextUrl.searchParams.get("next");
+    const here = request.nextUrl.pathname;
+    callback.searchParams.set("next", next ?? (here === "/" || here === "/login" ? "/dashboard" : here));
+    return NextResponse.redirect(callback);
+  }
+
   const { url, key } = supabaseEnv();
   let response = NextResponse.next({ request });
 
