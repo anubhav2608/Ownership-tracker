@@ -335,7 +335,7 @@ function ManualTab({
     const form = new FormData(formElement);
     if (!isSupabaseConfigured) {
       toast.success(kind === "purchase" ? "Purchase saved" : "Service event saved");
-      router.push(kind === "purchase" ? "/purchases" : `/items/${serviceItem}`);
+      router.push(kind === "purchase" ? "/purchases" : serviceItem ? `/items/${serviceItem}` : "/purchases#services");
       return;
     }
     setSaving(true);
@@ -412,7 +412,8 @@ function ManualTab({
   const saveService = (e: FormEvent<HTMLFormElement>) =>
     save(e, async (form, importId) => {
       const result = await createServiceEvent({
-        itemId: serviceItem,
+        // Empty for a service not on an item the user owns (a home service booking).
+        itemId: serviceItem || undefined,
         serviceDate: text(form, "date"),
         workPerformed: text(form, "work"),
         provider: optionalText(form, "provider"),
@@ -430,8 +431,8 @@ function ManualTab({
         toast.error(result.message);
         return false;
       }
-      toast.success("Service event saved");
-      router.push(`/items/${serviceItem}`);
+      toast.success("Service saved");
+      router.push(serviceItem ? `/items/${serviceItem}` : "/purchases#services");
       return { serviceEventId: result.id };
     });
 
@@ -573,14 +574,11 @@ function ManualTab({
           <Field id={`${fid}-svc-item`} label="Item serviced" className="sm:col-span-2">
             <NativeSelect
               id={`${fid}-svc-item`}
-              required
               wrapperClassName="w-full"
               value={serviceItem}
               onChange={(e) => setServiceItem(e.target.value)}
             >
-              <NativeSelectOption value="">
-                {items.length ? "Choose an item…" : "Save a purchase first to add its service"}
-              </NativeSelectOption>
+              <NativeSelectOption value="">Not for an item I own (e.g. home cleaning)</NativeSelectOption>
               {items.map((it) => (
                 <NativeSelectOption key={it.id} value={it.id}>
                   {it.name}

@@ -258,7 +258,7 @@ export function DuplicatePanel({
           <AlertDescription>
             This is the same message we imported on{" "}
             {duplicateOf ? formatDate(duplicateOf.receivedAt) : "an earlier date"}, so nothing
-            new was created.
+            new was created and this copy wasn&rsquo;t stored. Open the original to review or save it.
           </AlertDescription>
         </Alert>
         <div className="flex flex-wrap gap-2">
@@ -267,12 +267,6 @@ export function DuplicatePanel({
               <Link href={`/imports/${duplicateOf.id}`}>View original import</Link>
             </Button>
           )}
-          <Button
-            variant="outline"
-            onClick={() => toast("Imported as a separate record for review")}
-          >
-            It&rsquo;s different, import anyway
-          </Button>
           <DiscardButton importId={importId} />
         </div>
       </div>

@@ -217,11 +217,24 @@ async function storeEmail(db: Db, userId: string, email: IncomingEmail): Promise
     });
     return { status: "held", importId: imp.id };
   }
+  // An address the user added in Settings is confirmed by its first email reaching their private address.
+  if (!trusted && from) await confirmPendingSender(db, userId, from);
   if (!trusted && !(await isVerifiedSender(db, userId, from))) {
     await recordOutcome(db, userId, imp.id, unverifiedSender(from));
     return { status: "held", importId: imp.id };
   }
   return { status: "stored", importId: imp.id, auto };
+}
+
+/** Marks an address the user added (still unconfirmed) as verified. */
+async function confirmPendingSender(db: Db, userId: string, email: string) {
+  const { error } = await db
+    .from("verified_senders")
+    .update({ verified_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .eq("email", email.toLowerCase())
+    .is("verified_at", null);
+  if (error) console.error("[inbound] confirming sender failed:", error.message);
 }
 
 /** Reads a stored email now; the outcome is written straight onto the import. */
