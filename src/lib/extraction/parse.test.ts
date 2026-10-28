@@ -415,3 +415,43 @@ describe("marketplace order email, forwarded by hand", () => {
     expect(again.extraction.lines).toHaveLength(1);
   });
 });
+
+describe("home service booking (platform invoice + partner receipt in one PDF)", () => {
+  // Fictional, in the layout of an Urban Company booking PDF.
+  const lines = [
+    "TAX INVOICE", "To (Recipient)  From (Supplier)", "Name  Name", "Asha  Urban Company Limited (Formerly known as",
+    "Urbanclap Technologies India Limited)", "Invoice No.", "26INU00000000001", "Business GST", "Delivery Address",
+    "00AAAAA0000A1Z0", "Flat 1, Example Apartments, Example City  Address", "Example Tower, Example Road", "Date",
+    "03-10-2026", "State Name & Code", "Example State 09", "Place of Supply", "Example State 09", "Items  Amount",
+    "Convenience Fee & Platform  Gross Amount  INR 388.98", "Fee - Chimney", "SAC: 999799", "Discount  - INR 0",
+    "Taxable Amount  INR 388.98", "IGST @18%  INR 70.02", "Total Tax  INR 70.02", "Subtotal  INR 459",
+    "Signature of supplier/authorized representative", "RECEIPT (UC PARTNER RECEIPT)", "To (Recipient)  From (Supplier)",
+    "Name  Name", "Asha  Example Partner", "Receipt No.  Address", "26INP00000000002  1 Example Lane, Example Town",
+    "Date", "03-10-2026", "Items  Amount", "Service Charge - Chimney  Gross Amount  INR 939", "SAC: 999729",
+    "Discount  - INR 0", "Subtotal  INR 939",
+  ];
+
+  it("reads the work, the service charge and the whole amount paid", () => {
+    const outcome = parseDocument(lines);
+    if (!outcome.ok) throw new Error(outcome.reason);
+    const x = outcome.extraction;
+    expect(x.documentKind).toBe("service_receipt");
+    expect(x.fields.provider?.value).toBe("Urban Company");
+    expect(x.fields.date?.value).toBe("2026-10-03");
+    expect(x.fields.workPerformed?.value).toBe("Chimney service");
+    expect(x.fields.labourCost?.value).toBe(939);
+    expect(x.fields.total?.value).toBe(1398);
+    expect(x.parts).toEqual([]);
+    expect(x.reviewReasons).toContain("The total includes Urban Company's fees of ₹459 (with tax).");
+    expect(x.reviewReasons.some((r) => r.startsWith("Items don't add up"))).toBe(false);
+  });
+
+  it("lists spare parts on the partner's receipt as parts", () => {
+    const withPart = [...lines.slice(0, -1), "Filter Mesh - Chimney  Gross Amount  INR 450", "SAC: 999729", "Subtotal  INR 1,389"];
+    const outcome = parseDocument(withPart);
+    if (!outcome.ok) throw new Error(outcome.reason);
+    expect(outcome.extraction.parts.map((p) => [p.name.value, p.price.value])).toEqual([["Filter Mesh - Chimney", 450]]);
+    expect(outcome.extraction.fields.labourCost?.value).toBe(939);
+    expect(outcome.extraction.fields.total?.value).toBe(1848);
+  });
+});

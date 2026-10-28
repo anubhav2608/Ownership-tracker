@@ -233,7 +233,7 @@ function findWarranty(lines: string[]) {
 // ── Line items ──────────────────────────────────────────────────────────
 
 const NOT_AN_ITEM =
-  /\b(sub ?total|total|tax|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|charges?|freight|transport(ation)?|handling|packing|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|gstin|qty|quantity|description|unit price)\b|\b(pan|phone|mobile|e-?mail|address|rate)\s*(no\.?|number)?\s*[:#]|\bpage\s+\d/i;
+  /\b(sub ?total|total|tax|taxable|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|charges?|freight|transport(ation)?|handling|packing|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|gstin|qty|quantity|description|unit price)\b|\b(pan|phone|mobile|e-?mail|address|rate)\s*(no\.?|number)?\s*[:#]|\bpage\s+\d/i;
 // Labels like "PAN:", "Phone:", "Rate:" only count as labels: a "Non-stick Pan" or a
 // "Heart Rate Monitor" is an item.
 const LABOUR = /\b(labou?r|service|servicing|visit charge|inspection|installation)\b/i;
@@ -553,6 +553,54 @@ function raisedPaise(items: ExtractedLine[], total: ExtractedFields["total"]) {
   }
 }
 
+/**
+ * Urban Company's booking PDF: the platform's tax invoice for its convenience and
+ * platform fee, then the service partner's receipt for the work. Each lists
+ * "<item>  Gross Amount  INR x" (the name may wrap onto the next line) and ends
+ * with "Subtotal  INR x"; together the subtotals are what was paid.
+ */
+function urbanCompanyBooking(lines: string[]) {
+  const sections: { rows: { name: string; amount: number }[]; subtotal: number | null }[] = [];
+  for (const [i, line] of lines.entries()) {
+    if (/^(tax invoice|receipt)\b/i.test(line) || sections.length === 0) sections.push({ rows: [], subtotal: null });
+    const section = sections[sections.length - 1];
+    const row = line.match(/^(.+?)\s{2,}gross amount\s{2,}(?:inr|₹|rs\.?)\s*([\d,]+(?:\.\d{1,2})?)\s*$/i);
+    if (row) {
+      const next = lines[i + 1] ?? "";
+      const wrapped = /[a-z]{3}/i.test(next) && moneyIn(next).length === 0 && !/^(sac|hsn|discount|taxable|subtotal)\b/i.test(next);
+      section.rows.push({ name: `${row[1]}${wrapped ? ` ${next}` : ""}`.trim(), amount: Number(row[2].replace(/,/g, "")) });
+    }
+    const subtotal = line.match(/^sub ?total\s{2,}(?:inr|₹|rs\.?)\s*([\d,]+(?:\.\d{1,2})?)\s*$/i);
+    if (subtotal) section.subtotal = Number(subtotal[1].replace(/,/g, ""));
+  }
+  const billed = sections.filter((s) => s.rows.length && s.subtotal !== null);
+  if (!billed.length) return null;
+
+  const isFee = (name: string) => /\b(convenience|platform|booking) fee/i.test(name);
+  const isWork = (name: string) => /\b(service|visit|labou?r|repair|installation|inspection|cleaning|uninstallation)\b/i.test(name);
+  let labour = 0;
+  let fees = 0;
+  let work: string | null = null;
+  const parts: ExtractedLine[] = [];
+  for (const s of billed) {
+    const rows = s.rows.filter((r) => !isFee(r.name));
+    // A fee's row is before tax; its subtotal is what was charged for it.
+    if (rows.length === 0) fees += s.subtotal!;
+    for (const r of rows) {
+      if (isWork(r.name)) {
+        labour += r.amount;
+        // "Service Charge - Chimney" → "Chimney service": what was serviced, for finding the item.
+        const thing = r.name.match(/\s-\s*([^-]+)$/)?.[1].trim();
+        work ??= thing ? `${thing} service` : r.name;
+      } else {
+        parts.push({ name: extracted(r.name, 0.85), quantity: 1, price: extracted(r.amount, 0.85) });
+      }
+    }
+  }
+  const total = Math.round(billed.reduce((sum, s) => sum + s.subtotal!, 0) * 100) / 100;
+  return { total, labour, fees, work, parts };
+}
+
 /** "-38% ₹93.00": a discounted product advertised after the order. */
 const DEAL_BADGE = /^-\s?\d{1,2}\s?%\s*(₹|rs\.?|inr)\s?\d/i;
 
@@ -593,7 +641,15 @@ export function parseDocument(
   let lineItems: ExtractedLine[] = [];
   let parts: ExtractedLine[] = [];
 
-  if (documentKind === "service_receipt") {
+  const booking = known?.id === "urban-company" ? urbanCompanyBooking(clean) : null;
+  if (booking) {
+    // The platform's invoice (its fee) and the partner's receipt (the work) are one booking.
+    fields.provider = merchant;
+    fields.total = extracted(booking.total, 0.9);
+    if (booking.labour) fields.labourCost = extracted(booking.labour, 0.9);
+    fields.workPerformed = booking.work ? extracted(booking.work, 0.85) : missing();
+    parts = booking.parts;
+  } else if (documentKind === "service_receipt") {
     fields.provider = merchant;
     const labour = found.filter((l) => LABOUR.test(l.name.value ?? ""));
     parts = found.filter((l) => !labour.includes(l));
@@ -630,6 +686,12 @@ export function parseDocument(
     if (i >= 0) reviewReasons.splice(i, 1);
   }
   reviewReasons.push(...notes.messages);
+  if (booking?.fees) {
+    // The rest of the total is the platform's fee, not a misread price.
+    const i = reviewReasons.findIndex((r) => r.startsWith("Items don't add up"));
+    if (i >= 0) reviewReasons.splice(i, 1);
+    reviewReasons.push(`The total includes Urban Company's fees of ₹${booking.fees.toLocaleString("en-IN")} (with tax).`);
+  }
   return {
     ok: true,
     extraction: {
