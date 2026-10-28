@@ -137,7 +137,8 @@ async function DashboardContent() {
             cost: e.totalCost,
             // A service on no item (a home service booking) counts as Miscellaneous.
             category: item?.category ?? "Miscellaneous",
-            merchant: item ? orders.find((o) => o.id === item.orderId)?.merchant : e.provider || undefined,
+            // Who was paid for the service (Urban Company), not where the item was bought.
+            merchant: e.provider || undefined,
           };
         })}
       />

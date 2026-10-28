@@ -84,8 +84,15 @@ export function ExpensesCard({
   const [category, setCategory] = useState<Category | "all">("all");
   const [merchant, setMerchant] = useState("all");
 
-  const merchants = useMemo(() => [...new Set(orders.map((o) => o.merchant))].sort(), [orders]);
-  const categories = useMemo(() => [...new Set(items.map((i) => i.category))].sort(), [items]);
+  // Shops and service providers: anyone money was paid to.
+  const merchants = useMemo(
+    () => [...new Set([...orders.map((o) => o.merchant), ...events.flatMap((e) => (e.merchant ? [e.merchant] : []))])].sort(),
+    [orders, events],
+  );
+  const categories = useMemo(
+    () => [...new Set([...items.map((i) => i.category), ...events.flatMap((e) => (e.category ? [e.category] : []))])].sort(),
+    [items, events],
+  );
   const filtered = preset !== "month" || category !== "all" || merchant !== "all";
 
   function choosePreset(p: Preset) {
