@@ -275,7 +275,10 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
               <FieldInput fid={fid} label="Date" name="date" type="date" draft={fields.date} onChange={setField} />
               <FieldInput fid={fid} label="Work performed" name="workPerformed" draft={fields.workPerformed} onChange={setField} className="sm:col-span-2" />
               <FieldInput fid={fid} label="Total paid" name="total" type="number" draft={fields.total} onChange={setField} />
-              <FieldInput fid={fid} label="Labour" name="labourCost" type="number" draft={fields.labourCost} onChange={setField} />
+              {/* A bill broken into services already lists the work: no separate labour field. */}
+              {!parts.some((p) => p.kind === "service") && (
+                <FieldInput fid={fid} label="Labour" name="labourCost" type="number" draft={fields.labourCost} onChange={setField} />
+              )}
             </>
           ) : (
             <>

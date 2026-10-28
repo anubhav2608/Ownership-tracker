@@ -55,6 +55,8 @@ export function DiscardButton({
     }
     toast.success(withSaved ? `Import and its ${saved} deleted` : "Import deleted");
     router.push("/imports");
+    // The list may have been shown before: fetch it again so the deleted import isn't in it.
+    router.refresh();
   }
 
   return (

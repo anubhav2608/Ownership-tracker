@@ -165,3 +165,14 @@ export async function finishForwarding(importId: string, trust: boolean): Promis
   }
   return deleteImport(importId);
 }
+
+/** Deletes several imports at once (see deleteImport); the ones that couldn't be deleted are returned. */
+export async function deleteImports(importIds: string[], alsoSaved = false): Promise<{ failed: string[] }> {
+  const ids = z.array(id).max(200).safeParse(importIds);
+  if (!ids.success) return { failed: importIds };
+  const failed: string[] = [];
+  for (const importId of ids.data) {
+    if (!(await deleteImport(importId, alsoSaved)).ok) failed.push(importId);
+  }
+  return { failed };
+}

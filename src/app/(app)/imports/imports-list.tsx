@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Inbox, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { deleteImport } from "./actions";
+import { deleteImport, deleteImports } from "./actions";
 import { documentKindLabel, ImportStatusBadge, SourceLabel } from "@/components/badges";
 import { Card } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -24,18 +26,47 @@ const filters: { value: string; label: string; statuses?: ImportStatus[] }[] = [
   { value: "all", label: "All" },
 ];
 
-export function ImportsList({ imports }: { imports: ImportRecord[] }) {
+export function ImportsList({ imports: all }: { imports: ImportRecord[] }) {
+  const router = useRouter();
   const [filter, setFilter] = useState("attention");
+  // Deleted here: hidden at once, before the refreshed list arrives.
+  const [deleted, setDeleted] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const imports = all.filter((r) => !deleted.has(r.id));
   const count = (statuses?: ImportStatus[]) =>
     statuses ? imports.filter((r) => statuses.includes(r.status)).length : imports.length;
   const active = filters.find((f) => f.value === filter)!;
   const visible = active.statuses
     ? imports.filter((r) => active.statuses!.includes(r.status))
     : imports;
+  const chosen = visible.filter((r) => selected.has(r.id));
+  const allChosen = visible.length > 0 && chosen.length === visible.length;
+
+  function toggle(id: string, on: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function removed(ids: string[]) {
+    setDeleted((prev) => new Set([...prev, ...ids]));
+    setSelected((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
+    router.refresh();
+  }
 
   return (
     <>
-      <Tabs value={filter} onValueChange={setFilter} className="mb-4">
+      <Tabs
+        value={filter}
+        onValueChange={(v) => {
+          setFilter(v);
+          setSelected(new Set());
+        }}
+        className="mb-4"
+      >
         <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
           <TabsList>
             {filters.map((f) => (
@@ -51,6 +82,19 @@ export function ImportsList({ imports }: { imports: ImportRecord[] }) {
       </Tabs>
 
       <Card className="gap-0 overflow-hidden py-0">
+        {visible.length > 0 && (
+          <div className="flex min-h-12 items-center gap-3 border-b px-5 py-2">
+            <Checkbox
+              aria-label="Select all"
+              checked={allChosen ? true : chosen.length ? "indeterminate" : false}
+              onCheckedChange={(on) => setSelected(on === true ? new Set(visible.map((r) => r.id)) : new Set())}
+            />
+            <span className="text-sm text-muted-foreground">
+              {chosen.length ? `${chosen.length} selected` : "Select all"}
+            </span>
+            {chosen.length > 0 && <DeleteSelected records={chosen} onDeleted={removed} />}
+          </div>
+        )}
         {visible.length === 0 ? (
           <Empty className="py-12">
             <EmptyHeader>
@@ -64,9 +108,15 @@ export function ImportsList({ imports }: { imports: ImportRecord[] }) {
           <ul className="divide-y">
             {visible.map((r) => (
               <li key={r.id} className="flex items-center hover:bg-accent">
+                <Checkbox
+                  className="ml-5"
+                  aria-label={`Select ${r.title}`}
+                  checked={selected.has(r.id)}
+                  onCheckedChange={(on) => toggle(r.id, on === true)}
+                />
                 <Link
                   href={`/imports/${r.id}`}
-                  className="flex min-w-0 flex-1 items-center gap-3 py-4 pl-5"
+                  className="flex min-w-0 flex-1 items-center gap-3 py-4 pl-3"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{r.title}</p>
@@ -88,7 +138,7 @@ export function ImportsList({ imports }: { imports: ImportRecord[] }) {
                   <ImportStatusBadge status={r.status} />
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
                 </Link>
-                <DeleteImportButton record={r} />
+                <DeleteImportButton record={r} onDeleted={removed} />
               </li>
             ))}
           </ul>
@@ -98,17 +148,64 @@ export function ImportsList({ imports }: { imports: ImportRecord[] }) {
   );
 }
 
-function DeleteImportButton({ record }: { record: ImportRecord }) {
-  const router = useRouter();
+/** What was saved from an import, which can be deleted with it. */
+const savedKind = (r: ImportRecord) =>
+  r.status !== "imported" ? undefined : r.result?.serviceEventId ? "service" : r.result?.orderId ? "purchase" : undefined;
+
+function DeleteSelected({ records, onDeleted }: { records: ImportRecord[]; onDeleted: (ids: string[]) => void }) {
+  const fid = useId();
   const [open, setOpen] = useState(false);
+  const [alsoSaved, setAlsoSaved] = useState(true);
+  const saved = records.filter((r) => savedKind(r)).length;
 
   async function remove() {
-    if (isSupabaseConfigured && !(await deleteImport(record.id)).ok) {
+    const ids = records.map((r) => r.id);
+    const { failed } = isSupabaseConfigured ? await deleteImports(ids, saved > 0 && alsoSaved) : { failed: [] };
+    const done = ids.filter((id) => !failed.includes(id));
+    if (done.length) {
+      toast.success(`${done.length} import${done.length === 1 ? "" : "s"} deleted`);
+      onDeleted(done);
+    }
+    if (failed.length) toast.error(`Couldn't delete ${failed.length}. Please try again.`);
+  }
+
+  return (
+    <>
+      <Button variant="destructive" size="sm" className="ml-auto" onClick={() => setOpen(true)}>
+        <Trash2 /> Delete selected ({records.length})
+      </Button>
+      <ConfirmDelete
+        open={open}
+        onOpenChange={setOpen}
+        title={`Delete ${records.length} import${records.length === 1 ? "" : "s"}?`}
+        description="Their forwarded messages and uploaded files are removed, unless a file is attached to something you kept."
+        onConfirm={remove}
+      >
+        {saved > 0 && (
+          <Label htmlFor={`${fid}-also`} className="flex items-center gap-2 text-sm font-normal">
+            <Checkbox id={`${fid}-also`} checked={alsoSaved} onCheckedChange={(v) => setAlsoSaved(v === true)} />
+            Also delete the {saved} purchase{saved === 1 ? "" : "s"} or service{saved === 1 ? "" : "s"} saved from them
+          </Label>
+        )}
+      </ConfirmDelete>
+    </>
+  );
+}
+
+function DeleteImportButton({ record, onDeleted }: { record: ImportRecord; onDeleted: (ids: string[]) => void }) {
+  const fid = useId();
+  const [open, setOpen] = useState(false);
+  const saved = savedKind(record);
+  const [alsoSaved, setAlsoSaved] = useState(true);
+  const withSaved = Boolean(saved) && alsoSaved;
+
+  async function remove() {
+    if (isSupabaseConfigured && !(await deleteImport(record.id, withSaved)).ok) {
       toast.error("Couldn't delete the import. Please try again.");
       return;
     }
-    toast.success("Import deleted");
-    router.refresh();
+    toast.success(withSaved ? `Import and its ${saved} deleted` : "Import deleted");
+    onDeleted([record.id]);
   }
 
   return (
@@ -127,12 +224,21 @@ function DeleteImportButton({ record }: { record: ImportRecord }) {
         onOpenChange={setOpen}
         title="Delete this import?"
         description={
-          record.status === "imported"
-            ? "Only the import record is removed. What it created stays, with the documents attached to it."
-            : "The forwarded message or uploaded file is removed. No records were created from it."
+          withSaved
+            ? `The ${saved} saved from it is deleted too, with its documents unless something else uses them.`
+            : record.status === "imported"
+              ? "Only the import record is removed. What it created stays, with the documents attached to it."
+              : "The forwarded message or uploaded file is removed. No records were created from it."
         }
         onConfirm={remove}
-      />
+      >
+        {saved && (
+          <Label htmlFor={`${fid}-also`} className="flex items-center gap-2 text-sm font-normal">
+            <Checkbox id={`${fid}-also`} checked={alsoSaved} onCheckedChange={(v) => setAlsoSaved(v === true)} />
+            Also delete the {saved} saved from it
+          </Label>
+        )}
+      </ConfirmDelete>
     </>
   );
 }

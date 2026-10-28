@@ -53,8 +53,11 @@ export function ServiceEventDialog({
   const [labour, setLabour] = useState(event?.labourCost?.toString() ?? "");
   const [saving, setSaving] = useState(false);
 
+  // A bill broken into services lists the work itself, so there's no separate labour cost.
+  const itemised = parts.some((p) => p.kind === "service");
   const partsTotal = parts.reduce((s, p) => s + (Number(p.cost) || 0), 0);
-  const computedTotal = partsTotal + (Number(labour) || 0);
+  const serviceTotal = parts.reduce((s, p) => s + (p.kind === "service" ? Number(p.cost) || 0 : 0), 0);
+  const computedTotal = partsTotal + (itemised ? 0 : Number(labour) || 0);
   // Receipts often include tax or fees, so keep a total that differs from parts + labour.
   const [totalOverride, setTotalOverride] = useState<string | null>(
     event && event.totalCost !== computedTotal ? String(event.totalCost) : null,
@@ -79,7 +82,7 @@ export function ServiceEventDialog({
       parts: parts
         .filter((p) => p.name.trim())
         .map((p) => ({ name: p.name.trim(), cost: p.cost === "" ? undefined : Number(p.cost), kind: p.kind })),
-      labourCost: labour === "" ? undefined : Number(labour),
+      labourCost: itemised ? serviceTotal : labour === "" ? undefined : Number(labour),
       totalCost: total,
       odometerKm: odometer ? Number(odometer) : undefined,
       notes: (data.get("notes") as string) || undefined,
@@ -127,7 +130,7 @@ export function ServiceEventDialog({
           </div>
 
           <fieldset className="grid gap-2">
-            <legend className="mb-2 text-sm font-medium">Parts replaced</legend>
+            <legend className="mb-2 text-sm font-medium">{itemised ? "Bill lines" : "Parts replaced"}</legend>
             {parts.map((p) => (
               <div key={p.key} className="flex gap-2">
                 <Input
@@ -168,10 +171,12 @@ export function ServiceEventDialog({
           </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor={`${fid}-labour`}>Labour cost</Label>
-              <Input id={`${fid}-labour`} type="number" min="0" value={labour} onChange={(e) => setLabour(e.target.value)} />
-            </div>
+            {!itemised && (
+              <div className="grid gap-2">
+                <Label htmlFor={`${fid}-labour`}>Labour cost</Label>
+                <Input id={`${fid}-labour`} type="number" min="0" value={labour} onChange={(e) => setLabour(e.target.value)} />
+              </div>
+            )}
             <div className="grid gap-2">
               <Label htmlFor={`${fid}-total`}>Total paid</Label>
               <Input
