@@ -18,7 +18,10 @@ export function amountsIn(line: string): number[] {
 /** Amounts written with a currency marker or two decimals, which are unlikely to be quantities or dates. */
 export function moneyIn(line: string): number[] {
   const out: number[] = [];
-  for (const m of line.matchAll(AMOUNT)) {
+  // Shop emails print paise raised ("₹1,299" + "⁰⁰"), which reads as "₹1,29900": a
+  // thousands group can't have five digits, so the last two are paise.
+  const text = line.replace(/((?:₹|rs\.?|inr)\s*\d{1,3}(?:,\d{2,3})*,\d{3})(\d{2})(?![\d,.])/gi, "$1.$2");
+  for (const m of text.matchAll(AMOUNT)) {
     const raw = m[0].trim();
     if (/^(₹|rs|inr)/i.test(raw) || /\.\d{2}$/.test(m[1]) || m[1].includes(",")) {
       out.push(Number(m[1].replace(/,/g, "")));

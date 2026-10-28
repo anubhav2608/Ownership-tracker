@@ -528,6 +528,21 @@ const MARKETING = new RegExp(
   "i",
 );
 
+/**
+ * "₹299" with its paise raised ("⁰⁰") reads as "₹29900". An item can't cost
+ * more than the whole order, so a price that only fits once read as paise is.
+ */
+function raisedPaise(items: ExtractedLine[], total: ExtractedFields["total"]) {
+  const limit = total?.value;
+  if (!limit) return;
+  for (const l of items) {
+    const p = l.price.value;
+    if (p !== null && Number.isInteger(p) && p >= 1000 && p * l.quantity > limit && (p / 100) * l.quantity <= limit) {
+      l.price = extracted(p / 100, Math.min(l.price.confidence ?? 0.8, 0.75));
+    }
+  }
+}
+
 export function parseDocument(lines: string[]): ParseOutcome {
   const all = lines.map((l) => l.trim()).filter(Boolean);
   // Shops' advertising follows the order: a short heading like "Keep shopping for…",
@@ -574,6 +589,7 @@ export function parseDocument(lines: string[]): ParseOutcome {
     }
   }
 
+  raisedPaise(lineItems, fields.total);
   corroborate(fields, documentKind === "service_receipt" ? parts : lineItems);
   const notes = sectionNotes(clean, lineItems);
   if (notes.explained && fields.total) {

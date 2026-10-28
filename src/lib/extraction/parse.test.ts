@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mergeExtractions, parseDocument, type Extraction } from "./parse";
+import { moneyIn } from "./values";
 
 // Fictional documents modelled on common Indian invoice layouts. Columns are
 // separated by two spaces, as extractPdfText produces for table gaps.
@@ -313,5 +314,39 @@ describe("product names that contain label words", () => {
       "Example Non-stick Fry Pan 24 cm",
       "Example Band with Heart Rate Monitor",
     ]);
+  });
+});
+
+describe("marketplace order email, forwarded by hand", () => {
+  // Fictional, in the layout of a marketplace "Ordered:" email: progress steps, an
+  // invisible direction mark before the order number, the price with raised paise
+  // ("₹299" + "⁰⁰" reads "₹29900"), then "Keep shopping for" recommendations.
+  const lines = [
+    "---------- Forwarded message ---------", "From: Amazon.in <auto-confirm@amazon.in>",
+    "Date: Wed, Oct 28, 2026 at 9:52 AM", 'Subject: Ordered: "Example Flash Drum Toy for..."', "To: <asha@example.edu>",
+    'Ordered: "Example Flash Drum Toy for..."͏   ­͏   ­', "Your Orders Your Account Buy Again", "Thanks for your order!",
+    "Ordered", "Shipped", "Out for delivery", "Delivered", "Arriving today 2 pm – 6 pm", "Asha – EXAMPLE CITY, EXAMPLE STATE",
+    "Order # ‫402-1234567-7654321", "View or edit order", "Example Flash Drum Toy for Kids wi...", "Quantity: 1",
+    "₹29900", "Total  ₹304.00", "Keep shopping for", "-50% ₹949.00", "Example Rangoli Set –...", "-84% ₹1,410.00",
+    "Example Travel Pillow...", "©2026 Amazon.com, Inc. or its affiliates. All rights reserved.",
+  ];
+
+  it("reads the one item at ₹299, not ₹29,900, and none of the recommendations", () => {
+    const outcome = parseDocument(lines);
+    if (!outcome.ok) throw new Error(outcome.reason);
+    const x = outcome.extraction;
+    expect(x.lines.map((l) => [l.name.value, l.quantity, l.price.value])).toEqual([
+      ["Example Flash Drum Toy for Kids wi...", 1, 299],
+    ]);
+    expect(x.fields.total?.value).toBe(304);
+    expect(x.fields.orderRef?.value).toBe("402-1234567-7654321");
+    expect(x.fields.merchant?.value).toBe("Amazon");
+    expect(x.fields.date?.value).toBe("2026-10-28");
+  });
+
+  it("reads raised paise after a thousands group", () => {
+    expect(moneyIn("₹1,29900")).toEqual([1299]);
+    expect(moneyIn("₹1,24,90000")).toEqual([124900]);
+    expect(moneyIn("₹1,299")).toEqual([1299]);
   });
 });
