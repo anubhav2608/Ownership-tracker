@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Ban, Clock, Copy, FileSearch, Link2, Loader2, RotateCw } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { SectionCard } from "@/components/layout-bits";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -32,20 +33,27 @@ export function DiscardButton({
   importId,
   label = "Delete import",
   description = NOTHING_CREATED,
+  saved,
 }: {
   importId: string;
   label?: string;
   description?: string;
+  /** What was saved from the import, offered for deletion with it. */
+  saved?: "purchase" | "service";
 }) {
   const router = useRouter();
+  const fid = useId();
   const [open, setOpen] = useState(false);
+  // On by default: deleting an import to read it again shouldn't leave the old record behind.
+  const [alsoSaved, setAlsoSaved] = useState(true);
+  const withSaved = Boolean(saved) && alsoSaved;
 
   async function discard() {
-    if (isSupabaseConfigured && !(await deleteImport(importId)).ok) {
+    if (isSupabaseConfigured && !(await deleteImport(importId, withSaved)).ok) {
       toast.error("Couldn't delete the import. Please try again.");
       return;
     }
-    toast.success("Import deleted");
+    toast.success(withSaved ? `Import and its ${saved} deleted` : "Import deleted");
     router.push("/imports");
   }
 
@@ -58,9 +66,20 @@ export function DiscardButton({
         open={open}
         onOpenChange={setOpen}
         title="Delete this import?"
-        description={description}
+        description={
+          withSaved
+            ? `The ${saved} saved from it is deleted too, with its documents unless something else uses them.`
+            : description
+        }
         onConfirm={discard}
-      />
+      >
+        {saved && (
+          <Label htmlFor={`${fid}-also`} className="flex items-center gap-2 text-sm font-normal">
+            <Checkbox id={`${fid}-also`} checked={alsoSaved} onCheckedChange={(v) => setAlsoSaved(v === true)} />
+            Also delete the {saved} saved from it
+          </Label>
+        )}
+      </ConfirmDelete>
     </>
   );
 }
@@ -330,7 +349,10 @@ export function ImportedPanel({
                 <span className="font-medium">{serviceEvent.workPerformed}</span>,{" "}
                 {formatMoney(serviceEvent.totalCost)}
               </span>
-              <Link href={`/items/${serviceEvent.itemId}`} className="text-primary hover:underline">
+              <Link
+                href={serviceEvent.itemId ? `/items/${serviceEvent.itemId}` : "/purchases#services"}
+                className="text-primary hover:underline"
+              >
                 View
               </Link>
             </div>
@@ -360,6 +382,7 @@ export function ImportedPanel({
         <DiscardButton
           importId={record.id}
           description="Only the import record is removed. What it created stays, with the documents attached to it."
+          saved={record.result?.orderId ? "purchase" : serviceEvent ? "service" : undefined}
         />
       </div>
 

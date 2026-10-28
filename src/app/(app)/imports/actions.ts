@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 import { readImport, readingCrashed, type Outcome } from "@/lib/extraction/read-import";
 import type { Database, Json } from "@/lib/supabase/database.types";
+import { deleteOrder, deleteServiceEvent } from "@/lib/record-actions";
 import { createClient } from "@/lib/supabase/server";
 
 const id = z.uuid();
@@ -25,11 +26,26 @@ export async function getDocumentUrl(documentId: string): Promise<string | null>
 
 /**
  * Deletes an import and the files it brought in, unless a file has since been
- * attached to a purchase, item or service event.
+ * attached to a purchase, item or service event. With `alsoSaved`, the purchase
+ * or service saved from it goes too (and with it the files only it used), so
+ * reading a document again doesn't leave the old record behind.
  */
-export async function deleteImport(importId: string): Promise<{ ok: boolean }> {
+export async function deleteImport(importId: string, alsoSaved = false): Promise<{ ok: boolean }> {
   if (!id.safeParse(importId).success) return { ok: false };
   const supabase = await createClient();
+
+  if (alsoSaved) {
+    const { data: imp } = await supabase.from("imports").select("result").eq("id", importId).maybeSingle();
+    const result = (imp?.result ?? {}) as { order_id?: string; service_event_id?: string };
+    // Each of these deletes the import as well, once its record is gone.
+    const removed = result.service_event_id
+      ? await deleteServiceEvent(result.service_event_id)
+      : result.order_id
+        ? await deleteOrder(result.order_id)
+        : ({ ok: true } as const);
+    // Already deleted from its own page: nothing more to remove there.
+    if (!removed.ok && !/no longer exists/.test(removed.message)) return { ok: false };
+  }
 
   const { data: docs } = await supabase
     .from("documents")

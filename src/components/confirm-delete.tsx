@@ -20,6 +20,7 @@ export function ConfirmDelete({
   description,
   confirmLabel = "Delete",
   onConfirm,
+  children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,6 +28,8 @@ export function ConfirmDelete({
   description: ReactNode;
   confirmLabel?: string;
   onConfirm: () => void;
+  /** Options under the description, like what else to delete. */
+  children?: ReactNode;
 }) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -35,6 +38,7 @@ export function ConfirmDelete({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {children}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
