@@ -47,31 +47,34 @@ export async function deleteImport(importId: string, alsoSaved = false): Promise
     if (!removed.ok && !/no longer exists/.test(removed.message)) return { ok: false };
   }
 
-  const { data: docs } = await supabase
-    .from("documents")
-    .select("id, storage_path")
-    .eq("import_id", importId);
-  const docIds = (docs ?? []).map((d) => d.id);
-
-  if (docIds.length > 0) {
-    const { data: links } = await supabase
-      .from("document_links")
-      .select("document_id")
-      .in("document_id", docIds);
-    const linked = new Set((links ?? []).map((l) => l.document_id));
-    const unlinked = (docs ?? []).filter((d) => !linked.has(d.id));
-
-    if (unlinked.length > 0) {
-      await supabase.storage.from("documents").remove(unlinked.map((d) => d.storage_path));
-      await supabase.from("documents").delete().in("id", unlinked.map((d) => d.id));
-    }
-  }
-
+  await removeImportFiles(supabase, [importId]);
   const { error } = await supabase.from("imports").delete().eq("id", importId);
   if (error) console.error("[imports] delete failed:", error.message);
   // The "needs you" count in the menu changes too.
   refresh();
   return { ok: !error };
+}
+
+/** Removes the files these imports brought in, except ones since attached to a record. */
+async function removeImportFiles(supabase: Awaited<ReturnType<typeof createClient>>, importIds: string[]) {
+  const { data: docs } = await supabase
+    .from("documents")
+    .select("id, storage_path")
+    .in("import_id", importIds);
+  const docIds = (docs ?? []).map((d) => d.id);
+  if (docIds.length === 0) return;
+
+  const { data: links } = await supabase
+    .from("document_links")
+    .select("document_id")
+    .in("document_id", docIds);
+  const linked = new Set((links ?? []).map((l) => l.document_id));
+  const unlinked = (docs ?? []).filter((d) => !linked.has(d.id));
+
+  if (unlinked.length > 0) {
+    await supabase.storage.from("documents").remove(unlinked.map((d) => d.storage_path));
+    await supabase.from("documents").delete().in("id", unlinked.map((d) => d.id));
+  }
 }
 
 // ── Reading uploads and forwarded emails ────────────────────────────────
@@ -166,13 +169,46 @@ export async function finishForwarding(importId: string, trust: boolean): Promis
   return deleteImport(importId);
 }
 
-/** Deletes several imports at once (see deleteImport); the ones that couldn't be deleted are returned. */
+/**
+ * Deletes several imports at once (see deleteImport), in a few batched queries
+ * rather than one round of them per import. Returns the ones it couldn't delete.
+ */
 export async function deleteImports(importIds: string[], alsoSaved = false): Promise<{ failed: string[] }> {
   const ids = z.array(id).max(200).safeParse(importIds);
   if (!ids.success) return { failed: importIds };
-  const failed: string[] = [];
-  for (const importId of ids.data) {
-    if (!(await deleteImport(importId, alsoSaved)).ok) failed.push(importId);
+  const supabase = await createClient();
+  const failed = new Set<string>();
+
+  if (alsoSaved) {
+    const { data: imps } = await supabase.from("imports").select("id, result").in("id", ids.data);
+    const saved = (imps ?? []).map((imp) => ({
+      importId: imp.id,
+      ...((imp.result ?? {}) as { order_id?: string; service_event_id?: string }),
+    }));
+    // A few at a time: each one checks and removes its own documents.
+    for (let i = 0; i < saved.length; i += 5) {
+      await Promise.all(
+        saved.slice(i, i + 5).map(async (r) => {
+          const removed = r.service_event_id
+            ? await deleteServiceEvent(r.service_event_id)
+            : r.order_id
+              ? await deleteOrder(r.order_id)
+              : ({ ok: true } as const);
+          if (!removed.ok && !/no longer exists/.test(removed.message)) failed.add(r.importId);
+        }),
+      );
+    }
   }
-  return { failed };
+
+  const rest = ids.data.filter((i) => !failed.has(i));
+  if (rest.length > 0) {
+    await removeImportFiles(supabase, rest);
+    const { error } = await supabase.from("imports").delete().in("id", rest);
+    if (error) {
+      console.error("[imports] bulk delete failed:", error.message);
+      rest.forEach((i) => failed.add(i));
+    }
+  }
+  refresh();
+  return { failed: [...failed] };
 }

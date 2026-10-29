@@ -51,11 +51,18 @@ export function ImportsList({ imports: all }: { imports: ImportRecord[] }) {
     });
   }
 
-  function removed(ids: string[]) {
-    setDeleted((prev) => new Set([...prev, ...ids]));
-    setSelected((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
-    router.refresh();
-  }
+  // Hidden as soon as the delete is confirmed; the server can take a few
+  // seconds for many rows. Put back any it couldn't delete.
+  const rows = {
+    hide(ids: string[]) {
+      setDeleted((prev) => new Set([...prev, ...ids]));
+      setSelected((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
+    },
+    restore(ids: string[]) {
+      if (ids.length) setDeleted((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
+    },
+    refresh: () => router.refresh(),
+  };
 
   return (
     <>
@@ -92,7 +99,7 @@ export function ImportsList({ imports: all }: { imports: ImportRecord[] }) {
             <span className="text-sm text-muted-foreground">
               {chosen.length ? `${chosen.length} selected` : "Select all"}
             </span>
-            {chosen.length > 0 && <DeleteSelected records={chosen} onDeleted={removed} />}
+            {chosen.length > 0 && <DeleteSelected records={chosen} rows={rows} />}
           </div>
         )}
         {visible.length === 0 ? (
@@ -138,7 +145,7 @@ export function ImportsList({ imports: all }: { imports: ImportRecord[] }) {
                   <ImportStatusBadge status={r.status} />
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
                 </Link>
-                <DeleteImportButton record={r} onDeleted={removed} />
+                <DeleteImportButton record={r} rows={rows} />
               </li>
             ))}
           </ul>
@@ -152,7 +159,15 @@ export function ImportsList({ imports: all }: { imports: ImportRecord[] }) {
 const savedKind = (r: ImportRecord) =>
   r.status !== "imported" ? undefined : r.result?.serviceEventId ? "service" : r.result?.orderId ? "purchase" : undefined;
 
-function DeleteSelected({ records, onDeleted }: { records: ImportRecord[]; onDeleted: (ids: string[]) => void }) {
+interface Rows {
+  hide: (ids: string[]) => void;
+  restore: (ids: string[]) => void;
+  refresh: () => void;
+}
+
+const plural = (n: number) => `${n} import${n === 1 ? "" : "s"}`;
+
+function DeleteSelected({ records, rows }: { records: ImportRecord[]; rows: Rows }) {
   const fid = useId();
   const [open, setOpen] = useState(false);
   const [alsoSaved, setAlsoSaved] = useState(true);
@@ -160,13 +175,22 @@ function DeleteSelected({ records, onDeleted }: { records: ImportRecord[]; onDel
 
   async function remove() {
     const ids = records.map((r) => r.id);
-    const { failed } = isSupabaseConfigured ? await deleteImports(ids, saved > 0 && alsoSaved) : { failed: [] };
-    const done = ids.filter((id) => !failed.includes(id));
-    if (done.length) {
-      toast.success(`${done.length} import${done.length === 1 ? "" : "s"} deleted`);
-      onDeleted(done);
+    rows.hide(ids);
+    if (!isSupabaseConfigured) return void toast.success(`${plural(ids.length)} deleted`);
+    const progress = toast.loading(`Deleting ${plural(ids.length)}…`);
+    const failed = await deleteImports(ids, saved > 0 && alsoSaved).then(
+      (r) => r.failed,
+      () => ids,
+    );
+    rows.restore(failed);
+    const done = ids.length - failed.length;
+    if (failed.length) {
+      toast.error(`Couldn't delete ${plural(failed.length)}. Please try again.`, { id: progress });
+      if (done) toast.success(`${plural(done)} deleted`);
+      rows.refresh();
+    } else {
+      toast.success(`${plural(done)} deleted`, { id: progress });
     }
-    if (failed.length) toast.error(`Couldn't delete ${failed.length}. Please try again.`);
   }
 
   return (
@@ -192,7 +216,7 @@ function DeleteSelected({ records, onDeleted }: { records: ImportRecord[]; onDel
   );
 }
 
-function DeleteImportButton({ record, onDeleted }: { record: ImportRecord; onDeleted: (ids: string[]) => void }) {
+function DeleteImportButton({ record, rows }: { record: ImportRecord; rows: Rows }) {
   const fid = useId();
   const [open, setOpen] = useState(false);
   const saved = savedKind(record);
@@ -200,12 +224,13 @@ function DeleteImportButton({ record, onDeleted }: { record: ImportRecord; onDel
   const withSaved = Boolean(saved) && alsoSaved;
 
   async function remove() {
-    if (isSupabaseConfigured && !(await deleteImport(record.id, withSaved)).ok) {
+    rows.hide([record.id]);
+    if (isSupabaseConfigured && !(await deleteImport(record.id, withSaved).catch(() => ({ ok: false }))).ok) {
+      rows.restore([record.id]);
       toast.error("Couldn't delete the import. Please try again.");
       return;
     }
     toast.success(withSaved ? `Import and its ${saved} deleted` : "Import deleted");
-    onDeleted([record.id]);
   }
 
   return (
