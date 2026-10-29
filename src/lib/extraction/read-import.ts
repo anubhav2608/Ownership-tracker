@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import type { Identifier } from "@/lib/types";
 import { bodyLines, parseRawEmail } from "./email";
-import { matchItems, type MatchableItem } from "./match";
+import { matchItems, matchRefundedItems, type MatchableItem } from "./match";
 import { mergeExtractions, parseDocument, type Extraction } from "./parse";
 import { extractPdfText, PdfFileError } from "./pdf-text";
 import { keptAttachments, storeDocument } from "@/lib/stored-documents";
@@ -196,18 +196,7 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
 }
 
 async function review(db: Db, userId: string, x: Extraction, text: string): Promise<Outcome> {
-  if (x.documentKind === "refund_notice") {
-    return {
-      ...failure(
-        "REFUND_NOT_SUPPORTED",
-        "This looks like a refund notice. Refunds can't be applied automatically yet: open the purchase and mark the item as returned.",
-        false,
-        "parsed",
-      ),
-      document_kind: "refund_notice",
-      parser: x.parser,
-    };
-  }
+  if (x.documentKind === "refund_notice") return refundReview(db, userId, x);
 
   const reviewReasons = [...x.reviewReasons];
   let candidates: Json = [];
@@ -237,6 +226,71 @@ async function review(db: Db, userId: string, x: Extraction, text: string): Prom
     review_reasons: reviewReasons,
     candidates,
   };
+}
+
+/** A refund notice: found the purchase it's for, and which of its items went back. */
+async function refundReview(db: Db, userId: string, x: Extraction): Promise<Outcome> {
+  const reviewReasons = [...x.reviewReasons];
+  const target = await refundedPurchase(db, userId, x.fields.orderRef?.value);
+  let itemIds: string[] = [];
+  if (target) {
+    const { data: items } = await db
+      .from("items")
+      .select("id, name")
+      .eq("order_id", target.orderId)
+      .eq("status", "owned");
+    itemIds = matchRefundedItems(
+      x.lines.flatMap((l) => (l.name.value ? [l.name.value] : [])),
+      items ?? [],
+    );
+    if (x.lines.length > 0 && itemIds.length < x.lines.length) {
+      reviewReasons.push("Not every refunded item was matched to the purchase: tick the ones that went back.");
+    }
+  } else if (x.fields.orderRef?.value) {
+    reviewReasons.push(
+      `No purchase with order number ${x.fields.orderRef.value} yet: choose the purchase it's for, or save the order first.`,
+    );
+  }
+  return {
+    status: "needs_review",
+    stage: "matched",
+    document_kind: "refund_notice",
+    parser: x.parser,
+    extracted: {
+      fields: x.fields,
+      lines: x.lines,
+      parts: [],
+      refund: target ? { order_id: target.orderId, item_ids: itemIds, matched_on: target.on } : null,
+    } as unknown as Json,
+    review_reasons: reviewReasons,
+    candidates: [],
+  };
+}
+
+/**
+ * The purchase an order number belongs to: saved under it, or saved from an
+ * email listing several orders (kept under the first one's number).
+ */
+async function refundedPurchase(db: Db, userId: string, orderRef?: string | null) {
+  if (!orderRef) return null;
+  const exactly = orderRef.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const { data: order } = await db
+    .from("orders")
+    .select("id")
+    .eq("user_id", userId)
+    .ilike("order_ref", exactly)
+    .limit(1)
+    .maybeSingle();
+  if (order) return { orderId: order.id, on: "order_number" as const };
+  const { data: imports } = await db
+    .from("imports")
+    .select("result")
+    .eq("user_id", userId)
+    .eq("status", "imported")
+    .ilike("extracted->>text", `%${exactly}%`)
+    .limit(5);
+  const orderId = (imports ?? []).map((i) => (i.result as { order_id?: string } | null)?.order_id).find(Boolean);
+  return orderId ? { orderId, on: "earlier_email" as const } : null;
 }
 
 /** A purchase of this user's with the same order or invoice number (case-insensitive). */

@@ -212,6 +212,14 @@ export interface ImportRecord {
   /** The text read from the document, line by line, to show what extraction saw. */
   text?: string[];
   candidates?: MatchCandidate[];
-  /** What the import created, once saved. */
-  result?: { orderId?: string; itemIds?: string[]; serviceEventId?: string };
+  /** A refund notice: the purchase it seems to be for, and the items that went back. */
+  refundMatch?: { orderId: string; itemIds: string[]; matchedOn: "order_number" | "earlier_email" };
+  /** What the import created, once saved (or, for a refund notice, the purchase it was applied to). */
+  result?: {
+    orderId?: string;
+    itemIds?: string[];
+    serviceEventId?: string;
+    refund?: number;
+    refundedItemIds?: string[];
+  };
 }

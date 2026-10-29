@@ -15,7 +15,7 @@ import { documentKindLabel, ImportStatusBadge, SourceLabel } from "@/components/
 import { Card } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import type { ImportRecord, ImportStatus } from "@/lib/types";
 
 const filters: { value: string; label: string; statuses?: ImportStatus[] }[] = [
@@ -157,7 +157,8 @@ export function ImportsList({ imports: all }: { imports: ImportRecord[] }) {
 
 /** What was saved from an import, which can be deleted with it. */
 const savedKind = (r: ImportRecord) =>
-  r.status !== "imported" ? undefined : r.result?.serviceEventId ? "service" : r.result?.orderId ? "purchase" : undefined;
+  // A refund notice was applied to a purchase it didn't create: that stays.
+  r.status !== "imported" || r.result?.refund !== undefined ? undefined : r.result?.serviceEventId ? "service" : r.result?.orderId ? "purchase" : undefined;
 
 interface Rows {
   hide: (ids: string[]) => void;
@@ -282,6 +283,7 @@ function summary(r: ImportRecord) {
     case "queued":
       return "Working on it. This usually takes under a minute.";
     case "imported":
+      if (r.result?.refund !== undefined) return `Refund of ${formatMoney(r.result.refund)} applied to a purchase.`;
       return r.result?.serviceEventId
         ? "Added as a service event."
         : `Saved${r.result?.itemIds ? ` with ${r.result.itemIds.length} item${r.result.itemIds.length > 1 ? "s" : ""}` : ""}.`;

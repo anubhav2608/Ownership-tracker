@@ -212,3 +212,42 @@ export async function deleteImports(importIds: string[], alsoSaved = false): Pro
   refresh();
   return { failed: [...failed] };
 }
+
+const refundSchema = z.object({
+  orderId: id,
+  itemIds: z.array(id).max(200),
+  outcome: z.enum(["returned", "cancelled"]),
+  refund: z.number().nonnegative().max(1e10),
+});
+
+/**
+ * Applies a refund notice the user has checked: the items that went back are
+ * marked returned (or cancelled), the money back is added to the purchase, and
+ * the notice is filed with it.
+ */
+export async function applyRefund(
+  importId: string,
+  input: z.infer<typeof refundSchema>,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const parsed = refundSchema.safeParse(input);
+  if (!id.safeParse(importId).success || !parsed.success) return { ok: false, message: "Please check the details and try again." };
+  const { orderId, itemIds, outcome, refund } = parsed.data;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("apply_refund_import", {
+    import_id: importId,
+    order_id: orderId,
+    item_ids: itemIds,
+    outcome,
+    refund,
+  });
+  if (error) {
+    console.error("[imports] apply_refund_import failed:", error.code, error.message);
+    if (missingFunction(error)) return { ok: false, message: NOT_MIGRATED };
+    return {
+      ok: false,
+      message: error.code === "P0002" ? "That purchase or import no longer exists, or the refund was already applied." : "Couldn't apply the refund. Please try again.",
+    };
+  }
+  refresh();
+  return { ok: true };
+}

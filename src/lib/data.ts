@@ -290,6 +290,8 @@ interface StoredExtraction {
   lines?: ExtractedLine[];
   parts?: ExtractedLine[];
   text?: string[];
+  /** A refund notice: the purchase it was matched to. */
+  refund?: { order_id: string; item_ids: string[]; matched_on: "order_number" | "earlier_email" } | null;
 }
 
 interface StoredCandidate {
@@ -302,6 +304,9 @@ interface StoredResult {
   order_id?: string;
   item_ids?: string[];
   service_event_id?: string;
+  /** Money back from a refund notice applied to order_id. */
+  refund?: number;
+  refunded_item_ids?: string[];
 }
 
 function toImport(r: Row<"imports">): ImportRecord {
@@ -325,6 +330,9 @@ function toImport(r: Row<"imports">): ImportRecord {
     lines: extracted.lines,
     parts: extracted.parts,
     text: extracted.text,
+    refundMatch: extracted.refund
+      ? { orderId: extracted.refund.order_id, itemIds: extracted.refund.item_ids, matchedOn: extracted.refund.matched_on }
+      : undefined,
     candidates: (r.candidates as unknown as StoredCandidate[]).map((c) => ({
       itemId: c.item_id,
       score: c.score,
@@ -335,6 +343,8 @@ function toImport(r: Row<"imports">): ImportRecord {
           orderId: result.order_id,
           itemIds: result.item_ids,
           serviceEventId: result.service_event_id,
+          refund: result.refund,
+          refundedItemIds: result.refunded_item_ids,
         }
       : undefined,
   };

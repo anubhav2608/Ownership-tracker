@@ -489,3 +489,37 @@ describe("home service booking (platform invoice + partner receipt in one PDF)",
     expect(outcome.extraction.fields.total?.value).toBe(1848);
   });
 });
+
+describe("refund notice", () => {
+  // Fictional, in the layout of a marketplace refund email.
+  const lines = [
+    "Dear Customer,", "Greetings from Amazon.in",
+    "We are writing to confirm that your refund for ₹503.00 has been processed for your Order # 402-2222222-2222222.",
+    "This refund is for the following item(s):",
+    "Item: Example Baby Moments Gentle Body Wash And Shampoo For Soft Hair 500ml", "Quantity: 1", "ASIN: B000000000",
+    "Reason for refund: Item not satisfactory", "Here's the breakdown of your refund:",
+    "Item Refund: ₹479.04", "Item Tax Refund: ₹23.96", "Shipping Refund: ₹9.04", "Shipping Tax Refund: ₹0.46",
+    "Shipping Promotion Deduction*: -₹9.04", "Shipping Promotion Tax Deduction*: -₹0.46",
+    "* About Promotions:", "Your refund is being credited as follows:", "Original Payment Method: ₹503.00",
+  ];
+
+  it("reads the refund, its order number and the item, not a new purchase", () => {
+    const outcome = parseDocument(lines, { sentOn: "2026-10-20" });
+    if (!outcome.ok) throw new Error(outcome.reason);
+    const x = outcome.extraction;
+    expect(x.documentKind).toBe("refund_notice");
+    expect(x.fields.total?.value).toBe(503);
+    expect(x.fields.orderRef?.value).toBe("402-2222222-2222222");
+    expect(x.fields.merchant?.value).toBe("Amazon");
+    expect(x.lines.map((l) => [l.name.value, l.quantity, l.price.value])).toEqual([
+      ["Example Baby Moments Gentle Body Wash And Shampoo For Soft Hair 500ml", 1, 503],
+    ]);
+    expect(x.reviewReasons).toEqual([]);
+  });
+
+  it("finds the amount from the credit line when the sentence doesn't give it", () => {
+    const outcome = parseDocument(lines.map((l) => l.replace("your refund for ₹503.00 has", "your refund has")));
+    if (!outcome.ok) throw new Error(outcome.reason);
+    expect(outcome.extraction.fields.total?.value).toBe(503);
+  });
+});

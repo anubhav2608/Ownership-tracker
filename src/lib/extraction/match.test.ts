@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchItems, type MatchableItem } from "./match";
+import { matchItems, matchRefundedItems, type MatchableItem } from "./match";
 
 const car: MatchableItem = {
   id: "car",
@@ -43,5 +43,32 @@ describe("matchItems", () => {
 
   it("finds nothing when the receipt mentions none of the items", () => {
     expect(matchItems("Sofa dry cleaning  Rs. 1,200.00", [car, livingAc, bedroomAc])).toEqual([]);
+  });
+});
+
+describe("matchRefundedItems", () => {
+  const items = [
+    { id: "oil", name: "Example Coconut Oil (Cold..." },
+    { id: "wash", name: "Example Baby Moments Gentle Body W..." },
+    { id: "boxes", name: "Pack of 6 Example Fridge Door Storag..." },
+  ];
+
+  it("matches a full name to the shop's shortened one", () => {
+    expect(
+      matchRefundedItems(["Example Baby Moments Gentle Body Wash And Shampoo For Soft Hair 500ml"], items),
+    ).toEqual(["wash"]);
+  });
+
+  it("matches on most of the words when the order differs", () => {
+    expect(matchRefundedItems(["Gentle Body Wash, Example Baby Moments"], items)).toEqual(["wash"]);
+  });
+
+  it("leaves unclear names for the user", () => {
+    expect(matchRefundedItems(["Example Shampoo"], items)).toEqual([]);
+    expect(matchRefundedItems(["Example"], items)).toEqual([]);
+    // Two items that both fit: neither is picked.
+    expect(
+      matchRefundedItems(["Example Coconut Oil"], [...items, { id: "oil2", name: "Example Coconut Oil 1L" }]),
+    ).toEqual([]);
   });
 });

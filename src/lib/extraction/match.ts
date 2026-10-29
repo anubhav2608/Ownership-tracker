@@ -59,3 +59,33 @@ export function matchItems(text: string, items: MatchableItem[], provider?: stri
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 }
+
+/** Lower-case words, without a cut-off name's trailing "…" or its half word. */
+function nameWords(name: string) {
+  const cut = /(\.\.\.|…)\s*$/.test(name);
+  const words = name.toLowerCase().replace(/(\.\.\.|…)\s*$/, "").split(/[^a-z0-9]+/).filter(Boolean);
+  return cut && words.length > 1 ? words.slice(0, -1) : words;
+}
+
+/**
+ * The items of a purchase that a refund notice names. Shops cut names short
+ * ("Example Body W..."), so a name matches when one's words begin the other's,
+ * or most of the shorter one's words appear in the longer. Only clear matches:
+ * an item named by several refund lines, or matching none, is left for the user.
+ */
+export function matchRefundedItems(refunded: string[], items: { id: string; name: string }[]): string[] {
+  const found = new Set<string>();
+  for (const name of refunded) {
+    const want = nameWords(name);
+    const hits = items.filter((item) => {
+      const have = nameWords(item.name);
+      const [short, long] = want.length <= have.length ? [want, have] : [have, want];
+      if (short.length < 2) return false;
+      if (short.every((w, i) => long[i] === w)) return true;
+      const shared = short.filter((w) => long.includes(w) && !GENERIC_WORDS.has(w)).length;
+      return shared >= 3 && shared / short.length >= 0.75;
+    });
+    if (hits.length === 1) found.add(hits[0].id);
+  }
+  return [...found];
+}

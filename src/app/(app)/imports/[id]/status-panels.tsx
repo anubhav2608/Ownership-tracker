@@ -315,13 +315,23 @@ export function ImportedPanel({
   const linkedItem = items.find((i) => i.id === (serviceEvent?.itemId ?? match?.itemId));
 
   return (
-    <SectionCard title="Created from this import">
+    <SectionCard title={record.documentKind === "refund_notice" ? "Applied from this import" : "Created from this import"}>
       <ul className="divide-y">
         {record.result?.orderId && (
           <li className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
-            <span>
-              Purchase from <span className="font-medium">{orderMerchant}</span>
-            </span>
+            {record.result.refund !== undefined ? (
+              <span>
+                Refund of <span className="font-medium">{formatMoney(record.result.refund)}</span> applied to the
+                purchase from <span className="font-medium">{orderMerchant}</span>
+                {record.result.refundedItemIds?.length
+                  ? `, ${record.result.refundedItemIds.length} item${record.result.refundedItemIds.length === 1 ? "" : "s"} marked returned`
+                  : ""}
+              </span>
+            ) : (
+              <span>
+                Purchase from <span className="font-medium">{orderMerchant}</span>
+              </span>
+            )}
             <Link href={`/purchases/${record.result.orderId}`} className="text-primary hover:underline">
               View
             </Link>
@@ -378,7 +388,8 @@ export function ImportedPanel({
         <DiscardButton
           importId={record.id}
           description="Only the import record is removed. What it created stays, with the documents attached to it."
-          saved={record.result?.orderId ? "purchase" : serviceEvent ? "service" : undefined}
+          // A refund notice changed a purchase it didn't create: deleting it leaves the purchase.
+          saved={record.result?.refund !== undefined ? undefined : record.result?.orderId ? "purchase" : serviceEvent ? "service" : undefined}
         />
       </div>
 

@@ -607,6 +607,10 @@ export type Database = {
         Args: { import_id: string; result: Json };
         Returns: undefined;
       };
+      apply_refund_import: {
+        Args: { import_id: string; order_id: string; item_ids: string[]; outcome: string; refund: number };
+        Returns: undefined;
+      };
       record_purchase_outcome: {
         Args: { order_id: string; item_ids: string[]; outcome: string; refund: number };
         Returns: undefined;

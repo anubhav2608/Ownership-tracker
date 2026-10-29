@@ -66,7 +66,10 @@ const MERCHANTS: KnownMerchant[] = [
 // ── Document kind ───────────────────────────────────────────────────────
 
 const KIND_SIGNALS: [DocumentKind, RegExp][] = [
-  ["refund_notice", /\b(refund (processed|initiated|issued)|credit note|refunded)\b/i],
+  [
+    "refund_notice",
+    /\b(refund (processed|initiated|issued)|credit note|refunded)\b|\b(your|the|a) refund\b[^.\n]{0,60}\b(has been|was|is being|is) (processed|initiated|issued|credited)\b/i,
+  ],
   ["service_receipt", /\b(service (invoice|report|receipt|charge)|job card|repair order|technician|labou?r|servicing|visit charge|spare parts?)\b/i],
   ["invoice", /\b(tax invoice|invoice (no|number|date)|bill of supply|invoice)\b/i],
   ["order_confirmation", /\b(order (confirmation|placed|confirmed)|your order|thank you for (your )?(order|shopping))\b/i],
@@ -79,6 +82,38 @@ function classify(text: string, merchant?: KnownMerchant): DocumentKind {
 }
 
 // ── Fields ──────────────────────────────────────────────────────────────
+
+const MONEY = String.raw`(?:₹|rs\.?|inr)\s?-?\s?([\d,]+(?:\.\d{1,2})?)`;
+const REFUND_AMOUNT: [RegExp, number][] = [
+  // "your refund for ₹503.00 has been processed"
+  [new RegExp(String.raw`\brefund (?:for|of)\s*${MONEY}`, "i"), 0.95],
+  [new RegExp(String.raw`\b(?:total refund|refund amount|amount refunded|refund total|total refunded)\b[^\d₹]{0,20}${MONEY}`, "i"), 0.9],
+  // "Original Payment Method: ₹503.00": what is credited back
+  [new RegExp(String.raw`\b(?:original payment method|credited (?:to|back to)[^:\n]{0,40})\s*:?\s*${MONEY}`, "i"), 0.85],
+];
+
+/** A refund notice: how much came back, and for which items ("Item: …", then "Quantity: 1"). */
+function refundDetails(lines: string[], text: string) {
+  let amount: Tracked<number> = missing();
+  for (const [pattern, confidence] of REFUND_AMOUNT) {
+    const m = text.match(pattern);
+    const value = m ? Number(m[1].replace(/,/g, "")) : NaN;
+    if (value > 0) {
+      amount = extracted(value, confidence);
+      break;
+    }
+  }
+  const items: ExtractedLine[] = [];
+  for (const [i, line] of lines.entries()) {
+    const m = line.match(/^(?:item|product)(?: name)?\s*:\s*(.{3,})$/i);
+    if (!m) continue;
+    const qty = lines[i + 1]?.match(/^(?:quantity|qty)\s*:?\s*(\d{1,3})\b/i);
+    items.push({ name: extracted(m[1].trim(), 0.9), quantity: qty ? Number(qty[1]) : 1, price: missing() });
+  }
+  // One item refunded: the refund is its price.
+  if (items.length === 1 && amount.value !== null) items[0].price = extracted(amount.value, 0.8);
+  return { amount, items };
+}
 
 const label = (words: string) => new RegExp(`\\b(?:${words})\\b\\s*(?:no\\.?|number|#|id)?\\s*[:#-]?\\s*`, "i");
 
@@ -679,6 +714,26 @@ export function parseDocument(
   let date = findDate(clean);
   // Order emails often say only "Arriving today"; they were sent when the order was placed.
   if (date.state === "missing" && options.sentOn) date = extracted(options.sentOn, 0.7);
+
+  if (documentKind === "refund_notice") {
+    // Applied to a purchase you already have (see read-import), never saved as a new one.
+    const refund = refundDetails(clean, text);
+    const fields: ExtractedFields = { merchant, date, total: refund.amount, ...findRefs(clean, text, known) };
+    const reviewReasons: string[] = [];
+    if (refund.amount.value === null) reviewReasons.push("No refund amount found.");
+    if (fields.orderRef?.value === null) reviewReasons.push("No order number found: choose the purchase it's for.");
+    return {
+      ok: true,
+      extraction: {
+        documentKind,
+        parser: known ? `${known.id}@v1` : "generic@v1",
+        fields,
+        lines: refund.items,
+        parts: [],
+        reviewReasons,
+      },
+    };
+  }
   const total = findTotal(clean);
   if (documentKind === "other" && (date.value === null || total.state === "missing")) {
     return { ok: false, reason: "not_a_receipt" };

@@ -18,6 +18,7 @@ import {
   ProcessingPanel,
   UnsupportedPanel,
 } from "./status-panels";
+import { RefundReview } from "./refund-review";
 import { ReviewForm } from "./review-form";
 
 export const metadata: Metadata = { title: "Import" };
@@ -68,7 +69,27 @@ async function ImportDetail({ params }: Pick<PageProps<"/imports/[id]">, "params
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="min-w-0 space-y-6 lg:col-span-2">
-          {record.status === "needs_review" && <ReviewForm record={record} items={ownedItems} />}
+          {record.status === "needs_review" &&
+            (record.documentKind === "refund_notice" ? (
+              <RefundReview
+                record={record}
+                purchases={[...orders]
+                  .sort((a, b) => b.orderDate.localeCompare(a.orderDate))
+                  .map((o) => ({
+                    id: o.id,
+                    merchant: o.merchant,
+                    orderRef: o.orderRef,
+                    orderDate: o.orderDate,
+                    total: o.total,
+                    refundedAmount: o.refundedAmount,
+                    items: items
+                      .filter((i) => i.orderId === o.id && i.status === "owned")
+                      .map((i) => ({ id: i.id, name: i.name, price: i.price.value })),
+                  }))}
+              />
+            ) : (
+              <ReviewForm record={record} items={ownedItems} />
+            ))}
           {(record.status === "processing" || record.status === "queued") && (
             <ProcessingPanel importId={record.id} status={record.status} />
           )}
