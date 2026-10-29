@@ -10,7 +10,7 @@ import { ReturnsList } from "@/components/returns-list";
 import { formatMoney } from "@/lib/format";
 import { returnsFrom } from "@/lib/refunds";
 
-export const metadata: Metadata = { title: "Returns" };
+export const metadata: Metadata = { title: "Returns & cancellations" };
 
 // Everything that went back: returned and cancelled items, and refunds, with
 // what came back and what is still to come.
@@ -35,14 +35,14 @@ async function ReturnsContent() {
           </Card>
         ))}
       </div>
-      <SectionCard title="All returns">
+      <SectionCard title="All returns and cancellations">
         {entries.length === 0 ? (
           <Empty className="py-12">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <RotateCcw />
               </EmptyMedia>
-              <EmptyTitle>No returns</EmptyTitle>
+              <EmptyTitle>No returns or cancellations</EmptyTitle>
               <EmptyDescription>
                 Mark items returned or cancelled from their purchase, or forward the refund email.
               </EmptyDescription>
@@ -60,7 +60,7 @@ export default function ReturnsPage() {
   return (
     <>
       <PageHeader
-        title="Returns"
+        title="Returns & cancellations"
         description="Returned and cancelled items, and the money that came back."
       />
       <Suspense fallback={<ListCardSkeleton rows={4} />}>

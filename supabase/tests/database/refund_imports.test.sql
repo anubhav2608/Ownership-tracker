@@ -1,6 +1,6 @@
 -- Applying a forwarded refund notice to the purchase it's for.
 begin;
-select plan(9);
+select plan(11);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-0000-0000-0000-000000000001', 'alice@example.com'),
@@ -56,6 +56,25 @@ select throws_ok($$
     '{}'::uuid[], 'returned', 10)
 $$, 'P0002', null, 'a notice can''t be applied twice');
 
+select results_eq(
+  $$select (select status_changed_at from public.items where id = '1e000000-0000-0000-0000-000000000002') is not null$$,
+  $$values (true)$$,
+  'without a date from the email, the return is dated when applied'
+);
+
+-- Dated by the email
+insert into public.items (id, order_id, name, category, price) values
+  ('1e000000-0000-0000-0000-000000000003', '0d000000-0000-0000-0000-000000000001', 'Example Lamp', 'home', 100);
+insert into public.imports (id, source, title) values ('a4000000-0000-0000-0000-000000000003', 'upload', 'Return');
+select public.apply_refund_import('a4000000-0000-0000-0000-000000000003', '0d000000-0000-0000-0000-000000000001',
+  array['1e000000-0000-0000-0000-000000000003']::uuid[], 'returned', 100, '2026-09-20');
+select results_eq(
+  $$select (select (status_changed_at at time zone 'Asia/Kolkata')::date from public.items where id = '1e000000-0000-0000-0000-000000000003'),
+           (select (refunded_at at time zone 'Asia/Kolkata')::date from public.orders where id = '0d000000-0000-0000-0000-000000000001')$$,
+  $$values ('2026-09-20'::date, '2026-09-20'::date)$$,
+  'the return and the refund take the email''s date'
+);
+
 -- Money back without an item going back
 select lives_ok($$
   select public.apply_refund_import('a4000000-0000-0000-0000-000000000002', '0d000000-0000-0000-0000-000000000001',
@@ -64,7 +83,7 @@ $$, 'a refund without items');
 select results_eq(
   $$select o.refunded_amount, (select status::text from public.items where id = '1e000000-0000-0000-0000-000000000001')
     from public.orders o where o.id = '0d000000-0000-0000-0000-000000000001'$$,
-  $$values (523.00::numeric, 'owned'::text)$$,
+  $$values (623.00::numeric, 'owned'::text)$$,
   'adds to the refund and leaves the items owned'
 );
 

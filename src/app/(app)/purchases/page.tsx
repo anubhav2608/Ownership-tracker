@@ -29,7 +29,7 @@ const TYPES = [
   { value: "all", label: "All" },
   { value: "items", label: "Items" },
   { value: "services", label: "Services" },
-  { value: "returns", label: "Returns" },
+  { value: "returns", label: "Returns & cancellations" },
 ] as const;
 type PurchaseType = (typeof TYPES)[number]["value"];
 
@@ -49,7 +49,7 @@ async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, 
   return (
     <>
       {all.length > 0 && (
-        <nav aria-label="Show" className="mb-4 inline-flex rounded-lg bg-muted p-1 text-sm">
+        <nav aria-label="Show" className="mb-4 inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1 text-sm">
           {TYPES.map((t) => (
             <Link
               key={t.value}
@@ -57,8 +57,8 @@ async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, 
               aria-current={type === t.value ? "page" : undefined}
               className={
                 type === t.value
-                  ? "rounded-md bg-card px-3 py-1 font-medium shadow-xs"
-                  : "rounded-md px-3 py-1 text-muted-foreground hover:text-foreground"
+                  ? "rounded-md bg-card px-3 py-1 font-medium whitespace-nowrap shadow-xs"
+                  : "rounded-md px-3 py-1 whitespace-nowrap text-muted-foreground hover:text-foreground"
               }
             >
               {t.label} <span className="text-xs text-muted-foreground tabular-nums">{count[t.value]}</span>
@@ -71,7 +71,7 @@ async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, 
           {returns.length === 0 ? (
             <EmptyCta
               icon={<Receipt />}
-              title="No returns"
+              title="No returns or cancellations"
               description="Mark items returned or cancelled from their purchase, or forward the refund email."
             />
           ) : (

@@ -26,7 +26,7 @@ const KINDS: { value: NonNullable<AttachInput["kind"]>; label: string }[] = [
   { value: "order_confirmation", label: "Order confirmation" },
   { value: "warranty_card", label: "Warranty card" },
   { value: "service_receipt", label: "Service receipt" },
-  { value: "refund_notice", label: "Refund notice" },
+  { value: "refund_notice", label: "Return, cancellation or refund" },
   { value: "other", label: "Miscellaneous" },
 ];
 

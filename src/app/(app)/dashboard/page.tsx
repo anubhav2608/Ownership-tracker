@@ -64,6 +64,12 @@ function DashboardSkeleton() {
   );
 }
 
+/** The latest of some timestamps, as a day in India (YYYY-MM-DD). */
+function latestDay(times: (string | undefined)[]) {
+  const latest = times.filter((t): t is string => !!t).sort().at(-1);
+  return latest ? new Date(latest).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) : undefined;
+}
+
 async function DashboardContent() {
   const [items, orders, documents, events, imports] = await Promise.all([
     getItems(),
@@ -88,7 +94,7 @@ async function DashboardContent() {
     <>
 
       <ExpensesCard
-        today={new Date().toLocaleDateString("en-CA")}
+        today={new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })}
         orders={orders.map((o) => ({
           id: o.id,
           merchant: o.merchant,
@@ -96,6 +102,7 @@ async function DashboardContent() {
           spent: amountSpent(o),
           total: o.total,
           documentIds: o.documentIds,
+          backOn: latestDay([o.refundedAt, ...items.filter((i) => i.orderId === o.id && notKept(i.status)).map((i) => i.statusChangedAt)]),
         }))}
         documentIds={documents.map((d) => d.id)}
         items={items.map((i) => ({
@@ -103,6 +110,7 @@ async function DashboardContent() {
           category: i.category,
           price: i.price.value,
           returned: notKept(i.status),
+          backOn: notKept(i.status) ? latestDay([i.statusChangedAt]) : undefined,
           owned: i.status === "owned",
           documentIds: i.documentIds,
         }))}
@@ -245,16 +253,16 @@ async function DashboardContent() {
 
       <SectionCard
         className="mt-6"
-        title="Recent returns"
+        title="Recent returns & cancellations"
         action={
           <Link href="/returns" className="text-xs font-medium text-primary">
-            All returns
+            See all
           </Link>
         }
       >
         {recentReturns.length === 0 ? (
           <p className="px-5 py-6 text-sm text-muted-foreground">
-            Nothing returned or refunded. Mark an item returned from its purchase, or forward the refund email.
+            Nothing returned or cancelled. Use Return or cancel on a purchase, or forward the cancellation or refund email.
           </p>
         ) : (
           <ReturnsList entries={recentReturns} />

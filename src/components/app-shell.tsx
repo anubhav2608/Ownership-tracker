@@ -45,7 +45,7 @@ const nav: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/items", label: "Items", icon: Boxes },
   { href: "/purchases", label: "Purchases", icon: Receipt },
   { href: "/services", label: "Services", icon: Wrench },
-  { href: "/returns", label: "Returns", icon: RotateCcw },
+  { href: "/returns", label: "Returns & cancellations", icon: RotateCcw },
   { href: "/imports", label: "Imports", icon: Inbox },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

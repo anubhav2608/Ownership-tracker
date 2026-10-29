@@ -65,7 +65,7 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
     return haystack.some((s) => s?.toLowerCase().includes(q));
   });
 
-  const today = new Date().toLocaleDateString("en-CA");
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const sorted = [...visible].sort((a, b) => {
     const av = sortValue(a.item, sort.column, today);
     const bv = sortValue(b.item, sort.column, today);

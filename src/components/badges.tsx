@@ -161,7 +161,7 @@ export function SourceLabel({ source }: { source: RecordSource }) {
 export const documentKindLabel: Record<DocumentKind, string> = {
   order_confirmation: "Order confirmation",
   invoice: "Invoice",
-  refund_notice: "Refund notice",
+  refund_notice: "Return or cancellation",
   service_receipt: "Service receipt",
   warranty_card: "Warranty card",
   other: "Miscellaneous",

@@ -23,6 +23,8 @@ export interface ExpenseOrder {
   spent: number;
   /** What was paid before any refund. */
   total: number;
+  /** When the latest return, cancellation or refund on it happened (YYYY-MM-DD). */
+  backOn?: string;
   documentIds: string[];
 }
 export interface ExpenseItem {
@@ -30,6 +32,8 @@ export interface ExpenseItem {
   category: Category;
   price: number | null;
   returned: boolean;
+  /** When it was returned or cancelled (YYYY-MM-DD). */
+  backOn?: string;
   owned: boolean;
   documentIds: string[];
 }
@@ -150,6 +154,22 @@ export function ExpensesCard({
     // The boxes: what the period, category and merchant cover.
     const inCategory = (c: Category) => category === "all" || c === category;
     const viewItems = items.filter((i) => i.orderId && shownOrders.has(i.orderId) && inCategory(i.category));
+
+    // The Returns & cancellations box counts by when they happened, not when
+    // the order was placed: a September order cancelled in October is October's.
+    function returnsInPeriod() {
+      const byMerchant = (o: ExpenseOrder) => merchant === "all" || o.merchant === merchant;
+      const orderById = new Map(orders.map((o) => [o.id, o]));
+      const back = items.filter((i) => {
+        const o = i.orderId ? orderById.get(i.orderId) : undefined;
+        return i.returned && i.backOn && inRange(i.backOn) && o && byMerchant(o) && inCategory(i.category);
+      });
+      const backAmount =
+        category === "all"
+          ? orders.filter((o) => o.backOn && inRange(o.backOn) && byMerchant(o)).reduce((s, o) => s + (o.total - o.spent), 0)
+          : back.reduce((s, i) => s + (i.price ?? 0), 0);
+      return { itemsBack: back.length, backAmount };
+    }
     const viewOrders = category === "all" ? theOrders : theOrders.filter((o) => viewItems.some((i) => i.orderId === o.id));
     const stored = new Set(documentIds);
     const docs = new Set(
@@ -164,7 +184,7 @@ export function ExpensesCard({
       returned,
       maintenance,
       owned: viewItems.filter((i) => i.owned).length,
-      itemsBack: viewItems.filter((i) => i.returned).length,
+      ...returnsInPeriod(),
       documents: docs.size,
       orderCount: category === "all" ? theOrders.length : new Set(theItems.filter((i) => i.category === category).map((i) => i.orderId)).size,
     };
@@ -279,8 +299,8 @@ export function ExpensesCard({
           { label: "Items owned", value: result.owned, href: "/items" },
           { label: "Purchases", value: result.orderCount, href: "/purchases" },
           {
-            label: "Returns",
-            value: formatMoney(result.returned),
+            label: "Returns & cancellations",
+            value: formatMoney(result.backAmount),
             note: `${result.itemsBack} item${result.itemsBack === 1 ? "" : "s"} back`,
             href: "/returns",
           },
@@ -326,7 +346,7 @@ export function ExpensesCard({
           </p>
           {result.returned > 0 && (
             <p className="mt-1 text-xs text-success">
-              {formatMoney(result.returned)} returned or refunded, already taken off
+              {formatMoney(result.returned)} returned or cancelled, already taken off
             </p>
           )}
           {total === 0 && (

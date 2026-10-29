@@ -614,7 +614,14 @@ export type Database = {
         Returns: undefined;
       };
       apply_refund_import: {
-        Args: { import_id: string; order_id: string; item_ids: string[]; outcome: string; refund: number };
+        Args: {
+          import_id: string;
+          order_id: string;
+          item_ids: string[];
+          outcome: string;
+          refund: number;
+          happened_on?: string;
+        };
         Returns: undefined;
       };
       record_purchase_outcome: {

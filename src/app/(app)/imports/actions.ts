@@ -218,6 +218,8 @@ const refundSchema = z.object({
   itemIds: z.array(id).max(200),
   outcome: z.enum(["returned", "cancelled"]),
   refund: z.number().nonnegative().max(1e10),
+  /** From the email: the date in it, or when it was sent. */
+  happenedOn: z.iso.date().optional(),
 });
 
 /**
@@ -231,7 +233,7 @@ export async function applyRefund(
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const parsed = refundSchema.safeParse(input);
   if (!id.safeParse(importId).success || !parsed.success) return { ok: false, message: "Please check the details and try again." };
-  const { orderId, itemIds, outcome, refund } = parsed.data;
+  const { orderId, itemIds, outcome, refund, happenedOn } = parsed.data;
   const supabase = await createClient();
   const { error } = await supabase.rpc("apply_refund_import", {
     import_id: importId,
@@ -239,6 +241,7 @@ export async function applyRefund(
     item_ids: itemIds,
     outcome,
     refund,
+    happened_on: happenedOn,
   });
   if (error) {
     console.error("[imports] apply_refund_import failed:", error.code, error.message);

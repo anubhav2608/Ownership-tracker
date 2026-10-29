@@ -82,7 +82,13 @@ export function RefundReview({ record, purchases }: { record: ImportRecord; purc
     if (!purchase || !amountOk) return;
     if (isSupabaseConfigured) {
       setSaving(true);
-      const result = await applyRefund(record.id, { orderId, itemIds: [...chosen], outcome, refund: amount });
+      const result = await applyRefund(record.id, {
+        orderId,
+        itemIds: [...chosen],
+        outcome,
+        refund: amount,
+        happenedOn: record.fields?.date?.value ?? undefined,
+      });
       setSaving(false);
       if (!result.ok) return void toast.error(result.message);
     }
@@ -112,6 +118,12 @@ export function RefundReview({ record, purchases }: { record: ImportRecord; purc
             <dt className="text-xs text-muted-foreground">From</dt>
             <dd className="font-medium">{record.fields?.merchant?.value ?? "—"}</dd>
           </div>
+          {record.fields?.date?.value && (
+            <div>
+              <dt className="text-xs text-muted-foreground">Date</dt>
+              <dd>{formatDate(record.fields.date.value)}</dd>
+            </div>
+          )}
           <div>
             <dt className="text-xs text-muted-foreground">Order number</dt>
             <dd className="font-mono">{ref ?? "—"}</dd>
