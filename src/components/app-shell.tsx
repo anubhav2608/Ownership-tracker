@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { LiveUpdates } from "@/components/live-updates";
 import { Button } from "@/components/ui/button";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
@@ -75,6 +76,7 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen">
+      <LiveUpdates />
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card px-3 py-5 md:flex">
         <div className="px-2">
