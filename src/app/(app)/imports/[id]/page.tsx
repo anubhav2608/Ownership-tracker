@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Check, FileText, Loader2, Mail, X } from "lucide-react";
 import { documentKindLabel, ImportStatusBadge, Pill, SourceLabel } from "@/components/badges";
 import { DocumentList } from "@/components/document-list";
+import { RefreshButton } from "@/components/refresh-button";
 import { DetailRow, SectionCard } from "@/components/layout-bits";
 import { DetailSkeleton } from "@/components/skeletons";
 import { formatDate } from "@/lib/format";
@@ -52,19 +53,22 @@ async function ImportDetail({ params }: Pick<PageProps<"/imports/[id]">, "params
   return (
     <>
 
-      <div className="mb-6 min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight break-words">{record.title}</h1>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <ImportStatusBadge status={record.status} />
-          {record.documentKind && record.documentKind !== "other" && (
-            <Pill>{documentKindLabel[record.documentKind]}</Pill>
-          )}
-          {record.parser && (
-            <Pill tone={record.parser === "llm" ? "info" : "neutral"}>
-              {record.parser === "llm" ? "AI extraction" : "Known format"}
-            </Pill>
-          )}
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-semibold tracking-tight break-words">{record.title}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <ImportStatusBadge status={record.status} />
+            {record.documentKind && record.documentKind !== "other" && (
+              <Pill>{documentKindLabel[record.documentKind]}</Pill>
+            )}
+            {record.parser && (
+              <Pill tone={record.parser === "llm" ? "info" : "neutral"}>
+                {record.parser === "llm" ? "AI extraction" : "Known format"}
+              </Pill>
+            )}
+          </div>
         </div>
+        <RefreshButton />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

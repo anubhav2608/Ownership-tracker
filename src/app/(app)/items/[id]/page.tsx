@@ -13,6 +13,7 @@ import {
   ReturnByBadge,
 } from "@/components/badges";
 import { DocumentList } from "@/components/document-list";
+import { RefreshButton } from "@/components/refresh-button";
 import { DetailRow, SectionCard } from "@/components/layout-bits";
 import { DetailSkeleton } from "@/components/skeletons";
 import { Progress } from "@/components/ui/progress";
@@ -58,6 +59,7 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
             <WarrantyBadge item={item} />
           </div>
         </div>
+        <RefreshButton />
         <ItemActions key={item.status} item={item} order={order} othersKept={siblings.filter((i) => i.status === "owned").length} />
       </div>
 

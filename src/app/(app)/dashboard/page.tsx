@@ -7,7 +7,6 @@ import { EmptyCta } from "@/components/empty-cta";
 import { PageHeader, SectionCard } from "@/components/layout-bits";
 import { ListCardSkeleton, StatTilesSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ReturnsList } from "@/components/returns-list";
 import { amountSpent, notKept, returnsFrom } from "@/lib/refunds";
@@ -74,8 +73,6 @@ async function DashboardContent() {
     getImports(),
   ]);
 
-  const owned = items.filter((i) => i.status === "owned");
-  const maintenance = events.reduce((sum, e) => sum + e.totalCost, 0);
   const attention = imports.filter(
     (r) => r.status === "needs_review" || r.status === "failed",
   );
@@ -87,37 +84,8 @@ async function DashboardContent() {
   const itemName = (id?: string) => items.find((i) => i.id === id)?.name;
   const orderItems = (orderId: string) => items.filter((i) => i.orderId === orderId);
 
-  const stats = [
-    { label: "Items owned", value: owned.length, href: "/items" },
-    { label: "Purchases", value: orders.length, href: "/purchases" },
-    { label: "Documents stored", value: documents.length },
-    { label: "Maintenance recorded", value: formatMoney(maintenance) },
-  ];
-
   return (
     <>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {stats.map((s) => {
-          const body = (
-            <>
-              <p className="text-xs text-muted-foreground">{s.label}</p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">{s.value}</p>
-            </>
-          );
-          return (
-            <Card key={s.label} className="gap-0 p-4">
-              {s.href ? (
-                <Link href={s.href} className="block">
-                  {body}
-                </Link>
-              ) : (
-                body
-              )}
-            </Card>
-          );
-        })}
-      </div>
 
       <ExpensesCard
         today={new Date().toLocaleDateString("en-CA")}
@@ -127,12 +95,16 @@ async function DashboardContent() {
           date: o.orderDate,
           spent: amountSpent(o),
           total: o.total,
+          documentIds: o.documentIds,
         }))}
+        documentIds={documents.map((d) => d.id)}
         items={items.map((i) => ({
           orderId: i.orderId,
           category: i.category,
           price: i.price.value,
           returned: notKept(i.status),
+          owned: i.status === "owned",
+          documentIds: i.documentIds,
         }))}
         events={events.map((e) => {
           const item = items.find((i) => i.id === e.itemId);
@@ -143,6 +115,7 @@ async function DashboardContent() {
             category: item?.category ?? "Miscellaneous",
             // Who was paid for the service (Urban Company), not where the item was bought.
             merchant: e.provider || undefined,
+            documentIds: e.documentId ? [e.documentId] : [],
           };
         })}
       />

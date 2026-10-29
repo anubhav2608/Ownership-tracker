@@ -24,18 +24,22 @@ export interface ExpenseOrder {
   spent: number;
   /** What was paid before any refund. */
   total: number;
+  documentIds: string[];
 }
 export interface ExpenseItem {
   orderId?: string;
   category: Category;
   price: number | null;
   returned: boolean;
+  owned: boolean;
+  documentIds: string[];
 }
 export interface ExpenseEvent {
   date: string;
   cost: number;
   category?: Category;
   merchant?: string;
+  documentIds: string[];
 }
 
 type Preset = "month" | "last-month" | "3-months" | "year" | "all" | "custom";
@@ -72,9 +76,12 @@ export function ExpensesCard({
   orders,
   items,
   events,
+  documentIds,
   today,
 }: {
   orders: ExpenseOrder[];
+  /** Every stored document, so a link to one since deleted isn't counted. */
+  documentIds: string[];
   items: ExpenseItem[];
   events: ExpenseEvent[];
   /** Today on the server, so the default month matches what was rendered. */
@@ -141,6 +148,17 @@ export function ExpensesCard({
     }
     const maintenance = theEvents.reduce((s, e) => s + e.cost, 0);
 
+    // The boxes: what the period, category and merchant cover.
+    const inCategory = (c: Category) => category === "all" || c === category;
+    const viewItems = items.filter((i) => i.orderId && shownOrders.has(i.orderId) && inCategory(i.category));
+    const viewOrders = category === "all" ? theOrders : theOrders.filter((o) => viewItems.some((i) => i.orderId === o.id));
+    const stored = new Set(documentIds);
+    const docs = new Set(
+      [...viewOrders.flatMap((o) => o.documentIds), ...viewItems.flatMap((i) => i.documentIds), ...theEvents.flatMap((e) => e.documentIds)].filter(
+        (d) => stored.has(d),
+      ),
+    );
+
     const byCategory = new Map<Category, number>();
     for (const i of theItems) byCategory.set(i.category, (byCategory.get(i.category) ?? 0) + i.price!);
 
@@ -148,10 +166,13 @@ export function ExpensesCard({
       purchases,
       returned,
       maintenance,
+      owned: viewItems.filter((i) => i.owned).length,
+      itemsBack: viewItems.filter((i) => i.returned).length,
+      documents: docs.size,
       orderCount: category === "all" ? theOrders.length : new Set(theItems.filter((i) => i.category === category).map((i) => i.orderId)).size,
       categories: [...byCategory].sort((a, b) => b[1] - a[1]),
     };
-  }, [orders, items, events, range, category, merchant]);
+  }, [orders, items, events, documentIds, range, category, merchant]);
 
   // The last 12 months, whatever the period: purchases and services month by month,
   // for the chosen category and merchant.
@@ -192,7 +213,6 @@ export function ExpensesCard({
 
   return (
     <SectionCard
-      className="mt-6"
       title="Total expenses"
       action={
         filtered && (
@@ -256,6 +276,39 @@ export function ExpensesCard({
             ))}
           </NativeSelect>
         </Filter>
+      </div>
+
+      {/* What the filters above cover, at a glance. */}
+      <div className="grid grid-cols-2 gap-3 border-b px-5 py-4 sm:grid-cols-3 lg:grid-cols-5">
+        {[
+          { label: "Items owned", value: result.owned, href: "/items" },
+          { label: "Purchases", value: result.orderCount, href: "/purchases" },
+          {
+            label: "Returns",
+            value: formatMoney(result.returned),
+            note: `${result.itemsBack} item${result.itemsBack === 1 ? "" : "s"} back`,
+            href: "/returns",
+          },
+          { label: "Documents stored", value: result.documents },
+          { label: "Maintenance recorded", value: formatMoney(result.maintenance), href: "/services" },
+        ].map((s) => {
+          const body = (
+            <>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+              <p className="mt-1 text-xl font-semibold tabular-nums">{s.value}</p>
+              {s.note && <p className="text-xs text-muted-foreground">{s.note}</p>}
+            </>
+          );
+          return s.href ? (
+            <Link key={s.label} href={s.href} className="rounded-lg border p-3 hover:bg-accent">
+              {body}
+            </Link>
+          ) : (
+            <div key={s.label} className="rounded-lg border p-3">
+              {body}
+            </div>
+          );
+        })}
       </div>
 
       <div className="border-b px-5 py-4">

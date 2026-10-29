@@ -3,7 +3,6 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ForwardingAddress } from "@/components/copy-button";
 import { PageHeader } from "@/components/layout-bits";
-import { RefreshButton } from "@/components/refresh-button";
 import { ListCardSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,12 +33,9 @@ export default function ImportsPage() {
         title="Imports"
         description="Every forwarded email and upload, what we did with it, and anything that needs you."
         action={
-          <div className="flex gap-2">
-            <RefreshButton />
-            <Button asChild variant="outline">
-              <Link href="/add?tab=upload">Upload</Link>
-            </Button>
-          </div>
+          <Button asChild variant="outline">
+            <Link href="/add?tab=upload">Upload</Link>
+          </Button>
         }
       />
       <Suspense fallback={<ImportsSkeleton />}>

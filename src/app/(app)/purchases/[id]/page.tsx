@@ -12,6 +12,7 @@ import {
   ReturnByBadge,
 } from "@/components/badges";
 import { DocumentList } from "@/components/document-list";
+import { RefreshButton } from "@/components/refresh-button";
 import { DetailRow, SectionCard } from "@/components/layout-bits";
 import { DetailSkeleton } from "@/components/skeletons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -51,13 +52,16 @@ async function PurchaseDetail({ params }: Pick<PageProps<"/purchases/[id]">, "pa
             <OrderStatusBadge status={order.status} />
           </div>
         </div>
-        <OrderActions
-          order={order}
-          itemCount={orderItems.length}
-          owned={orderItems
-            .filter((i) => i.status === "owned")
-            .map((i) => ({ id: i.id, name: i.name, price: i.price.value }))}
-        />
+        <div className="flex flex-wrap items-start gap-2">
+          <RefreshButton />
+          <OrderActions
+            order={order}
+            itemCount={orderItems.length}
+            owned={orderItems
+              .filter((i) => i.status === "owned")
+              .map((i) => ({ id: i.id, name: i.name, price: i.price.value }))}
+          />
+        </div>
       </div>
 
       {order.status !== "completed" && (

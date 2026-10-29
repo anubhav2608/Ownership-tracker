@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { RefreshButton } from "@/components/refresh-button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +20,11 @@ export function PageHeader({
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         )}
       </div>
-      {action}
+      {/* Every page can fetch its data again: email imports arrive in the background. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <RefreshButton />
+        {action}
+      </div>
     </div>
   );
 }
