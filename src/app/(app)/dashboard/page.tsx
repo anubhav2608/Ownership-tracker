@@ -9,7 +9,8 @@ import { ListCardSkeleton, StatTilesSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { amountSpent, notKept } from "@/lib/refunds";
+import { ReturnsList } from "@/components/returns-list";
+import { amountSpent, notKept, returnsFrom } from "@/lib/refunds";
 import { formatDate, formatMoney } from "@/lib/format";
 import {
   getCurrentUser,
@@ -78,6 +79,7 @@ async function DashboardContent() {
   const attention = imports.filter(
     (r) => r.status === "needs_review" || r.status === "failed",
   );
+  const recentReturns = returnsFrom(orders, items).slice(0, 5);
   const recentOrders = [...orders]
     .sort((a, b) => b.orderDate.localeCompare(a.orderDate))
     .slice(0, 5);
@@ -124,6 +126,7 @@ async function DashboardContent() {
           merchant: o.merchant,
           date: o.orderDate,
           spent: amountSpent(o),
+          total: o.total,
         }))}
         items={items.map((i) => ({
           orderId: i.orderId,
@@ -266,6 +269,24 @@ async function DashboardContent() {
           </ul>
         </SectionCard>
       </div>
+
+      <SectionCard
+        className="mt-6"
+        title="Recent returns"
+        action={
+          <Link href="/returns" className="text-xs font-medium text-primary">
+            All returns
+          </Link>
+        }
+      >
+        {recentReturns.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-muted-foreground">
+            Nothing returned or refunded. Mark an item returned from its purchase, or forward the refund email.
+          </p>
+        ) : (
+          <ReturnsList entries={recentReturns} />
+        )}
+      </SectionCard>
     </>
   );
 }

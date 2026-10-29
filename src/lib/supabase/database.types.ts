@@ -231,6 +231,7 @@ export type Database = {
           return_by: string | null;
           search_text: string | null;
           status: Database["public"]["Enums"]["item_status"];
+          status_changed_at: string | null;
           updated_at: string;
           user_id: string;
         };
@@ -252,6 +253,7 @@ export type Database = {
           return_by?: string | null;
           search_text?: never;
           status?: Database["public"]["Enums"]["item_status"];
+          status_changed_at?: string | null;
           updated_at?: string;
           user_id?: string;
         };
@@ -272,6 +274,7 @@ export type Database = {
           return_by?: string | null;
           search_text?: never;
           status?: Database["public"]["Enums"]["item_status"];
+          status_changed_at?: string | null;
           updated_at?: string;
           user_id?: string;
         };
@@ -297,6 +300,7 @@ export type Database = {
           invoice_ref: string | null;
           order_ref: string | null;
           refunded_amount: number | null;
+          refunded_at: string | null;
           source: Database["public"]["Enums"]["record_source"];
           status: Database["public"]["Enums"]["order_status"];
           total: number | null;
@@ -315,6 +319,7 @@ export type Database = {
           invoice_ref?: string | null;
           order_ref?: string | null;
           refunded_amount?: number | null;
+          refunded_at?: string | null;
           source: Database["public"]["Enums"]["record_source"];
           status?: Database["public"]["Enums"]["order_status"];
           total?: number | null;
@@ -332,6 +337,7 @@ export type Database = {
           invoice_ref?: string | null;
           order_ref?: string | null;
           refunded_amount?: number | null;
+          refunded_at?: string | null;
           source?: Database["public"]["Enums"]["record_source"];
           status?: Database["public"]["Enums"]["order_status"];
           total?: number | null;

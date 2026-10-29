@@ -42,6 +42,8 @@ export interface Order {
   total: number;
   status: OrderStatus;
   refundedAmount?: number;
+  /** When money last came back. */
+  refundedAt?: string;
   source: RecordSource;
   importId?: string;
   documentIds: string[];
@@ -73,6 +75,8 @@ export interface Item {
   model?: string;
   category: Category;
   status: ItemStatus;
+  /** When it was returned, cancelled, sold or disposed of. */
+  statusChangedAt?: string;
   orderId?: string;
   purchaseDate: string;
   /** Last day the item can be returned, if known. */

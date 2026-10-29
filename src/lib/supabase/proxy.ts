@@ -8,6 +8,7 @@ const PROTECTED_PREFIXES = [
   "/items",
   "/purchases",
   "/services",
+  "/returns",
   "/imports",
   "/add",
   "/settings",

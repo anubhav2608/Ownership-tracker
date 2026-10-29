@@ -22,6 +22,8 @@ export interface ExpenseOrder {
   date: string;
   /** Total less refunds. */
   spent: number;
+  /** What was paid before any refund. */
+  total: number;
 }
 export interface ExpenseItem {
   orderId?: string;
@@ -123,11 +125,19 @@ export function ExpensesCard({
     );
 
     let purchases = 0;
+    // Taken off for returns: refunds (and cancelled orders), or returned items' prices in one category.
+    let returned = 0;
     if (category === "all") {
       // Whole orders: shipping and fees count too.
-      for (const o of theOrders) purchases += o.spent;
+      for (const o of theOrders) {
+        purchases += o.spent;
+        returned += o.total - o.spent;
+      }
     } else {
       for (const i of theItems.filter((i) => i.category === category)) purchases += i.price!;
+      for (const i of items) {
+        if (i.orderId && shownOrders.has(i.orderId) && i.returned && i.category === category) returned += i.price ?? 0;
+      }
     }
     const maintenance = theEvents.reduce((s, e) => s + e.cost, 0);
 
@@ -136,6 +146,7 @@ export function ExpensesCard({
 
     return {
       purchases,
+      returned,
       maintenance,
       orderCount: category === "all" ? theOrders.length : new Set(theItems.filter((i) => i.category === category).map((i) => i.orderId)).size,
       categories: [...byCategory].sort((a, b) => b[1] - a[1]),
@@ -265,6 +276,11 @@ export function ExpensesCard({
             {formatMoney(result.purchases)} on {result.orderCount} purchase{result.orderCount === 1 ? "" : "s"} ·{" "}
             {formatMoney(result.maintenance)} on maintenance
           </p>
+          {result.returned > 0 && (
+            <p className="mt-1 text-xs text-success">
+              {formatMoney(result.returned)} returned or refunded, already taken off
+            </p>
+          )}
           {total === 0 && (
             <p className="mt-3 text-sm text-muted-foreground">
               Nothing spent in this period.{" "}

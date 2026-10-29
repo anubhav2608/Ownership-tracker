@@ -1,6 +1,6 @@
 -- Returning or cancelling items, and refunds on the order.
 begin;
-select plan(14);
+select plan(17);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-0000-0000-0000-000000000001', 'alice@example.com'),
@@ -29,6 +29,10 @@ select results_eq(
   $$values ('partially_refunded'::text, 2499.00::numeric)$$,
   'the order is partly refunded'
 );
+
+select isnt((select status_changed_at from public.items where id = '1e000000-0000-0000-0000-000000000001'), null, 'when the item was returned is kept');
+select isnt((select refunded_at from public.orders where id = '0d000000-0000-0000-0000-000000000001'), null, 'and when the money came back');
+select is((select status_changed_at from public.items where id = '1e000000-0000-0000-0000-000000000002'), null, 'an item still owned has no date');
 
 -- The rest back: refunded, never more than the total
 select lives_ok($$

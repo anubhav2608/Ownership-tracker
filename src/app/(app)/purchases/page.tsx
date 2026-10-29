@@ -17,7 +17,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { amountSpent } from "@/lib/refunds";
+import { ReturnsList } from "@/components/returns-list";
+import { amountSpent, returnsFrom } from "@/lib/refunds";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Item, ServiceEvent } from "@/lib/types";
 import { getItems, getOrders, getServiceEvents } from "@/lib/data";
@@ -28,6 +29,7 @@ const TYPES = [
   { value: "all", label: "All" },
   { value: "items", label: "Items" },
   { value: "services", label: "Services" },
+  { value: "returns", label: "Returns" },
 ] as const;
 type PurchaseType = (typeof TYPES)[number]["value"];
 
@@ -40,7 +42,8 @@ async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, 
     ...orders.map((o) => ({ kind: "order" as const, date: o.orderDate, order: o })),
     ...events.map((e) => ({ kind: "service" as const, date: e.date, event: e })),
   ].sort((a, b) => b.date.localeCompare(a.date));
-  const count = { all: all.length, items: orders.length, services: events.length };
+  const returns = returnsFrom(orders, items);
+  const count = { all: all.length, items: orders.length, services: events.length, returns: returns.length };
   const sorted = all.filter((r) => type === "all" || (type === "items" ? r.kind === "order" : r.kind === "service"));
 
   return (
@@ -63,7 +66,19 @@ async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, 
           ))}
         </nav>
       )}
-      {sorted.length === 0 ? (
+      {type === "returns" ? (
+        <Card className="gap-0 py-0">
+          {returns.length === 0 ? (
+            <EmptyCta
+              icon={<Receipt />}
+              title="No returns"
+              description="Mark items returned or cancelled from their purchase, or forward the refund email."
+            />
+          ) : (
+            <ReturnsList entries={returns} />
+          )}
+        </Card>
+      ) : sorted.length === 0 ? (
         <Card className="gap-0 py-0">
           <EmptyCta
             icon={<Receipt />}
