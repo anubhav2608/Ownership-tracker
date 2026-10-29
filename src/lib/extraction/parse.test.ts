@@ -366,6 +366,33 @@ describe("marketplace order email, forwarded by hand", () => {
     expect(dated.extraction.reviewReasons).not.toContain("No date found.");
   });
 
+  it("reads an email confirming several orders: each price within its own order", () => {
+    // Fictional, in the same layout: three orders in one email, each with its own
+    // order number and total. The middle item costs more than the last order's total.
+    const several = [
+      ...lines.slice(0, 14),
+      "Order # \u202b402-1111111-1111111", "View or edit order", "Example Coconut Oil (Cold...", "Quantity: 1",
+      "₹22000", "Total  ₹221.15",
+      "Arriving today 4 pm – 8 pm", "Asha – EXAMPLE CITY, EXAMPLE STATE",
+      "Order # \u202b402-2222222-2222222", "View or edit order", "Example Baby Body Wash...", "Quantity: 1",
+      "₹50300", "Total  ₹505.55",
+      "Arriving Saturday", "Asha – EXAMPLE CITY, EXAMPLE STATE",
+      "Order # \u202b402-3333333-3333333", "View or edit order", "Example Fridge Storage Boxes...", "Quantity: 1",
+      "₹24900", "Total  ₹250.30",
+      "Saved items and similar deals", "-46% ₹2,141.00", "Example Over-Door Organiser...",
+    ];
+    const outcome = parseDocument(several);
+    if (!outcome.ok) throw new Error(outcome.reason);
+    const x = outcome.extraction;
+    expect(x.lines.map((l) => [l.name.value, l.price.value])).toEqual([
+      ["Example Coconut Oil (Cold...", 220],
+      ["Example Baby Body Wash...", 503],
+      ["Example Fridge Storage Boxes...", 249],
+    ]);
+    // What was paid is the three orders together.
+    expect(x.fields.total?.value).toBe(977);
+  });
+
   it("names the shop from the sender when the text doesn't", () => {
     const filtered = lines.slice(5).filter((l) => !l.startsWith("©"));
     const amazon = parseDocument(filtered, { sender: "Amazon.in <auto-confirm@amazon.in>" });

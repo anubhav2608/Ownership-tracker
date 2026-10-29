@@ -162,7 +162,36 @@ const TOTAL_LABELS: [RegExp, number][] = [
   [/\btotal\b/i, 0.78],
 ];
 
+/** "Order # 407-1234567-1234567", possibly after an invisible direction mark. */
+const ORDER_HEADING = /^order\s*#\s*:?\s*[\u200e\u200f\u202a-\u202e]*\s*([A-Z0-9][A-Z0-9-]{5,})/i;
+const ORDER_TOTAL = /^(?:order\s+)?total\b(?!.*\b(?:sub ?total|tax|gst)\b)/i;
+
+/**
+ * One "Ordered" email can confirm several orders, each under its own "Order #"
+ * heading and with its own "Total". Returns each block (from its heading to the
+ * next) with that total, or null unless every one of two or more blocks has one.
+ */
+function orderBlocks(lines: string[]) {
+  // A PDF of several invoices (goods, then a fee or transport bill) is one order: see findTotal.
+  if (documentSections(lines).length > 1) return null;
+  const heads = lines.flatMap((l, i) => (ORDER_HEADING.test(l) ? [i] : []));
+  const refs = new Set(heads.map((i) => lines[i].match(ORDER_HEADING)![1]));
+  if (heads.length < 2 || refs.size < 2) return null;
+  const blocks = heads.map((start, n) => {
+    const end = heads[n + 1] ?? lines.length;
+    const at = lines.findIndex((l, i) => i > start && i < end && ORDER_TOTAL.test(l) && amountsIn(l).length > 0);
+    return { start, end, total: at < 0 ? null : amountsIn(lines[at]).at(-1)! };
+  });
+  return blocks.every((b) => b.total !== null) ? (blocks as { start: number; end: number; total: number }[]) : null;
+}
+
 function findTotal(lines: string[]): Tracked<number> {
+  // Several orders in one email: what was paid is the sum of their totals.
+  const orders = orderBlocks(lines);
+  if (orders) {
+    const sum = Math.round(orders.reduce((s, o) => s + o.total, 0) * 100) / 100;
+    return extracted(sum, 0.85);
+  }
   // One PDF can hold several invoices for one order (e.g. the goods, then a
   // platform fee). What was paid is the sum of their totals; a bill of supply
   // for transport is reported separately (see parseDocument), not added.
@@ -542,10 +571,17 @@ const MARKETING = new RegExp(
  * "₹299" with its paise raised ("⁰⁰") reads as "₹29900". An item can't cost
  * more than the whole order, so a price that only fits once read as paise is.
  */
-function raisedPaise(items: ExtractedLine[], total: ExtractedFields["total"]) {
-  const limit = total?.value;
-  if (!limit) return;
-  for (const l of items) {
+function raisedPaise(
+  items: ExtractedLine[],
+  total: ExtractedFields["total"],
+  /** Where each item starts, and the orders an email lists: an item can't cost more than its own order. */
+  context?: { starts: number[]; orders: ReturnType<typeof orderBlocks> },
+) {
+  for (const [n, l] of items.entries()) {
+    const at = context?.starts[n];
+    const own = at === undefined ? undefined : context?.orders?.find((o) => at >= o.start && at < o.end);
+    const limit = own?.total ?? total?.value;
+    if (!limit) continue;
     const p = l.price.value;
     if (p !== null && Number.isInteger(p) && p >= 1000 && p * l.quantity > limit && (p / 100) * l.quantity <= limit) {
       l.price = extracted(p / 100, Math.min(l.price.confidence ?? 0.8, 0.75));
@@ -683,7 +719,7 @@ export function parseDocument(
     }
   }
 
-  raisedPaise(lineItems, fields.total);
+  raisedPaise(lineItems, fields.total, { starts, orders: orderBlocks(clean) });
   corroborate(fields, documentKind === "service_receipt" ? parts : lineItems);
   const notes = sectionNotes(clean, lineItems);
   if (notes.explained && fields.total) {
