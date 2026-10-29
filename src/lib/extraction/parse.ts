@@ -152,10 +152,11 @@ const cleanName = (s: string) => s.replace(/\s{2,}.*/, "").replace(/[,.;:]+$/, "
 /** A reference after a label like "Order No:" — has a digit and isn't a date. */
 function labelledRef(lines: string[], words: string): string | null {
   const labelled = label(words);
-  for (const line of lines) {
+  for (const [i, line] of lines.entries()) {
     const m = line.match(labelled);
     if (!m) continue;
-    const rest = line.slice((m.index ?? 0) + m[0].length);
+    // "Your order ID", with the number on the line below.
+    const rest = line.slice((m.index ?? 0) + m[0].length).trim() || (lines[i + 1] ?? "").trim();
     const ref = rest.match(/^([A-Z0-9][A-Z0-9\-/]{3,30})/i);
     if (ref && /\d/.test(ref[1]) && !parseDate(ref[1])) return ref[1];
   }
@@ -297,7 +298,7 @@ function findWarranty(lines: string[]) {
 // ── Line items ──────────────────────────────────────────────────────────
 
 const NOT_AN_ITEM =
-  /\b(sub ?total|total|tax|taxable|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|charges?|freight|transport(ation)?|handling|packing|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|gstin|qty|quantity|description|unit price)\b|\b(pan|phone|mobile|e-?mail|address|rate)\s*(no\.?|number)?\s*[:#]|\bpage\s+\d/i;
+  /\b(sub ?total|total|tax|taxable|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|charges?|freight|transport(ation)?|handling|packing|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|gstin|qty|quantity|description|unit price|saved|you save)\b|\b(pan|phone|mobile|e-?mail|address|rate)\s*(no\.?|number)?\s*[:#]|\bpage\s+\d/i;
 // Labels like "PAN:", "Phone:", "Rate:" only count as labels: a "Non-stick Pan" or a
 // "Heart Rate Monitor" is an item.
 const LABOUR = /\b(labou?r|service|servicing|visit charge|inspection|installation)\b/i;
@@ -329,7 +330,7 @@ const TABLE_HEADER_WORDS = /\b(qty|quantity|description|particulars|item|product
 const isTableHeader = (line: string) => new Set(line.toLowerCase().match(TABLE_HEADER_WORDS) ?? []).size >= 2;
 /** After these, the rest of the section is declarations and transport details, not items. */
 const END_OF_ITEMS =
-  /\b(details of goods transported|terms (&|and) conditions|declaration|authori[sz]ed signatory|amount in words)\b/i;
+  /\b(details of goods transported|terms (&|and) conditions|declaration|authori[sz]ed signatory|amount in words)\b|^\s*(price (breakup|break-up|details)|bill details)\s*$/i;
 
 const rupees = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
@@ -367,7 +368,9 @@ function continuePending(pending: { text: string; at: number } | null, raw: stri
   if (pending && i - pending.at === 1) {
     const prev = pending.text.trimEnd();
     if (/[-–/]$/.test(prev)) return { text: prev + line, at: i };
-    if (/[,&(]$/.test(prev) || /^[(a-z]/.test(line) || (line.length < 25 && !line.includes(":"))) {
+    // A brand on its own line ("Marks & Spencer"), then the product: one name.
+    const brand = prev.split(/\s+/).length <= 4 && !/[\d:]/.test(prev);
+    if (/[,&(]$/.test(prev) || /^[(a-z]/.test(line) || (line.length < 25 && !line.includes(":")) || (brand && !line.includes(":"))) {
       return { text: `${prev} ${line}`, at: i };
     }
   }
@@ -405,6 +408,8 @@ const ITEM_DETAIL = new RegExp(
   [
     /^\s*(colou?r|size|style|variant|article( no\.?| number)?|fit|material|width)\s*[:\-]\s*\S/.source,
     /^\s*size\s+((uk|us|eu|in)\s*)?(\d{1,2}(\.5)?|xxs|xs|s|m|l|xl|xxl|xxxl|free size)\b/.source,
+    // "Size 2Y | Qty 1", "Size 3-4Y": any short size followed by more details or nothing.
+    /^\s*size\s+[a-z0-9./-]{1,10}\s*(\|.*)?$/.source,
     /^\s*(uk|us|eu)\s*\d{1,2}(\.5)?\s*$/.source,
     /^\s*[a-z]+( [a-z]+)*( \/ [a-z]+( [a-z]+)*)+\s*$/.source,
   ].join("|"),
@@ -412,6 +417,24 @@ const ITEM_DETAIL = new RegExp(
 );
 /** Words that label a price, so "Price: ₹7,999.00" is still a row of amounts only. */
 const PRICE_WORDS = /\b(unit price|price|mrp|amount|you pay|each|inr|rs)\b\.?|\bx\b|[:×]/gi;
+
+/**
+ * The price paid on a row of amounts: usually the last (an invoice's net
+ * amount). A shop email prints the price, then the crossed-out MRP, and often
+ * "Saved ₹…" under it ("₹755.00 ₹1799.00"): there the first is what was paid,
+ * unless the second is just the price times the quantity.
+ */
+function paidOf(prices: number[], quantity: number, row: string, next = "") {
+  if (prices.length === 2 && prices[1] > prices[0]) {
+    const [price, other] = prices;
+    const lineTotal = Math.abs(price * quantity - other) < 1;
+    const saving = /^\s*(you\s+)?sav(ed|e|ing)\b|\b\d{1,2}\s?%\s*off\b/i.test(next);
+    // Just "₹755.00 ₹1799.00": no quantity, rate or tax columns, as an invoice row would have.
+    const bare = /^\s*₹\s?[\d,]+(\.\d{1,2})?\s+₹\s?[\d,]+(\.\d{1,2})?\s*$/.test(row);
+    if (!lineTotal && (saving || bare)) return price;
+  }
+  return prices.at(-1)!;
+}
 
 /** Items, and the line each one's description starts on (to find terms printed under it). */
 function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] } {
@@ -426,6 +449,8 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
   // the declarations after the items hold no items at all.
   let inAddress = false;
   let skipSection = false;
+  // Where the last item ended: "Sold by" just after it is about that item, not an address.
+  let lastItemAt = -10;
 
   for (const [i, raw] of lines.entries()) {
     if (/^(tax invoice|invoice|bill of supply)\b/i.test(raw)) {
@@ -449,6 +474,7 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
       pending.last = i;
       continue;
     }
+    if (!pending && i - lastItemAt <= 3 && /^\s*sold by\b/i.test(raw)) continue;
     // "Colour: Core Black", "Size: UK 9" under a name describe that item; they aren't its name.
     if (pending && near(i) && ITEM_DETAIL.test(raw) && moneyIn(raw).length === 0) {
       // "Size: UK 9 | Qty: 2"
@@ -507,13 +533,15 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
       if (pending && near(i)) {
         const description = cleanDescription(pending.text);
         const qty = raw.trim().match(/^(\d{1,3})(?:\.0+)?\s/);
+        const quantity = pending.quantity ?? (Number(qty?.[1] ?? 1) || 1);
         if (/[a-z]{3}/i.test(description) && description.length <= 160) {
           items.push({
             name: extracted(description, 0.8),
-            quantity: pending.quantity ?? (Number(qty?.[1] ?? 1) || 1),
-            price: extracted(prices.at(-1)!, 0.8),
+            quantity,
+            price: extracted(paidOf(prices, quantity, raw, lines[i + 1]), 0.8),
           });
           starts.push(pending.at);
+          lastItemAt = i;
         }
       }
       pending = null;

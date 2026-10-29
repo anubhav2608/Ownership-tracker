@@ -523,3 +523,35 @@ describe("refund notice", () => {
     expect(outcome.extraction.fields.total?.value).toBe(503);
   });
 });
+
+describe("fashion marketplace order email", () => {
+  // Fictional, in the layout of a fashion marketplace's order email: brand and
+  // product on separate lines, "Size … | Qty …", the price paid then the
+  // crossed-out MRP, "Saved ₹…", "Sold by", and a price breakup at the end.
+  const lines = [
+    "Hello Asha!", "Sit Back And Relax. Your Order Is Confirmed on Sun, 26 Oct", "VIEW ORDER DETAILS",
+    "Based on your purchase experience on the Myntra app/website, how likely are you to recommend Myntra?",
+    "1", "2", "3", "Very Poor  Very Good", "Quick Details", "Your order ID", "1000001-2000002-3000003",
+    "Example Kids Label", "Boys Printed Sweatshirt", "Size 2Y | Qty 1", "₹755.00 ₹1799.00", "Saved ₹1044.00", "Sold by: Example Retail",
+    "Example & Sons", "Boys Graphic Printed Cotton Sweatshirt", "Size 3-4Y | Qty 1", "₹655.00 ₹799.00", "Saved ₹144.00", "Sold by: Example Net",
+    "Example Kids Label", "Boys Graphic Printed Hooded Pullover Sw...", "Size 7-8Y | Qty 1", "₹965.00 ₹2299.00", "Saved ₹1334.00",
+    "Sold by: Example Retail", "Price breakup", "MRP", "₹4897.00", "Discount", "- ₹2522.00", "Discounted Price", "₹2375.00",
+    "Platform Fee", "₹23.00", "Total Amount", "₹2398.00", "Net Paid", "₹2398.00", "You saved ₹2522.00 on this order.",
+    "Paid by UPI", "Delivering at", "Asha, Flat 1, Example Apartments, Example City 100001",
+  ];
+
+  it("reads each item at the price paid, with its brand, and the order ID below its label", () => {
+    const outcome = parseDocument(lines, { sentOn: "2026-10-26" });
+    if (!outcome.ok) throw new Error(outcome.reason);
+    const x = outcome.extraction;
+    expect(x.lines.map((l) => [l.name.value, l.quantity, l.price.value])).toEqual([
+      ["Example Kids Label Boys Printed Sweatshirt", 1, 755],
+      ["Example & Sons Boys Graphic Printed Cotton Sweatshirt", 1, 655],
+      ["Example Kids Label Boys Graphic Printed Hooded Pullover Sw...", 1, 965],
+    ]);
+    expect(x.fields.orderRef?.value).toBe("1000001-2000002-3000003");
+    expect(x.fields.total?.value).toBe(2398);
+    expect(x.fields.merchant?.value).toBe("Myntra");
+    expect(x.reviewReasons).not.toContain("Items don't add up to the total. Check for shipping, fees, discounts or a misread price.");
+  });
+});
