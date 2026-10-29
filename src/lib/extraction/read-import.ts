@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import type { Identifier } from "@/lib/types";
 import { bodyLines, parseRawEmail } from "./email";
-import { matchItems, matchRefundedItems, type MatchableItem } from "./match";
+import { matchItems, pickRefundedItems, type MatchableItem } from "./match";
 import { mergeExtractions, parseDocument, type Extraction } from "./parse";
 import { extractPdfText, PdfFileError } from "./pdf-text";
 import { keptAttachments, storeDocument } from "@/lib/stored-documents";
@@ -196,7 +196,7 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
 }
 
 async function review(db: Db, userId: string, x: Extraction, text: string): Promise<Outcome> {
-  if (x.documentKind === "refund_notice") return refundReview(db, userId, x);
+  if (x.documentKind === "refund_notice") return refundReview(db, userId, x, text);
 
   const reviewReasons = [...x.reviewReasons];
   let candidates: Json = [];
@@ -243,22 +243,26 @@ async function review(db: Db, userId: string, x: Extraction, text: string): Prom
 }
 
 /** A refund notice: found the purchase it's for, and which of its items went back. */
-async function refundReview(db: Db, userId: string, x: Extraction): Promise<Outcome> {
+async function refundReview(db: Db, userId: string, x: Extraction, text: string): Promise<Outcome> {
   const reviewReasons = [...x.reviewReasons];
   const target = await refundedPurchase(db, userId, x.fields.orderRef?.value);
-  let itemIds: string[] = [];
+  let picked: ReturnType<typeof pickRefundedItems> = { itemIds: [], by: null };
   if (target) {
     const { data: items } = await db
       .from("items")
-      .select("id, name")
+      .select("id, name, price")
       .eq("order_id", target.orderId)
       .eq("status", "owned");
-    itemIds = matchRefundedItems(
-      x.lines.flatMap((l) => (l.name.value ? [l.name.value] : [])),
-      items ?? [],
-    );
-    if (x.lines.length > 0 && itemIds.length < x.lines.length) {
-      reviewReasons.push("Not every refunded item was matched to the purchase: tick the ones that went back.");
+    // Found by its order number; now which of its items, by name, price or elimination.
+    picked = pickRefundedItems({
+      names: x.lines.flatMap((l) => (l.name.value ? [l.name.value] : [])),
+      text,
+      items: (items ?? []).map((i) => ({ id: i.id, name: i.name, price: i.price === null ? null : Number(i.price) })),
+      amount: x.fields.total?.value ?? null,
+      cancelled: x.fields.outcome?.value === "cancelled",
+    });
+    if ((items ?? []).length > 0 && picked.itemIds.length === 0) {
+      reviewReasons.push("Couldn't tell which items went back: tick them below.");
     }
   } else if (x.fields.orderRef?.value) {
     reviewReasons.push(
@@ -274,7 +278,9 @@ async function refundReview(db: Db, userId: string, x: Extraction): Promise<Outc
       fields: x.fields,
       lines: x.lines,
       parts: [],
-      refund: target ? { order_id: target.orderId, item_ids: itemIds, matched_on: target.on } : null,
+      refund: target
+        ? { order_id: target.orderId, item_ids: picked.itemIds, matched_on: target.on, items_by: picked.by }
+        : null,
     } as unknown as Json,
     review_reasons: reviewReasons,
     candidates: [],

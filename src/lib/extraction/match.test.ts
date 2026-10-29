@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchItems, matchRefundedItems, type MatchableItem } from "./match";
+import { matchItems, matchRefundedItems, pickRefundedItems, type MatchableItem } from "./match";
 
 const car: MatchableItem = {
   id: "car",
@@ -70,5 +70,41 @@ describe("matchRefundedItems", () => {
     expect(
       matchRefundedItems(["Example Coconut Oil"], [...items, { id: "oil2", name: "Example Coconut Oil 1L" }]),
     ).toEqual([]);
+  });
+});
+
+describe("pickRefundedItems", () => {
+  const items = [
+    { id: "oil", name: "Example Coconut Oil (Cold...", price: 220 },
+    { id: "wash", name: "Example Baby Moments Gentle Body W...", price: 503 },
+    { id: "boxes", name: "Pack of 6 Example Fridge Door Storag...", price: 249 },
+  ];
+  const pick = (over: Partial<Parameters<typeof pickRefundedItems>[0]>) =>
+    pickRefundedItems({ names: [], text: "", items, amount: null, cancelled: false, ...over });
+
+  it("by a name the notice lists", () => {
+    expect(pick({ names: ["Example Baby Moments Gentle Body Wash And Shampoo 500ml"] })).toEqual({ itemIds: ["wash"], by: "name" });
+  });
+
+  it("by a name anywhere in the text, without an \"Item:\" label", () => {
+    const text = "Refund Processed!\nYour refund of ₹249 has been processed.\nPack of 6 Example Fridge Door Storage Boxes, Clear\nRefund Amount ₹249";
+    expect(pick({ text, amount: 249 })).toEqual({ itemIds: ["boxes"], by: "name" });
+  });
+
+  it("the only item still owned", () => {
+    expect(pick({ items: [items[0]], text: "Your refund of ₹220 has been processed." })).toEqual({ itemIds: ["oil"], by: "only_item" });
+  });
+
+  it("by price when nothing is named", () => {
+    expect(pick({ text: "Your refund of ₹503.00 has been processed.", amount: 503 })).toEqual({ itemIds: ["wash"], by: "price" });
+    expect(pick({ amount: 972 })).toEqual({ itemIds: ["oil", "wash", "boxes"], by: "price" });
+  });
+
+  it("a cancellation naming nothing: the whole order", () => {
+    expect(pick({ text: "Your order has been cancelled.", cancelled: true })).toEqual({ itemIds: ["oil", "wash", "boxes"], by: "whole_order" });
+  });
+
+  it("leaves it to the user when nothing fits", () => {
+    expect(pick({ text: "Your refund of ₹100 has been processed.", amount: 100 })).toEqual({ itemIds: [], by: null });
   });
 });

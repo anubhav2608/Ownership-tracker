@@ -89,3 +89,56 @@ export function matchRefundedItems(refunded: string[], items: { id: string; name
   }
   return [...found];
 }
+
+export interface RefundableItem {
+  id: string;
+  name: string;
+  price: number | null;
+}
+
+/** Why items were ticked for a refund notice, shown on the review screen. */
+export type RefundMatch = "name" | "only_item" | "price" | "whole_order";
+
+/** Whether the notice's text contains the item's name: its first words in order (up to six). */
+function mentions(textWords: string, name: string) {
+  const words = nameWords(name).slice(0, 6);
+  return words.length >= 2 && ` ${textWords} `.includes(` ${words.join(" ")} `);
+}
+
+/**
+ * The items of a purchase (found by its order number) that a refund,
+ * return or cancellation notice is about, and why:
+ * 1. by name: the names it lists, or any item named anywhere in its text;
+ * 2. the purchase's only item still owned;
+ * 3. by price: the one item costing the refund, or all of them when the
+ *    refund covers them all;
+ * 4. a cancellation naming no items: the whole order.
+ * Nothing is ticked otherwise: the user picks.
+ */
+export function pickRefundedItems({
+  names,
+  text,
+  items,
+  amount,
+  cancelled,
+}: {
+  names: string[];
+  text: string;
+  items: RefundableItem[];
+  amount: number | null;
+  cancelled: boolean;
+}): { itemIds: string[]; by: RefundMatch | null } {
+  if (items.length === 0) return { itemIds: [], by: null };
+  const textWords = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).join(" ");
+  const named = new Set([...matchRefundedItems(names, items), ...items.filter((i) => mentions(textWords, i.name)).map((i) => i.id)]);
+  if (named.size > 0) return { itemIds: items.filter((i) => named.has(i.id)).map((i) => i.id), by: "name" };
+  if (items.length === 1) return { itemIds: [items[0].id], by: "only_item" };
+  if (amount !== null && amount > 0) {
+    const costing = items.filter((i) => i.price !== null && Math.abs(i.price - amount) < 1);
+    if (costing.length === 1) return { itemIds: [costing[0].id], by: "price" };
+    const all = items.reduce((s, i) => s + (i.price ?? 0), 0);
+    if (items.every((i) => i.price !== null) && amount >= all - 1) return { itemIds: items.map((i) => i.id), by: "price" };
+  }
+  if (cancelled && names.length === 0) return { itemIds: items.map((i) => i.id), by: "whole_order" };
+  return { itemIds: [], by: null };
+}

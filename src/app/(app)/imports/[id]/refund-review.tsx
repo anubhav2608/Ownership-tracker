@@ -32,6 +32,13 @@ export interface RefundPurchase {
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
+const TICKED_BECAUSE = {
+  name: "Ticked because the email names them.",
+  only_item: "Ticked because it's the only item in this purchase.",
+  price: "Ticked because the refund matches the price.",
+  whole_order: "Ticked because the whole order was cancelled.",
+} as const;
+
 /**
  * A forwarded refund notice: the purchase it's for (matched by order number, or
  * chosen), the items that went back and the money back. Nothing changes until
@@ -148,6 +155,9 @@ export function RefundReview({ record, purchases }: { record: ImportRecord; purc
           {purchase && (
             <fieldset className="grid gap-2">
               <legend className="mb-2 text-sm font-medium">Which items went back?</legend>
+              {match?.orderId === purchase.id && match.itemsBy && chosen.size > 0 && (
+                <p className="-mt-1 mb-1 text-xs text-muted-foreground">{TICKED_BECAUSE[match.itemsBy]}</p>
+              )}
               {purchase.items.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nothing in this purchase is still owned.</p>
               ) : (

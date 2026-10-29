@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import * as demo from "./mock-data";
+import type { RefundMatch } from "./extraction/match";
 import type { Database } from "./supabase/database.types";
 import { isSupabaseConfigured } from "./supabase/env";
 import { createClient } from "./supabase/server";
@@ -293,7 +294,12 @@ interface StoredExtraction {
   parts?: ExtractedLine[];
   text?: string[];
   /** A refund notice: the purchase it was matched to. */
-  refund?: { order_id: string; item_ids: string[]; matched_on: "order_number" | "earlier_email" } | null;
+  refund?: {
+    order_id: string;
+    item_ids: string[];
+    matched_on: "order_number" | "earlier_email";
+    items_by?: RefundMatch | null;
+  } | null;
 }
 
 interface StoredCandidate {
@@ -333,7 +339,12 @@ function toImport(r: Row<"imports">): ImportRecord {
     parts: extracted.parts,
     text: extracted.text,
     refundMatch: extracted.refund
-      ? { orderId: extracted.refund.order_id, itemIds: extracted.refund.item_ids, matchedOn: extracted.refund.matched_on }
+      ? {
+          orderId: extracted.refund.order_id,
+          itemIds: extracted.refund.item_ids,
+          matchedOn: extracted.refund.matched_on,
+          itemsBy: extracted.refund.items_by ?? undefined,
+        }
       : undefined,
     candidates: (r.candidates as unknown as StoredCandidate[]).map((c) => ({
       itemId: c.item_id,

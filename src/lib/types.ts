@@ -219,7 +219,13 @@ export interface ImportRecord {
   text?: string[];
   candidates?: MatchCandidate[];
   /** A refund notice: the purchase it seems to be for, and the items that went back. */
-  refundMatch?: { orderId: string; itemIds: string[]; matchedOn: "order_number" | "earlier_email" };
+  refundMatch?: {
+    orderId: string;
+    itemIds: string[];
+    matchedOn: "order_number" | "earlier_email";
+    /** Why those items were ticked. */
+    itemsBy?: "name" | "only_item" | "price" | "whole_order";
+  };
   /** What the import created, once saved (or, for a refund notice, the purchase it was applied to). */
   result?: {
     orderId?: string;
