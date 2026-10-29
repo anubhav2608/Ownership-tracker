@@ -210,6 +210,8 @@ export interface ImportRecord {
     provider?: Tracked<string>;
     workPerformed?: Tracked<string>;
     labourCost?: Tracked<number>;
+    /** A refund, return or cancellation notice: what happened to the items. */
+    outcome?: Tracked<"returned" | "cancelled">;
   };
   lines?: ExtractedLine[];
   parts?: ExtractedLine[];

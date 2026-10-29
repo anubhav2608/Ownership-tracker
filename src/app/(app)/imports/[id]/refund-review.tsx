@@ -43,7 +43,8 @@ export function RefundReview({ record, purchases }: { record: ImportRecord; purc
   const match = record.refundMatch;
   const [orderId, setOrderId] = useState(match?.orderId ?? "");
   const [chosen, setChosen] = useState<Set<string>>(new Set(match?.itemIds ?? []));
-  const [outcome, setOutcome] = useState<"returned" | "cancelled">("returned");
+  // As the notice says: a cancellation or a return.
+  const [outcome, setOutcome] = useState<"returned" | "cancelled">(record.fields?.outcome?.value ?? "returned");
   const [refund, setRefund] = useState(String(record.fields?.total?.value ?? ""));
   const [saving, setSaving] = useState(false);
 

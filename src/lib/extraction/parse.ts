@@ -19,6 +19,8 @@ export interface ExtractedFields {
   provider?: Tracked<string>;
   workPerformed?: Tracked<string>;
   labourCost?: Tracked<number>;
+  /** A refund, return or cancellation notice: what happened to the items. */
+  outcome?: Tracked<"returned" | "cancelled">;
 }
 
 export interface Extraction {
@@ -29,6 +31,8 @@ export interface Extraction {
   lines: ExtractedLine[];
   parts: ExtractedLine[];
   reviewReasons: string[];
+  /** A shipping or delivery update ("Your package was shipped"), not a new order. */
+  update?: boolean;
 }
 
 export type ParseOutcome =
@@ -65,14 +69,25 @@ const MERCHANTS: KnownMerchant[] = [
 
 // ── Document kind ───────────────────────────────────────────────────────
 
+/** An order, or items of it, cancelled: "has been cancelled", "We've cancelled…", "Order Cancelled". */
+const CANCELLED =
+  /\b(order|item\(s\)|items?|shipment)\b[^.\n]{0,80}\b(has|have) been (successfully )?cancell?ed\b|\bwe(?:'ve| have) (successfully )?cancell?ed\b|^\s*(your )?(order|item\(s\)|items?)s? (has been |have been |is |was )?cancell?ed\b|\bcancell?ation (confirmed|successful|of your order)\b|\bcancell?ation request (has been |was )?(processed|accepted|approved|completed)\b/im;
+/** A return on its way back: requested, accepted, picked up or received. */
+const RETURNED =
+  /\breturn (request )?(has been |was |is )?(accepted|approved|received|placed|initiated|confirmed|picked up|scheduled|completed)\b|\bwe(?:'ve| have) received your return\b|\breturn request for\b/i;
+/** Money back: processed, initiated, credited… ("Your refund of Rs 1,099 … will be credited"). */
+const REFUNDED =
+  /\b(refund (processed|initiated|issued|credited|completed|successful)|credit note|refunded)\b|\b(your|the|a) refund\b[^.\n]{0,120}\b(has been|have been|was|is being|is|will be) (processed|initiated|issued|credited|refunded)\b/i;
+/** A shipping or delivery update for an order placed earlier. */
+const SHIPPING_UPDATE =
+  /\b(your )?(package|order|item|shipment|parcel)s? (was|were|has been|have been|is|are) (shipped|dispatched|out for delivery|delivered)\b|^\s*(shipped|dispatched|delivered|out for delivery)\s*[:!]/im;
+
 const KIND_SIGNALS: [DocumentKind, RegExp][] = [
-  [
-    "refund_notice",
-    /\b(refund (processed|initiated|issued)|credit note|refunded)\b|\b(your|the|a) refund\b[^.\n]{0,60}\b(has been|was|is being|is) (processed|initiated|issued|credited)\b/i,
-  ],
+  // Cancellations and returns are applied to the purchase, like refunds: never a new one.
+  ["refund_notice", new RegExp(`${REFUNDED.source}|${CANCELLED.source}|${RETURNED.source}`, "im")],
   ["service_receipt", /\b(service (invoice|report|receipt|charge)|job card|repair order|technician|labou?r|servicing|visit charge|spare parts?)\b/i],
   ["invoice", /\b(tax invoice|invoice (no|number|date)|bill of supply|invoice)\b/i],
-  ["order_confirmation", /\b(order (confirmation|placed|confirmed)|your order|thank you for (your )?(order|shopping))\b/i],
+  ["order_confirmation", /\b(order (confirmation|placed|confirmed|summary)|your order|thank you for (your )?(order|shopping))\b/i],
 ];
 
 function classify(text: string, merchant?: KnownMerchant): DocumentKind {
@@ -110,9 +125,43 @@ function refundDetails(lines: string[], text: string) {
     const qty = lines[i + 1]?.match(/^(?:quantity|qty)\s*:?\s*(\d{1,3})\b/i);
     items.push({ name: extracted(m[1].trim(), 0.9), quantity: qty ? Number(qty[1]) : 1, price: missing() });
   }
+  if (items.length === 0) items.push(...namedItems(lines));
   // One item refunded: the refund is its price.
   if (items.length === 1 && amount.value !== null) items[0].price = extracted(amount.value, 0.8);
   return { amount, items };
+}
+
+/**
+ * Items a cancellation or return notice names without "Item:" labels: the name
+ * above a "Qty" line (with a brand line above it), or "your return request for
+ * <name> has been accepted". Names only: they are matched to the purchase.
+ */
+function namedItems(lines: string[]): ExtractedLine[] {
+  const names: string[] = [];
+  const usable = (l = "") =>
+    /[a-z]{3}/i.test(l) && !l.includes(":") && moneyIn(l).length === 0 && !NOT_AN_ITEM.test(l) && !ITEM_DETAIL.test(l) && l.length <= 160;
+  for (const [i, line] of lines.entries()) {
+    if (!/^\s*(qty|quantity)\s*[:.]?\s*\d|\|\s*qty\s*\d/i.test(line)) continue;
+    let at = i - 1;
+    while (at >= 0 && (ITEM_DETAIL.test(lines[at]) || /^\s*(sold by|seller)\b/i.test(lines[at]))) at--;
+    if (!usable(lines[at])) continue;
+    const brand = lines[at - 1];
+    // A short line above the name is its brand, unless it's the shop itself ("Flipkart").
+    const isBrand =
+      usable(brand) && brand.split(/\s+/).length <= 4 && !/\d/.test(brand) && !/[.!?,]$/.test(brand.trim()) && !MERCHANTS.some((m) => m.pattern.test(brand));
+    names.push(cleanDescription(isBrand ? `${brand} ${lines[at]}` : lines[at]));
+  }
+  if (names.length === 0) {
+    // "your return request for <name> has been accepted", "refund of ₹655 for the return of <name> has been credited"
+    for (const m of lines.join("\n").matchAll(/\b(?:return|cancell?ation|refund)(?: request)? (?:for|of) (?:the )?([^\n]{3,120}?) (?:has|have|is|was|were) (?:been )?\w+/gi)) {
+      const name = m[1].replace(/^.*\b(?:return|cancell?ation) (?:of|for) (?:the )?/i, "").trim();
+      if (!moneyIn(name).length && /[a-z]{3}/i.test(name)) {
+        names.push(name);
+        break;
+      }
+    }
+  }
+  return [...new Set(names)].map((n) => ({ name: extracted(n, 0.75), quantity: 1, price: missing<number>() }));
 }
 
 const label = (words: string) => new RegExp(`\\b(?:${words})\\b\\s*(?:no\\.?|number|#|id)?\\s*[:#-]?\\s*`, "i");
@@ -298,7 +347,7 @@ function findWarranty(lines: string[]) {
 // ── Line items ──────────────────────────────────────────────────────────
 
 const NOT_AN_ITEM =
-  /\b(sub ?total|total|tax|taxable|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|charges?|freight|transport(ation)?|handling|packing|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|gstin|qty|quantity|description|unit price|saved|you save)\b|\b(pan|phone|mobile|e-?mail|address|rate)\s*(no\.?|number)?\s*[:#]|\bpage\s+\d/i;
+  /\b(sub ?total|total|tax|taxable|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|charges?|freight|transport(ation)?|handling|packing|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|gstin|qty|quantity|description|unit price|saved|you save|refund(ed)?|charged|items?(\(s\))? in (this|your) order|(order|shipment) (details|summary)|your items)\b|\b(pan|phone|mobile|e-?mail|address|rate)\s*(no\.?|number)?\s*[:#]|\bpage\s+\d/i;
 // Labels like "PAN:", "Phone:", "Rate:" only count as labels: a "Non-stick Pan" or a
 // "Heart Rate Monitor" is an item.
 const LABOUR = /\b(labou?r|service|servicing|visit charge|inspection|installation)\b/i;
@@ -470,11 +519,11 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
       continue;
     }
     // "Sold by: Example Retail" right under an item's name (shop emails) is about that item.
-    if (pending && near(i) && /^\s*sold by\b/i.test(raw)) {
+    if (pending && near(i) && /^\s*(sold by|seller)\b/i.test(raw)) {
       pending.last = i;
       continue;
     }
-    if (!pending && i - lastItemAt <= 3 && /^\s*sold by\b/i.test(raw)) continue;
+    if (!pending && i - lastItemAt <= 3 && /^\s*(sold by|seller)\b/i.test(raw)) continue;
     // "Colour: Core Black", "Size: UK 9" under a name describe that item; they aren't its name.
     if (pending && near(i) && ITEM_DETAIL.test(raw) && moneyIn(raw).length === 0) {
       // "Size: UK 9 | Qty: 2"
@@ -557,7 +606,8 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
 
     // Quantity: a small whole-number column after the description, or "Qty 2" / "x 2".
     const qtyColumn = columns.slice(descIndex + 1).find((c) => /^\d{1,3}$/.test(c));
-    const qtyLabel = raw.match(/\b(?:qty|x)\s*[:.]?\s*(\d{1,3})\b/i);
+    // "Qty 2", "x 2", or "2 x ₹34" (quantity times unit price).
+    const qtyLabel = raw.match(/\b(?:qty|x)\s*[:.]?\s*(\d{1,3})\b/i) ?? raw.match(/\b(\d{1,3})\s*[x×]\s*(?:₹|rs\.?|inr)/i);
     const quantity = Number(qtyColumn ?? qtyLabel?.[1] ?? 1) || 1;
 
     const confidence = tableRow || columns.length >= 3 ? 0.88 : 0.7;
@@ -746,9 +796,38 @@ export function parseDocument(
   if (documentKind === "refund_notice") {
     // Applied to a purchase you already have (see read-import), never saved as a new one.
     const refund = refundDetails(clean, text);
-    const fields: ExtractedFields = { merchant, date, total: refund.amount, ...findRefs(clean, text, known) };
+    const cancelled = CANCELLED.test(text);
+    // Items listed with their prices, as in an order email: better names than a guess.
+    const priced = findLines(clean).items.filter((l) => l.price.value !== null);
+    if (priced.length && !refund.items.some((l) => l.price.value !== null && l.name.value?.length)) {
+      refund.items.splice(0, refund.items.length, ...priced);
+    }
+    // A cancellation that shows prices but no refund: what was paid comes back (0 if cash on delivery).
+    let fromPrices = false;
+    if (cancelled && refund.amount.value === null && priced.length) {
+      const sum = Math.round(priced.reduce((t, l) => t + (l.price.value ?? 0), 0) * 100) / 100;
+      const total = findTotal(clean);
+      refund.amount = extracted(total.state !== "missing" && total.value! >= sum ? total.value! : sum, 0.6);
+      fromPrices = true;
+    }
+    const fields: ExtractedFields = {
+      merchant,
+      date,
+      total: refund.amount,
+      outcome: extracted(cancelled ? "cancelled" : "returned", 0.85),
+      ...findRefs(clean, text, known),
+    };
     const reviewReasons: string[] = [];
-    if (refund.amount.value === null) reviewReasons.push("No refund amount found.");
+    if (fromPrices) {
+      reviewReasons.push("Money back is the cancelled items' price: set it to 0 if you paid cash on delivery or weren't charged.");
+    }
+    if (refund.amount.value === null) {
+      reviewReasons.push(
+        cancelled
+          ? "No refund amount found: enter it if you were charged, or leave 0 (cash on delivery)."
+          : "No refund yet: apply this now, and forward the refund email when the money comes back.",
+      );
+    }
     if (fields.orderRef?.value === null) reviewReasons.push("No order number found: choose the purchase it's for.");
     return {
       ok: true,
@@ -832,6 +911,7 @@ export function parseDocument(
       lines: lineItems,
       parts,
       reviewReasons,
+      ...(SHIPPING_UPDATE.test(text) ? { update: true } : {}),
     },
   };
 }

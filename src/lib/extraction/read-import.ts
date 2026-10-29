@@ -210,6 +210,20 @@ async function review(db: Db, userId: string, x: Extraction, text: string): Prom
     if ((candidates as unknown[]).length === 0) reviewReasons.push("Not matched to an item you own: it can be saved on its own, or choose the item below.");
   } else {
     const existing = await existingPurchase(db, userId, x.fields.orderRef?.value, x.fields.invoiceRef?.value);
+    if (existing && x.update) {
+      // "Your package was shipped" for an order already saved: nothing new.
+      return {
+        status: "unsupported",
+        stage: "matched",
+        document_kind: "other",
+        parser: x.parser,
+        review_reasons: [`A shipping or delivery update for your ${existing.merchant} purchase: nothing new to save.`],
+        extracted: { fields: x.fields } as unknown as Json,
+      };
+    }
+    if (x.update) {
+      reviewReasons.unshift("This is a shipping update. If you have the order confirmation, forward that instead: it has more detail.");
+    }
     if (existing) {
       reviewReasons.unshift(
         `You already have this purchase from ${existing.merchant} (same ${existing.on} number). Saving will ask whether to replace it.`,

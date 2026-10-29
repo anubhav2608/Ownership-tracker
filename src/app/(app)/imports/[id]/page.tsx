@@ -108,7 +108,7 @@ async function ImportDetail({ params }: Pick<PageProps<"/imports/[id]">, "params
           {record.status === "duplicate" && (
             <DuplicatePanel importId={record.id} duplicateOf={duplicateOf} />
           )}
-          {record.status === "unsupported" && <UnsupportedPanel importId={record.id} />}
+          {record.status === "unsupported" && <UnsupportedPanel importId={record.id} reason={record.reviewReasons?.[0]} />}
           {record.status === "imported" && (
             <ImportedPanel
               record={record}

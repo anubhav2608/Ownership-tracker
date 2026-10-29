@@ -274,17 +274,26 @@ export function DuplicatePanel({
   );
 }
 
-export function UnsupportedPanel({ importId }: { importId: string }) {
+export function UnsupportedPanel({ importId, reason }: { importId: string; reason?: string }) {
   return (
     <SectionCard title="Not imported">
       <div className="space-y-4 px-5 py-4">
         <Alert>
           <Ban />
-          <AlertTitle>This doesn&rsquo;t look like a receipt</AlertTitle>
-          <AlertDescription>
-            We import order confirmations, invoices, refund notices and service receipts.
-            Promotions and newsletters are skipped.
-          </AlertDescription>
+          {reason ? (
+            <>
+              <AlertTitle>Nothing new to save</AlertTitle>
+              <AlertDescription>{reason}</AlertDescription>
+            </>
+          ) : (
+            <>
+              <AlertTitle>This doesn&rsquo;t look like a receipt</AlertTitle>
+              <AlertDescription>
+                We import order confirmations, invoices, refund notices and service receipts.
+                Promotions and newsletters are skipped.
+              </AlertDescription>
+            </>
+          )}
         </Alert>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">

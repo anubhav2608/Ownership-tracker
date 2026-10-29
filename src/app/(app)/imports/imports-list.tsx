@@ -278,7 +278,7 @@ function summary(r: ImportRecord) {
     case "duplicate":
       return "Already imported. Nothing new was created.";
     case "unsupported":
-      return "Doesn't look like an order, invoice, refund or service receipt.";
+      return r.reviewReasons?.[0] ?? "Doesn't look like an order, invoice, refund or service receipt.";
     case "processing":
     case "queued":
       return "Working on it. This usually takes under a minute.";
