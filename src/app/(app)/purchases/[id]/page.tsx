@@ -19,7 +19,8 @@ import { otherCharges } from "@/lib/charges";
 import { formatDate, formatMoney } from "@/lib/format";
 import { getCurrentUser, getDocuments, getImport, getItems, getOrder } from "@/lib/data";
 import { AttachDocuments } from "@/components/attach-documents";
-import { OrderActions } from "./order-actions";
+import { amountSpent } from "@/lib/refunds";
+import { EditRefundButton, OrderActions } from "./order-actions";
 
 export const metadata: Metadata = { title: "Purchase" };
 
@@ -50,17 +51,32 @@ async function PurchaseDetail({ params }: Pick<PageProps<"/purchases/[id]">, "pa
             <OrderStatusBadge status={order.status} />
           </div>
         </div>
-        <OrderActions order={order} itemCount={orderItems.length} />
+        <OrderActions
+          order={order}
+          itemCount={orderItems.length}
+          owned={orderItems
+            .filter((i) => i.status === "owned")
+            .map((i) => ({ id: i.id, name: i.name, price: i.price.value }))}
+        />
       </div>
 
       {order.status !== "completed" && (
         <Alert className="mb-6">
           <RotateCcw />
           <AlertTitle>
-            {formatMoney(order.refundedAmount ?? 0)} refunded
+            {order.status === "cancelled"
+              ? "Cancelled"
+              : `${formatMoney(order.refundedAmount ?? 0)} refunded of ${formatMoney(order.total)}`}
           </AlertTitle>
           <AlertDescription>
-            Recorded from the refund notice. Items in this order were marked as returned.
+            <p>
+              {order.status === "cancelled"
+                ? `Not counted in your spending.${order.refundedAmount ? ` ${formatMoney(order.refundedAmount)} came back.` : ""}`
+                : `Counted in your spending as ${formatMoney(amountSpent(order))}.`}
+            </p>
+            <div className="mt-2">
+              <EditRefundButton order={order} />
+            </div>
           </AlertDescription>
         </Alert>
       )}
@@ -82,6 +98,9 @@ async function PurchaseDetail({ params }: Pick<PageProps<"/purchases/[id]">, "pa
               )}
               <DetailRow label="Date">{formatDate(order.orderDate)}</DetailRow>
               <DetailRow label="Total">{formatMoney(order.total)}</DetailRow>
+              {amountSpent(order) !== order.total && (
+                <DetailRow label="After refunds">{formatMoney(amountSpent(order))}</DetailRow>
+              )}
               {source && (
                 <div className="border-t pt-3 text-xs text-muted-foreground">
                   Imported from{" "}

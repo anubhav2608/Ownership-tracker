@@ -77,7 +77,14 @@ export async function updateItem(itemId: string, input: ItemInput): Promise<Acti
   return data.length ? { ok: true } : NOT_FOUND;
 }
 
-const statusSchema = z.enum(["owned", "returned", "sold", "disposed"]);
+const statusSchema = z.enum(["owned", "returned", "sold", "disposed", "cancelled"]);
+
+/** PostgREST reports a function the database doesn't have as PGRST202 (or 42883). */
+const missingFunction = (e: { code?: string }) => e.code === "PGRST202" || e.code === "42883";
+const NOT_MIGRATED: ActionResult = {
+  ok: false,
+  message: "Returns aren't set up on your database yet. Run `npx supabase db push`, then try again.",
+};
 
 export async function setItemStatus(itemId: string, status: string): Promise<ActionResult> {
   const parsed = statusSchema.safeParse(status);
@@ -87,9 +94,53 @@ export async function setItemStatus(itemId: string, status: string): Promise<Act
     .from("items")
     .update({ status: parsed.data })
     .eq("id", itemId)
-    .select("id");
+    .select("id, order_id");
   if (error) return failed("setItemStatus", error);
-  return data.length ? { ok: true } : NOT_FOUND;
+  if (!data.length) return NOT_FOUND;
+  // Un-cancelling an item, say, changes whether its order is cancelled.
+  const orderId = data[0].order_id;
+  if (orderId) {
+    const { error: statusError } = await supabase.rpc("refresh_order_status", { order_id: orderId });
+    if (statusError && !missingFunction(statusError)) return failed("refresh_order_status", statusError);
+  }
+  refresh();
+  return { ok: true };
+}
+
+const outcomeSchema = z.object({
+  orderId: id,
+  /** Empty: the whole order. */
+  itemIds: z.array(id).max(200),
+  outcome: z.enum(["returned", "cancelled"]),
+  refund: money,
+});
+export type PurchaseOutcome = z.infer<typeof outcomeSchema>;
+
+/** Marks a whole order, or some of its items, returned or cancelled, and adds the money back to the order. */
+export async function recordPurchaseOutcome(input: PurchaseOutcome): Promise<ActionResult> {
+  const parsed = outcomeSchema.safeParse(input);
+  if (!parsed.success) return INVALID;
+  const { orderId, itemIds, outcome, refund } = parsed.data;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("record_purchase_outcome", {
+    order_id: orderId,
+    item_ids: itemIds,
+    outcome,
+    refund,
+  });
+  if (error) return missingFunction(error) ? NOT_MIGRATED : failed("recordPurchaseOutcome", error);
+  refresh();
+  return { ok: true };
+}
+
+/** Sets how much of an order's total came back (0 for none). */
+export async function setOrderRefund(orderId: string, amount: number): Promise<ActionResult> {
+  if (!id.safeParse(orderId).success || !money.safeParse(amount).success) return INVALID;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_order_refund", { order_id: orderId, amount });
+  if (error) return missingFunction(error) ? NOT_MIGRATED : failed("setOrderRefund", error);
+  refresh();
+  return { ok: true };
 }
 
 /** Deletes an item and its service history; its purchase and the purchase's documents stay. */

@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDelete } from "@/components/confirm-delete";
+import { type OutcomeItem, PurchaseOutcomeDialog, RefundDialog } from "@/components/purchase-outcome-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,10 +22,20 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { Order } from "@/lib/types";
 
 // In demo mode (no Supabase) actions only confirm with a toast.
-export function OrderActions({ order, itemCount }: { order: Order; itemCount: number }) {
+export function OrderActions({
+  order,
+  itemCount,
+  owned,
+}: {
+  order: Order;
+  itemCount: number;
+  /** Items of the order still owned, which can be returned or cancelled. */
+  owned: OutcomeItem[];
+}) {
   const fid = useId();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [returning, setReturning] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -61,10 +72,16 @@ export function OrderActions({ order, itemCount }: { order: Order; itemCount: nu
 
   return (
     <>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={() => setEditing(true)}>
           <Pencil /> Edit
         </Button>
+        {/* Nothing left to return once every item is returned or cancelled. */}
+        {(owned.length > 0 || (itemCount === 0 && order.status !== "cancelled")) && (
+          <Button variant="outline" onClick={() => setReturning(true)}>
+            <RotateCcw /> Return or cancel
+          </Button>
+        )}
         <Button variant="outline" onClick={() => setConfirming(true)}>
           <Trash2 /> Delete
         </Button>
@@ -113,6 +130,9 @@ export function OrderActions({ order, itemCount }: { order: Order; itemCount: nu
         </DialogContent>
       </Dialog>
 
+      {/* Mounted only while open, so each opening starts from the current order. */}
+      {returning && <PurchaseOutcomeDialog order={order} items={owned} open onOpenChange={setReturning} />}
+
       <ConfirmDelete
         open={confirming}
         onOpenChange={setConfirming}
@@ -120,6 +140,19 @@ export function OrderActions({ order, itemCount }: { order: Order; itemCount: nu
         description={`This deletes the purchase and its ${itemCount} item${itemCount === 1 ? "" : "s"}, with their warranties and service history, plus any documents that aren't attached to anything else. This can't be undone.`}
         onConfirm={remove}
       />
+    </>
+  );
+}
+
+/** "Edit refund", beside the refund on a purchase. */
+export function EditRefundButton({ order }: { order: Order }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        Edit refund
+      </Button>
+      {open && <RefundDialog order={order} open onOpenChange={setOpen} />}
     </>
   );
 }

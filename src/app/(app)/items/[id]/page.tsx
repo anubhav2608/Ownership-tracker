@@ -58,7 +58,7 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
             <WarrantyBadge item={item} />
           </div>
         </div>
-        <ItemActions item={item} />
+        <ItemActions key={item.status} item={item} order={order} othersKept={siblings.filter((i) => i.status === "owned").length} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

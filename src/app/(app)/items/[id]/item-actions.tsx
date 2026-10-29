@@ -5,6 +5,7 @@ import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDelete } from "@/components/confirm-delete";
+import { PurchaseOutcomeDialog } from "@/components/purchase-outcome-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,25 +19,40 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { deleteItem, setItemStatus } from "@/lib/record-actions";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import type { Item, ItemStatus } from "@/lib/types";
+import type { Item, ItemStatus, Order } from "@/lib/types";
 import { ItemEditDialog } from "./item-edit-dialog";
 
 const statuses: { value: ItemStatus; label: string }[] = [
   { value: "owned", label: "Owned" },
   { value: "returned", label: "Returned" },
+  { value: "cancelled", label: "Cancelled" },
   { value: "sold", label: "Sold" },
   { value: "disposed", label: "Disposed" },
 ];
 
 // In demo mode (no Supabase) actions only confirm with a toast.
-export function ItemActions({ item }: { item: Item }) {
+export function ItemActions({
+  item,
+  order,
+  othersKept = 0,
+}: {
+  item: Item;
+  order?: Order;
+  /** The order's other items still owned. */
+  othersKept?: number;
+}) {
   const router = useRouter();
   const [current, setCurrent] = useState(item.status);
+  const [returning, setReturning] = useState<"returned" | "cancelled" | null>(null);
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
   async function changeStatus(value: string) {
     const status = value as ItemStatus;
+    // Returning an item bought in an order asks what came back.
+    if ((status === "returned" || status === "cancelled") && order && current === "owned") {
+      return setReturning(status);
+    }
     const previous = current;
     setCurrent(status);
     if (isSupabaseConfigured) {
@@ -89,6 +105,19 @@ export function ItemActions({ item }: { item: Item }) {
       </DropdownMenu>
 
       {editing && <ItemEditDialog item={item} onClose={() => setEditing(false)} />}
+
+      {returning && order && (
+        <PurchaseOutcomeDialog
+          order={order}
+          items={[{ id: item.id, name: item.name, price: item.price.value }]}
+          outcome={returning}
+          othersKept={othersKept}
+          open
+          onOpenChange={(open) => {
+            if (!open) setReturning(null);
+          }}
+        />
+      )}
 
       <ConfirmDelete
         open={confirming}

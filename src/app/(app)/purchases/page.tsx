@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { amountSpent } from "@/lib/refunds";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Item, ServiceEvent } from "@/lib/types";
 import { getItems, getOrders, getServiceEvents } from "@/lib/data";
@@ -153,7 +154,12 @@ async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, 
                     </TableCell>
                     <TableCell className="pr-5 text-right">
                       <div className="flex flex-col items-end gap-1">
-                        <span className="tabular-nums">{formatMoney(o.total)}</span>
+                        <span className="tabular-nums">{formatMoney(amountSpent(o))}</span>
+                        {amountSpent(o) !== o.total && (
+                          <span className="text-xs text-muted-foreground tabular-nums line-through">
+                            {formatMoney(o.total)}
+                          </span>
+                        )}
                         <OrderStatusBadge status={o.status} />
                       </div>
                     </TableCell>

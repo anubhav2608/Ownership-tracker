@@ -607,6 +607,14 @@ export type Database = {
         Args: { import_id: string; result: Json };
         Returns: undefined;
       };
+      record_purchase_outcome: {
+        Args: { order_id: string; item_ids: string[]; outcome: string; refund: number };
+        Returns: undefined;
+      };
+      refresh_order_status: {
+        Args: { order_id: string };
+        Returns: undefined;
+      };
       record_import_result: {
         Args: { import_id: string; outcome: Json };
         Returns: undefined;
@@ -648,6 +656,10 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      set_order_refund: {
+        Args: { order_id: string; amount: number };
+        Returns: undefined;
       };
       start_import_processing: {
         Args: { import_id: string };
@@ -693,8 +705,8 @@ export type Database = {
         | "home"
         | "toys"
         | "other";
-      item_status: "owned" | "returned" | "sold" | "disposed";
-      order_status: "completed" | "refunded" | "partially_refunded";
+      item_status: "owned" | "returned" | "sold" | "disposed" | "cancelled";
+      order_status: "completed" | "refunded" | "partially_refunded" | "cancelled";
       record_source: "email" | "upload" | "manual";
     };
     CompositeTypes: {
@@ -864,8 +876,8 @@ export const Constants = {
         "toys",
         "other",
       ],
-      item_status: ["owned", "returned", "sold", "disposed"],
-      order_status: ["completed", "refunded", "partially_refunded"],
+      item_status: ["owned", "returned", "sold", "disposed", "cancelled"],
+      order_status: ["completed", "refunded", "partially_refunded", "cancelled"],
       record_source: ["email", "upload", "manual"],
     },
   },

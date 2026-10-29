@@ -31,7 +31,7 @@ export interface Tracked<T> {
   confidence?: number;
 }
 
-export type OrderStatus = "completed" | "refunded" | "partially_refunded";
+export type OrderStatus = "completed" | "refunded" | "partially_refunded" | "cancelled";
 
 export interface Order {
   id: string;
@@ -47,7 +47,7 @@ export interface Order {
   documentIds: string[];
 }
 
-export type ItemStatus = "owned" | "returned" | "sold" | "disposed";
+export type ItemStatus = "owned" | "returned" | "sold" | "disposed" | "cancelled";
 
 export interface Identifier {
   label: string;

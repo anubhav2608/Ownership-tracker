@@ -95,6 +95,7 @@ const itemStatus: Record<ItemStatus, { tone: Tone; label: string }> = {
   returned: { tone: "neutral", label: "Returned" },
   sold: { tone: "neutral", label: "Sold" },
   disposed: { tone: "neutral", label: "Disposed" },
+  cancelled: { tone: "neutral", label: "Cancelled" },
 };
 
 export function ItemStatusBadge({ status }: { status: ItemStatus }) {
@@ -127,11 +128,16 @@ export function ReturnByBadge({ item }: { item: Pick<Item, "status" | "returnBy"
 
 // ── Orders ──────────────────────────────────────────────────────────────
 
+const orderStatus: Record<Exclude<OrderStatus, "completed">, { tone: Tone; label: string }> = {
+  refunded: { tone: "info", label: "Refunded" },
+  partially_refunded: { tone: "info", label: "Partly refunded" },
+  cancelled: { tone: "neutral", label: "Cancelled" },
+};
+
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
   if (status === "completed") return null;
-  return (
-    <Pill tone="info">{status === "refunded" ? "Refunded" : "Partly refunded"}</Pill>
-  );
+  const { tone, label } = orderStatus[status];
+  return <Pill tone={tone}>{label}</Pill>;
 }
 
 // ── Sources and documents ───────────────────────────────────────────────

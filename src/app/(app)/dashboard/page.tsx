@@ -9,6 +9,7 @@ import { ListCardSkeleton, StatTilesSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { amountSpent, notKept } from "@/lib/refunds";
 import { formatDate, formatMoney } from "@/lib/format";
 import {
   getCurrentUser,
@@ -122,13 +123,13 @@ async function DashboardContent() {
           id: o.id,
           merchant: o.merchant,
           date: o.orderDate,
-          spent: Math.max(0, o.total - (o.refundedAmount ?? 0)),
+          spent: amountSpent(o),
         }))}
         items={items.map((i) => ({
           orderId: i.orderId,
           category: i.category,
           price: i.price.value,
-          returned: i.status === "returned",
+          returned: notKept(i.status),
         }))}
         events={events.map((e) => {
           const item = items.find((i) => i.id === e.itemId);
@@ -224,7 +225,7 @@ async function DashboardContent() {
                       )}
                     </div>
                     <OrderStatusBadge status={o.status} />
-                    <p className="text-right text-sm tabular-nums">{formatMoney(o.total)}</p>
+                    <p className="text-right text-sm tabular-nums">{formatMoney(amountSpent(o))}</p>
                   </Link>
                 </li>
               );
