@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { formatMoney } from "@/lib/format";
 import type { Category } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { MonthlyChart, type MonthTotals } from "./monthly-chart";
 
 // What was spent, for a period (this month by default) and optionally one
@@ -159,8 +158,6 @@ export function ExpensesCard({
       ),
     );
 
-    const byCategory = new Map<Category, number>();
-    for (const i of theItems) byCategory.set(i.category, (byCategory.get(i.category) ?? 0) + i.price!);
 
     return {
       purchases,
@@ -170,7 +167,6 @@ export function ExpensesCard({
       itemsBack: viewItems.filter((i) => i.returned).length,
       documents: docs.size,
       orderCount: category === "all" ? theOrders.length : new Set(theItems.filter((i) => i.category === category).map((i) => i.orderId)).size,
-      categories: [...byCategory].sort((a, b) => b[1] - a[1]),
     };
   }, [orders, items, events, documentIds, range, category, merchant]);
 
@@ -203,7 +199,6 @@ export function ExpensesCard({
   }, [orders, items, events, category, merchant, today]);
 
   const total = result.purchases + result.maintenance;
-  const topCategory = result.categories[0]?.[1] ?? 0;
   const periodLabel =
     preset === "custom"
       ? range.from || range.to
@@ -315,7 +310,7 @@ export function ExpensesCard({
         <MonthlyChart months={monthly} />
       </div>
 
-      <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div className="p-5">
         <div className="min-w-0">
           <p className="text-xs text-muted-foreground">
             {periodLabel}
@@ -344,37 +339,6 @@ export function ExpensesCard({
               )}
             </p>
           )}
-
-        </div>
-
-        <div className="min-w-0">
-          <p className="mb-3 text-xs font-medium text-muted-foreground">
-            Purchases by category <span className="font-normal">(choose one to filter)</span>
-          </p>
-          {result.categories.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No priced items in this period. <Link href="/items" className="text-primary hover:underline">See all items</Link>
-            </p>
-          ) : (
-            <ul className="space-y-1" aria-label="Purchases by category">
-              {result.categories.map(([c, value]) => (
-                <li key={c}>
-                  <button
-                    type="button"
-                    onClick={() => setCategory(category === c ? "all" : c)}
-                    aria-pressed={category === c}
-                    className={cn(
-                      "w-full rounded-md px-2 py-1 text-left hover:bg-accent",
-                      category === c && "bg-accent",
-                      category !== "all" && category !== c && "opacity-50",
-                    )}
-                  >
-                    <Bar label={c} value={value} max={topCategory} as="span" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       </div>
     </SectionCard>
@@ -389,25 +353,5 @@ function Filter({ id, label, children }: { id: string; label: string; children: 
       </label>
       {children}
     </div>
-  );
-}
-
-/** One row of a single-series bar list: label, bar, amount (the amount is text, not color). */
-function Bar({ label, value, max, as = "li" }: { label: string; value: number; max: number; as?: "li" | "span" }) {
-  const Row = as;
-  return (
-    <Row
-      className="group grid grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-3 text-sm"
-      title={`${label}: ${formatMoney(value)}`}
-    >
-      <span className="truncate text-muted-foreground">{label}</span>
-      <span className="h-2 rounded-full bg-muted">
-        <span
-          className="block h-2 rounded-full bg-primary transition-opacity group-hover:opacity-80"
-          style={{ width: `${max > 0 ? Math.max(2, (value / max) * 100) : 0}%` }}
-        />
-      </span>
-      <span className="text-right tabular-nums">{formatMoney(value)}</span>
-    </Row>
   );
 }
