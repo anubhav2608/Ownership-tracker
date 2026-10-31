@@ -1,0 +1,24 @@
+{
+  "kind": "purchase",
+  "shop": "Amazon",
+  "orderRef": "402-1111111-1111111",
+  "date": "2026-10-07",
+  "total": 977,
+  "items": [
+    {
+      "name": "Example Coconut Oil (Cold...",
+      "qty": 1,
+      "price": 220
+    },
+    {
+      "name": "Example Baby Moments Gentle Body W...",
+      "qty": 1,
+      "price": 503
+    },
+    {
+      "name": "Example Fridge Door Storag...",
+      "qty": 1,
+      "price": 249
+    }
+  ]
+}

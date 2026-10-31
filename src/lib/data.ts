@@ -380,3 +380,16 @@ export async function getImport(id: string): Promise<ImportRecord | undefined> {
   );
   return row ? toImport(row) : undefined;
 }
+
+/** What the user changed when saving imports, for Settings → How well emails are read. */
+export async function getExtractionFeedback() {
+  if (!isSupabaseConfigured) return [];
+  const supabase = await db();
+  return query<Pick<Row<"extraction_feedback">, "import_id" | "shop" | "field" | "changed">[]>(
+    supabase
+      .from("extraction_feedback")
+      .select("import_id, shop, field, changed")
+      .order("created_at", { ascending: false })
+      .limit(5000),
+  );
+}

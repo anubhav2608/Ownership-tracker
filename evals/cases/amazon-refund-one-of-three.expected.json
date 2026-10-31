@@ -1,0 +1,31 @@
+{
+  "input": {
+    "sentOn": "2026-10-20"
+  },
+  "kind": "return_or_refund",
+  "shop": "Amazon",
+  "orderRef": "402-2222222-2222222",
+  "total": 503,
+  "purchase": {
+    "items": [
+      {
+        "id": "oil",
+        "name": "Example Coconut Oil (Cold...",
+        "price": 220
+      },
+      {
+        "id": "wash",
+        "name": "Example Baby Moments Gentle Body W...",
+        "price": 503
+      },
+      {
+        "id": "boxes",
+        "name": "Example Fridge Door Storag...",
+        "price": 249
+      }
+    ]
+  },
+  "itemsBack": [
+    "wash"
+  ]
+}

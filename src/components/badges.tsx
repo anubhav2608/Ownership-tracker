@@ -191,7 +191,9 @@ export function ImportStatusBadge({ status }: { status: ImportStatus }) {
 
 // ── Field provenance (missing / extracted / confirmed) ─────────────────
 
-export const LOW_CONFIDENCE = 0.8;
+import { LOW_CONFIDENCE } from "@/lib/confidence";
+
+export { LOW_CONFIDENCE };
 
 export function FieldStateBadge({
   state,

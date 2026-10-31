@@ -1,0 +1,7 @@
+Flipkart
+Refund Processed!
+Your refund of ₹299 for Order ID OD330098765432101200 has been processed.
+Example Microfibre Pillow (Pack of 1)
+Refund Amount
+₹299
+Refund mode: Original payment method

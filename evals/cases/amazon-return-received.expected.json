@@ -1,0 +1,16 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "return_or_refund",
+  "shop": "Amazon",
+  "orderRef": "402-6666666-6666666",
+  "total": 1499,
+  "items": [
+    {
+      "name": "Example Wireless Headphones, Black",
+      "qty": 1,
+      "price": 1499
+    }
+  ]
+}

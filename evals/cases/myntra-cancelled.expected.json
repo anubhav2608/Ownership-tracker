@@ -1,0 +1,16 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "cancellation",
+  "shop": "Myntra",
+  "orderRef": "1000001-2000002-3000003",
+  "total": 755,
+  "items": [
+    {
+      "name": "Example Kids Label Boys Printed Sweatshirt",
+      "qty": 1,
+      "price": 755
+    }
+  ]
+}

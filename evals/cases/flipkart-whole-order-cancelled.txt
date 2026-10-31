@@ -1,0 +1,5 @@
+Flipkart
+Hi Asha,
+Your order has been cancelled.
+Order ID OD330098765432101200
+Refund will be processed if you were charged.

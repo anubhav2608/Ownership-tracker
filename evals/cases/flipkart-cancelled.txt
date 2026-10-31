@@ -1,0 +1,9 @@
+Flipkart
+Order Cancelled
+Hi Asha,
+Your order for Example Steam Iron 1200W (White) has been cancelled as per your request.
+Order ID OD330012345678901100
+Example Steam Iron 1200W (White)
+Qty: 1
+₹1,099
+Refund of ₹1,099 will be credited to your original payment method within 5-7 business days.

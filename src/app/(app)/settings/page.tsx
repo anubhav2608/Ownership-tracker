@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { GmailSetup } from "./gmail-setup";
+import { ReadingAccuracy } from "./reading-accuracy";
 import { DangerZone, RegenerateAddress, Senders } from "./settings-actions";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -21,6 +22,9 @@ export default function SettingsPage() {
       <div className="space-y-6">
         <Suspense fallback={<SettingsSkeleton />}>
           <AccountSettings />
+        </Suspense>
+        <Suspense>
+          <ReadingAccuracy />
         </Suspense>
         <DangerZone />
       </div>

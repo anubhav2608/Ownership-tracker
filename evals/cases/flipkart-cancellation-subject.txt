@@ -1,0 +1,11 @@
+Subject: Cancellation of your Order OD300000000000000000
+Flipkart
+Hi Asha,
+As requested, your order has been cancelled.
+Order ID OD300000000000000000
+Example Remote Control Toy Car
+Seller: Example Toys
+Qty: 1
+₹499
+Refund Details
+Refund of ₹499 will be credited to your original payment method.

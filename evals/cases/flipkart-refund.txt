@@ -1,0 +1,7 @@
+Flipkart
+Refund Processed!
+Your refund of ₹1,099 for Order ID OD330012345678901100 has been processed.
+Example Steam Iron 1200W (White)
+Refund Amount
+₹1,099
+Refund mode: Original payment method

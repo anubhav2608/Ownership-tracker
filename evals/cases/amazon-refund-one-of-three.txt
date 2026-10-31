@@ -1,0 +1,12 @@
+Dear Customer,
+Greetings from Amazon.in
+We are writing to confirm that your refund for ₹503.00 has been processed for your Order # 402-2222222-2222222.
+This refund is for the following item(s):
+Item: Example Baby Moments Gentle Body Wash And Shampoo For Soft Hair 500ml
+Quantity: 1
+Reason for refund: Item not satisfactory
+Here's the breakdown of your refund:
+Item Refund: ₹479.04
+Item Tax Refund: ₹23.96
+Your refund is being credited as follows:
+Original Payment Method: ₹503.00

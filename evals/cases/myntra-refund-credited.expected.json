@@ -1,0 +1,9 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "return_or_refund",
+  "shop": "Myntra",
+  "orderRef": "1000001-2000002-3000003",
+  "total": 655
+}

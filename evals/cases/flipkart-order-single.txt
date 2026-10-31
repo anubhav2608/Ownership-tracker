@@ -1,0 +1,15 @@
+Flipkart
+Order Confirmation
+Hi Asha,
+Your order has been successfully placed.
+Order placed on Oct 24, 2026
+Order ID OD330012345678901100
+Item(s) in this order
+Example Steam Iron 1200W (White)
+Seller: Example Retail
+Qty: 1
+₹1,099
+Delivery by Mon, Oct 27
+Amount Paid
+₹1,099
+Manage your order

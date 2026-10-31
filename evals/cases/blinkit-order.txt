@@ -1,0 +1,13 @@
+Blinkit
+Order Summary
+Order ID: ORD123456789
+24 Oct 2026, 8:15 PM
+Example Full Cream Milk 500 ml  2 x ₹34  ₹68
+Example Brown Bread 400 g  1 x ₹50  ₹50
+Example Bananas 6 pcs  1 x ₹60  ₹60
+Example Basmati Rice 1 kg  1 x ₹150  ₹150
+Example Eggs 6 pcs  1 x ₹57  ₹57
+Item Total ₹385
+Handling Charge ₹2
+Delivery Charge ₹25
+Bill Total ₹412

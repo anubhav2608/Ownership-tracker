@@ -1,0 +1,9 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "return_or_refund",
+  "shop": "Flipkart",
+  "orderRef": "OD330012345678901100",
+  "total": 1099
+}

@@ -845,6 +845,11 @@ export function parseDocument(
   if (documentKind === "other" && (date.value === null || total.state === "missing")) {
     return { ok: false, reason: "not_a_receipt" };
   }
+  // Nothing says order or invoice: a receipt still has a labelled total or an order number.
+  // A sale email's "-70% ₹1,499" has neither.
+  if (documentKind === "other" && (total.confidence ?? 0) < 0.7 && !findRefs(clean, text, known).orderRef.value) {
+    return { ok: false, reason: "not_a_receipt" };
+  }
 
   const { items: found, starts } = findLines(clean);
   const fields: ExtractedFields = { date, total };

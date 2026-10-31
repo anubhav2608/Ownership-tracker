@@ -12,7 +12,8 @@
     "db:test": "supabase test db",
     "db:test:local": "scripts/db/test-local.sh",
     "db:types": "supabase gen types typescript --linked --schema public > src/lib/supabase/database.types.ts && prettier --write src/lib/supabase/database.types.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval": "vitest run --config vitest.eval.config.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -1,0 +1,16 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "purchase",
+  "shop": "Croma",
+  "orderRef": "1234567",
+  "total": 38990,
+  "items": [
+    {
+      "name": "Example 1.5 Ton 5 Star Inverter Split AC",
+      "qty": 1,
+      "price": 38990
+    }
+  ]
+}

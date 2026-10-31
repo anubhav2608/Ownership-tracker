@@ -16,7 +16,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { formatDate, formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { ImportRecord } from "@/lib/types";
-import { applyRefund } from "../actions";
+import { corrections } from "@/lib/evals/feedback";
+import { applyRefund, recordFeedback } from "../actions";
 import { DiscardButton } from "./status-panels";
 
 export interface RefundPurchase {
@@ -91,6 +92,26 @@ export function RefundReview({ record, purchases }: { record: ImportRecord; purc
       });
       setSaving(false);
       if (!result.ok) return void toast.error(result.message);
+      // What was changed from what was matched (Settings → How well emails are read).
+      const sorted = (ids: Iterable<string>) => [...ids].sort().join(",");
+      await recordFeedback(record.id, {
+        shop: record.fields?.merchant?.value ?? null,
+        parser: record.parser ?? null,
+        documentKind: record.documentKind ?? null,
+        rows: [
+          ...corrections(
+            { total: record.fields?.total, outcome: record.fields?.outcome },
+            { total: amount, outcome },
+          ),
+          { field: "refund.purchase", extracted: match?.orderId ?? null, saved: orderId, changed: (match?.orderId ?? null) !== orderId },
+          {
+            field: "refund.items",
+            extracted: sorted(match?.itemIds ?? []) || null,
+            saved: sorted(chosen) || null,
+            changed: sorted(match?.itemIds ?? []) !== sorted(chosen),
+          },
+        ],
+      }).catch(() => {});
     }
     toast.success(`Refund of ${formatMoney(amount)} applied to the ${purchase.merchant} purchase`);
     router.push(`/purchases/${orderId}`);

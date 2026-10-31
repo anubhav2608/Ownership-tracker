@@ -1,0 +1,7 @@
+Myntra
+Refund Credited
+Hi Asha, your refund of ₹655.00 for the return of Boys Graphic Printed Cotton Sweatshirt has been credited.
+Order ID 1000001-2000002-3000003
+Return ID 9999999
+Refund Amount ₹655.00
+Credited to: UPI

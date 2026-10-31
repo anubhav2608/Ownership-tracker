@@ -1,0 +1,9 @@
+Myntra
+Your order has been cancelled
+Hi Asha, as requested, we have cancelled the item(s) below.
+Order ID: 1000001-2000002-3000003
+Example Kids Label
+Boys Printed Sweatshirt
+Size 2Y | Qty 1
+₹755.00
+Refund of ₹755.00 has been initiated to your original payment method.

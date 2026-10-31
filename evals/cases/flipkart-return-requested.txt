@@ -1,0 +1,6 @@
+Flipkart
+Return Request Accepted
+Hi Asha, your return request for Example Microfibre Pillow (Pack of 1) has been accepted.
+Order ID OD330098765432101200
+Pickup by Tue, Oct 28
+Refund will be initiated after the item is picked up.

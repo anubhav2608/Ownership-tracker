@@ -1,0 +1,19 @@
+{
+  "kind": "purchase",
+  "shop": "Amazon",
+  "orderRef": "408-1938842-1173903",
+  "date": "2026-10-15",
+  "total": 31489,
+  "items": [
+    {
+      "name": "Sony WH-1000XM6 Wireless Headphones",
+      "qty": 1,
+      "price": 29990
+    },
+    {
+      "name": "Sony Headphone Carry Case",
+      "qty": 1,
+      "price": 1499
+    }
+  ]
+}

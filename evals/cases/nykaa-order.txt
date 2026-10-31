@@ -1,0 +1,9 @@
+Nykaa
+Order Confirmed
+Order ID: NYK-12345678-9
+Ordered on 24 Oct 2026
+Example Matte Lipstick - Ruby Red  x 2  ₹598
+Example Kajal - Black  x 1  ₹199
+Sub Total ₹797
+Shipping Charges FREE
+Grand Total ₹797

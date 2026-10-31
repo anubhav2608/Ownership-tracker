@@ -1,0 +1,36 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "purchase",
+  "shop": "Blinkit",
+  "orderRef": "ORD123456789",
+  "total": 412,
+  "items": [
+    {
+      "name": "Example Full Cream Milk 500 ml",
+      "qty": 2,
+      "price": 68
+    },
+    {
+      "name": "Example Brown Bread 400 g",
+      "qty": 1,
+      "price": 50
+    },
+    {
+      "name": "Example Bananas 6 pcs",
+      "qty": 1,
+      "price": 60
+    },
+    {
+      "name": "Example Basmati Rice 1 kg",
+      "qty": 1,
+      "price": 150
+    },
+    {
+      "name": "Example Eggs 6 pcs",
+      "qty": 1,
+      "price": 57
+    }
+  ]
+}

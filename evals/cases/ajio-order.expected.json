@@ -1,0 +1,16 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "purchase",
+  "shop": "AJIO",
+  "orderRef": "FN1234567890",
+  "total": 899,
+  "items": [
+    {
+      "name": "Example Brand Men Slim Fit Shirt",
+      "qty": 1,
+      "price": 899
+    }
+  ]
+}

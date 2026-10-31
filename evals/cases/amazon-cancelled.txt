@@ -1,0 +1,7 @@
+Amazon.in
+Your order has been cancelled
+Hello Asha,
+We've cancelled the following item(s) from your order #402-5555555-5555555 as you requested:
+Example Ceramic Coffee Mug 350ml
+Quantity: 1
+If you've already been charged, you'll receive a refund of ₹349.00 within 2-4 business days.

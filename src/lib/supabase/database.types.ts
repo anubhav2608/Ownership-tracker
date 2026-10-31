@@ -120,6 +120,48 @@ export type Database = {
           },
         ];
       };
+      extraction_feedback: {
+        Row: {
+          changed: boolean;
+          created_at: string;
+          document_kind: string | null;
+          extracted: string | null;
+          field: string;
+          id: string;
+          import_id: string | null;
+          parser: string | null;
+          saved: string | null;
+          shop: string | null;
+          user_id: string;
+        };
+        Insert: {
+          changed: boolean;
+          created_at?: string;
+          document_kind?: string | null;
+          extracted?: string | null;
+          field: string;
+          id?: string;
+          import_id?: string | null;
+          parser?: string | null;
+          saved?: string | null;
+          shop?: string | null;
+          user_id?: string;
+        };
+        Update: {
+          changed?: boolean;
+          created_at?: string;
+          document_kind?: string | null;
+          extracted?: string | null;
+          field?: string;
+          id?: string;
+          import_id?: string | null;
+          parser?: string | null;
+          saved?: string | null;
+          shop?: string | null;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       imports: {
         Row: {
           sender_trusted: boolean;

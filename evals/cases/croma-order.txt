@@ -1,0 +1,9 @@
+Croma
+Thank you for your order
+Order Number: 1234567
+Order Date: 24-10-2026
+Product  Qty  Price
+Example 1.5 Ton 5 Star Inverter Split AC  1  ₹38,990.00
+Sub Total  ₹38,990.00
+Delivery  FREE
+Order Total  ₹38,990.00

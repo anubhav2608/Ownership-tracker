@@ -18,6 +18,7 @@ const TABLES = [
   "document_links",
   "imports",
   "verified_senders",
+  "extraction_feedback",
 ] as const;
 
 export async function GET() {

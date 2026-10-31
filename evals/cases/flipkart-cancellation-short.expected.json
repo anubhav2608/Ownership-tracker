@@ -1,0 +1,16 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "cancellation",
+  "shop": "Flipkart",
+  "orderRef": "OD300000000000000001",
+  "total": 349,
+  "items": [
+    {
+      "name": "Example Steel Water Bottle 1L",
+      "qty": 1,
+      "price": 349
+    }
+  ]
+}

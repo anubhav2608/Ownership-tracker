@@ -1,0 +1,16 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "purchase",
+  "shop": "Meesho",
+  "orderRef": "123456789012345678",
+  "total": 349,
+  "items": [
+    {
+      "name": "Example Women's Printed Georgette Saree",
+      "qty": 1,
+      "price": 349
+    }
+  ]
+}

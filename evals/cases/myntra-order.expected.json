@@ -1,0 +1,22 @@
+{
+  "input": {
+    "sentOn": "2026-10-26",
+    "sender": "Myntra <updates@myntra.com>"
+  },
+  "kind": "purchase",
+  "shop": "Myntra",
+  "orderRef": "1000001-2000002-3000003",
+  "total": 1433,
+  "items": [
+    {
+      "name": "Example Kids Label Boys Printed Sweatshirt",
+      "qty": 1,
+      "price": 755
+    },
+    {
+      "name": "Example & Sons Boys Graphic Printed Cotton Sweatshirt",
+      "qty": 1,
+      "price": 655
+    }
+  ]
+}

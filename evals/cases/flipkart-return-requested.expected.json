@@ -1,0 +1,14 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "return_or_refund",
+  "shop": "Flipkart",
+  "orderRef": "OD330098765432101200",
+  "items": [
+    {
+      "name": "Example Microfibre Pillow (Pack of 1)",
+      "qty": 1
+    }
+  ]
+}

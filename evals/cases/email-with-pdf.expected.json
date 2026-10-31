@@ -1,0 +1,18 @@
+{
+  "kind": "purchase",
+  "shop": "Sharma Electronics",
+  "date": "2026-09-03",
+  "total": 4798,
+  "items": [
+    {
+      "name": "Philips Mixer Grinder HL7756",
+      "qty": 1,
+      "price": 4299
+    },
+    {
+      "name": "Extension board 4-way",
+      "qty": 1,
+      "price": 499
+    }
+  ]
+}

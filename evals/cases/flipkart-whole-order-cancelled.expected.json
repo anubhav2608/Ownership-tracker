@@ -1,0 +1,26 @@
+{
+  "input": {
+    "sentOn": "2026-10-26"
+  },
+  "kind": "cancellation",
+  "shop": "Flipkart",
+  "orderRef": "OD330098765432101200",
+  "purchase": {
+    "items": [
+      {
+        "id": "bedsheet",
+        "name": "Example Cotton Double Bedsheet with 2 Pillow Covers",
+        "price": 649
+      },
+      {
+        "id": "pillow",
+        "name": "Example Microfibre Pillow (Pack of 1)",
+        "price": 299
+      }
+    ]
+  },
+  "itemsBack": [
+    "bedsheet",
+    "pillow"
+  ]
+}

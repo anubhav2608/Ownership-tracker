@@ -2,10 +2,10 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import type { Identifier } from "@/lib/types";
-import { bodyLines, parseRawEmail } from "./email";
+import { parseRawEmail } from "./email";
+import { EMAIL, extractFromFiles, type Problem } from "./extract-files";
 import { matchItems, pickRefundedItems, type MatchableItem } from "./match";
-import { mergeExtractions, parseDocument, type Extraction } from "./parse";
-import { extractPdfText, PdfFileError } from "./pdf-text";
+import type { Extraction } from "./parse";
 import { keptAttachments, storeDocument } from "@/lib/stored-documents";
 
 // Reads an import's documents: an uploaded file, or a forwarded email and its
@@ -28,11 +28,7 @@ export interface Outcome {
   error?: { code: string; message: string; stage: ImportStage; retryable: boolean; detail?: string };
 }
 
-const MAX_PDF_BYTES = 10 * 1024 * 1024;
-const EMAIL = "message/rfc822";
 const MAX_TEXT_LINES = 400;
-/** Documents read per import (an email and its attachments). */
-const MAX_SOURCES = 6;
 
 /** An unexpected error while reading: retryable, with the reason kept for diagnosis. */
 export function readingCrashed(e: unknown, what: "file" | "email"): Outcome {
@@ -52,7 +48,7 @@ export const failure = (
   error: { code, message, stage, retryable },
 });
 
-const FAILURES = {
+const FAILURES: Record<Problem | "NO_FILE", readonly [string, boolean]> = {
   NO_FILE: ["The uploaded file is missing. Upload it again.", false],
   PDF_UNREADABLE: [
     "This PDF couldn't be opened. It may be damaged or password-protected. Enter the details yourself.",
@@ -67,8 +63,7 @@ const FAILURES = {
     false,
   ],
   TOO_LARGE: ["This PDF is too large to read.", false],
-} as const;
-type Problem = keyof typeof FAILURES;
+};
 /** When nothing could be read, the most useful explanation comes first. */
 const PROBLEM_ORDER: Problem[] = ["PDF_UNREADABLE", "NO_TEXT_LAYER", "OCR_NOT_AVAILABLE", "TOO_LARGE"];
 
@@ -123,73 +118,22 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
     }
   }
 
-  // An attached invoice is more complete than the email it came with, so PDFs go first.
-  const rank = (mime: string) => (mime === "application/pdf" ? 0 : mime === EMAIL ? 1 : 2);
-  const ordered = [...docs].sort((a, b) => rank(a.mime_type) - rank(b.mime_type));
-
-  const problems = new Set<Problem>();
-  // Everything readable: an email is read together with its attachments.
-  const read: { extraction: Extraction; lines: string[]; label: string }[] = [];
-  // The text we found, kept so the import page can show what was read.
-  const seen: string[] = [];
-
-  for (const doc of ordered.slice(0, MAX_SOURCES)) {
-    let lines: string[];
-    let sentOn: string | null = null;
-    let sender: string | null = null;
-    if (doc.mime_type.startsWith("image/")) {
-      problems.add("OCR_NOT_AVAILABLE");
-      continue;
-    } else if (doc.mime_type === "application/pdf") {
-      if (doc.size_bytes > MAX_PDF_BYTES) {
-        problems.add("TOO_LARGE");
-        continue;
-      }
-      try {
-        lines = (await extractPdfText(await download(db, doc.storage_path))).lines;
-      } catch (e) {
-        // Only a bad file is the user's to fix; anything else is our failure and can be retried.
-        if (!(e instanceof PdfFileError)) throw e;
-        problems.add("PDF_UNREADABLE");
-        continue;
-      }
-    } else if (doc.mime_type === EMAIL) {
-      const email = await parseRawEmail(await download(db, doc.storage_path));
-      lines = bodyLines(email);
-      sentOn = indianDay(email.date);
-      sender = email.fromHeader;
-    } else {
-      continue;
-    }
-
-    if (lines.length) seen.push(`── ${doc.file_name} ──`, ...lines);
-    const parsed = parseDocument(lines, { sentOn, sender });
-    if (!parsed.ok) {
-      if (parsed.reason === "no_text" && doc.mime_type === "application/pdf") problems.add("NO_TEXT_LAYER");
-      continue;
-    }
-    read.push({ extraction: parsed.extraction, lines, label: doc.file_name });
-  }
-
+  const { best, problems, seen } = await extractFromFiles(
+    docs.map((d) => ({
+      name: d.file_name,
+      mime: d.mime_type,
+      size: d.size_bytes,
+      load: () => download(db, d.storage_path),
+    })),
+  );
   const text = seen.slice(0, MAX_TEXT_LINES);
-  // The most complete document leads (PDFs come first); the rest fill in what it lacks.
-  const complete = (x: Extraction) =>
-    x.lines.length > 0 || x.documentKind === "service_receipt" || x.documentKind === "refund_notice";
-  const lead = read.find((r) => complete(r.extraction)) ?? read[0];
-  if (!lead) {
+  if (!best) {
     const problem = PROBLEM_ORDER.find((p) => problems.has(p));
     // An email (or file) with readable text that isn't a receipt is "unsupported", not an error.
     if (!problem) return { status: "unsupported", stage: "parsed", document_kind: "other", extracted: { text } };
     const [message, retryable] = FAILURES[problem];
     return { ...failure(problem, message, retryable), extracted: { text } };
   }
-  const best = {
-    extraction: mergeExtractions(
-      lead.extraction,
-      read.filter((r) => r !== lead && r.extraction.documentKind !== "refund_notice").map((r) => r.extraction),
-    ),
-    text: read.map((r) => r.lines.join("\n")).join("\n"),
-  };
 
   const outcome = await review(db, userId, best.extraction, best.text);
   return { ...outcome, extracted: { ...(outcome.extracted as object), text } as unknown as Json };
@@ -334,10 +278,6 @@ async function existingPurchase(db: Db, userId: string, orderRef?: string | null
 }
 
 /** The day (YYYY-MM-DD, Indian time) of an email's Date header, if it has a valid one. */
-function indianDay(date: string | null): string | null {
-  const t = date ? Date.parse(date) : NaN;
-  return Number.isNaN(t) ? null : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(t);
-}
 
 async function download(db: Db, path: string): Promise<Uint8Array> {
   const { data, error } = await db.storage.from("documents").download(path);

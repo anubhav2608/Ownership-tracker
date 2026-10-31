@@ -28,6 +28,8 @@ import {
   type Tracked,
 } from "@/lib/types";
 import { createPurchase, createServiceEvent, type PurchaseInput } from "../../add/actions";
+import { corrections } from "@/lib/evals/feedback";
+import { recordFeedback } from "../actions";
 import { DiscardButton } from "./status-panels";
 import { ReplacePurchaseDialog } from "@/components/replace-purchase-dialog";
 import type { ExistingPurchase } from "@/lib/purchases";
@@ -151,6 +153,16 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
     f.returnBy?.value && `returns until ${formatDate(f.returnBy.value)}`,
   ].filter(Boolean);
 
+  /** Records what was changed from what was read (Settings → How well emails are read). */
+  async function learn(saved: Parameters<typeof corrections>[1], items: Parameters<typeof corrections>[2]) {
+    await recordFeedback(record.id, {
+      shop: (f.merchant?.value ?? f.provider?.value ?? null) as string | null,
+      parser: record.parser ?? null,
+      documentKind: record.documentKind ?? null,
+      rows: corrections(f as Parameters<typeof corrections>[0], saved, items),
+    }).catch(() => {});
+  }
+
   function done(message: string, href: string) {
     toast.success(message);
     router.push(href);
@@ -200,6 +212,15 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       if (result.existing) return setExisting(result.existing);
       return toast.error(result.message);
     }
+    await learn({
+      merchant: fields.merchant.value,
+      orderRef: fields.orderRef?.value,
+      date: fields.date.value,
+      total: fields.total?.value,
+    }, {
+      read: record.lines ?? [],
+      saved: lines.map((l) => (l.target === "skip" ? null : { name: l.name.value, price: l.price.value })),
+    });
     done(replaceOrderId ? "Purchase replaced" : "Purchase saved", `/purchases/${result.id}`);
   }
 
@@ -230,6 +251,10 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       importId: record.id,
     });
     if (!result.ok) return toast.error(result.message);
+    await learn(
+      { provider: fields.provider?.value, date: fields.date.value, workPerformed: fields.workPerformed.value, total: fields.total?.value },
+      { read: record.parts ?? [], saved: parts.map((p) => ({ name: p.name.value, price: p.price.value })) },
+    );
     done("Service saved", serviceItem ? `/items/${serviceItem}` : "/services");
   }
 

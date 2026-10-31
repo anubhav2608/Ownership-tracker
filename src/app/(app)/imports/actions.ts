@@ -254,3 +254,34 @@ export async function applyRefund(
   refresh();
   return { ok: true };
 }
+
+const feedbackSchema = z.object({
+  shop: z.string().max(200).nullable(),
+  parser: z.string().max(100).nullable(),
+  documentKind: z.string().max(40).nullable(),
+  rows: z
+    .array(
+      z.object({
+        field: z.string().min(1).max(40),
+        extracted: z.string().max(500).nullable(),
+        saved: z.string().max(500).nullable(),
+        changed: z.boolean(),
+      }),
+    )
+    .max(200),
+});
+
+/**
+ * Records what the user changed when saving an import, for Settings → How well
+ * emails are read. Never in the way: a failure here doesn't affect the save.
+ */
+export async function recordFeedback(importId: string, input: z.infer<typeof feedbackSchema>): Promise<void> {
+  const parsed = feedbackSchema.safeParse(input);
+  if (!id.safeParse(importId).success || !parsed.success || parsed.data.rows.length === 0) return;
+  const { shop, parser, documentKind, rows } = parsed.data;
+  const supabase = await createClient();
+  const { error } = await supabase.from("extraction_feedback").insert(
+    rows.map((r) => ({ ...r, import_id: importId, shop, parser, document_kind: documentKind })),
+  );
+  if (error) console.error("[imports] recording feedback failed:", error.code, error.message);
+}

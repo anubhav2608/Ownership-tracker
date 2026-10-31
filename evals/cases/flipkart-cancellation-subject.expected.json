@@ -1,0 +1,16 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "cancellation",
+  "shop": "Flipkart",
+  "orderRef": "OD300000000000000000",
+  "total": 499,
+  "items": [
+    {
+      "name": "Example Remote Control Toy Car",
+      "qty": 1,
+      "price": 499
+    }
+  ]
+}

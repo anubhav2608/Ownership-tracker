@@ -1,0 +1,21 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "purchase",
+  "shop": "Nykaa",
+  "orderRef": "NYK-12345678-9",
+  "total": 797,
+  "items": [
+    {
+      "name": "Example Matte Lipstick - Ruby Red",
+      "qty": 2,
+      "price": 598
+    },
+    {
+      "name": "Example Kajal - Black",
+      "qty": 1,
+      "price": 199
+    }
+  ]
+}

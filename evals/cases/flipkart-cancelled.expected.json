@@ -1,0 +1,16 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "cancellation",
+  "shop": "Flipkart",
+  "orderRef": "OD330012345678901100",
+  "total": 1099,
+  "items": [
+    {
+      "name": "Example Steam Iron 1200W (White)",
+      "qty": 1,
+      "price": 1099
+    }
+  ]
+}

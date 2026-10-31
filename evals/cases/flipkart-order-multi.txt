@@ -1,0 +1,16 @@
+Flipkart
+Your Order has been placed!
+Order ID OD330098765432101200
+Order Date: 25 Oct 2026
+Example Cotton Double Bedsheet with 2 Pillow Covers
+Seller: Example Home
+Qty: 1
+₹649
+Example Microfibre Pillow (Pack of 1)
+Seller: Example Home
+Qty: 2
+₹598
+Price Details
+Price (3 items) ₹1,247
+Delivery Charges ₹40
+Total Amount ₹1,287

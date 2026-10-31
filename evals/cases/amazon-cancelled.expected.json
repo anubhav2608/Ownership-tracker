@@ -1,0 +1,16 @@
+{
+  "input": {
+    "sentOn": "2026-10-24"
+  },
+  "kind": "cancellation",
+  "shop": "Amazon",
+  "orderRef": "402-5555555-5555555",
+  "total": 349,
+  "items": [
+    {
+      "name": "Example Ceramic Coffee Mug 350ml",
+      "qty": 1,
+      "price": 349
+    }
+  ]
+}

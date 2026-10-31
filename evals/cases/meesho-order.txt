@@ -1,0 +1,9 @@
+Meesho
+Your order has been placed
+Order ID: 123456789012345678
+Example Women's Printed Georgette Saree
+Size: Free Size
+Qty: 1
+₹349
+Total Amount ₹349
+Payment: Cash on Delivery
