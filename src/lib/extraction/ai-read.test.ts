@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { aiExtraction, crossCheck, type AiDocument, type AiReader } from "./ai-read";
+import { aiExtraction, AiUnavailable, crossCheck, type AiDocument, type AiReader } from "./ai-read";
 import { extractFromFiles, type SourceFile } from "./extract-files";
 
 // Fictional documents; the AI reader is a stand-in returning what Claude would.
@@ -86,8 +86,13 @@ describe("AI reading", () => {
     expect([await problems(jpg), await problems(scan)]).toEqual([["OCR_NOT_AVAILABLE"], ["NO_TEXT_LAYER"]]);
     expect([await problems(jpg, blind), await problems(scan, blind)]).toEqual([["AI_UNREADABLE"], ["AI_UNREADABLE"]]);
     expect([await problems(jpg, broken), await problems(scan, broken)]).toEqual([["AI_FAILED"], ["AI_FAILED"]]);
+    // No credit left (or a revoked key): as if AI were off, not "try again".
+    const unpaid: AiReader = async () => {
+      throw new AiUnavailable("Your credit balance is too low to access the Anthropic API.");
+    };
+    expect([await problems(jpg, unpaid), await problems(scan, unpaid)]).toEqual([["OCR_NOT_AVAILABLE"], ["NO_TEXT_LAYER"]]);
     // A text PDF is still read by the template reader when the AI fails.
-    for (const ai of [undefined, broken, blind]) {
+    for (const ai of [undefined, broken, blind, unpaid]) {
       const x = (await extractFromFiles([file("bill.pdf", "application/pdf", fixture("shop-bill.pdf"))], { ai })).best?.extraction;
       expect([x?.parser, x?.fields.total?.value]).toEqual(["generic@v1", 4798]);
     }

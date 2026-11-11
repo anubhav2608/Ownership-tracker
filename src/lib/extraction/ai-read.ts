@@ -61,6 +61,13 @@ export interface AiInput {
   bytes: Uint8Array;
 }
 
+/**
+ * Thrown by a reader when AI reading isn't available at all (no credit left, a
+ * spend limit reached, a revoked key): the file is treated as if AI were off,
+ * not as a failure worth retrying.
+ */
+export class AiUnavailable extends Error {}
+
 /** Reads one file with Claude; null when it can't (not a type Claude reads, too large, declined). */
 export type AiReader = (file: AiInput) => Promise<AiDocument | null>;
 

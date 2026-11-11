@@ -1,4 +1,4 @@
-import { aiExtraction, canReadWithAi, crossCheck, type AiReader } from "./ai-read";
+import { aiExtraction, AiUnavailable, canReadWithAi, crossCheck, type AiReader } from "./ai-read";
 import { bodyLines, parseRawEmail } from "./email";
 import { mergeExtractions, parseDocument, type Extraction } from "./parse";
 import { extractPdfText, PdfFileError } from "./pdf-text";
@@ -50,7 +50,8 @@ async function askAi(ai: AiReader | undefined, file: SourceFile, bytes: Uint8Arr
     return doc ? { extraction: aiExtraction(doc) } : ("unreadable" as const);
   } catch (e) {
     console.error(`[extract] AI reading of ${file.name} failed:`, e instanceof Error ? e.message : e);
-    return "failed" as const;
+    // Out of credit or a bad key: as if AI were off, not something to retry.
+    return e instanceof AiUnavailable ? ("skipped" as const) : ("failed" as const);
   }
 }
 
