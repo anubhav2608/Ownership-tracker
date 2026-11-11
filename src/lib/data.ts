@@ -293,6 +293,8 @@ interface StoredExtraction {
   lines?: ExtractedLine[];
   parts?: ExtractedLine[];
   text?: string[];
+  /** An email confirming several orders: each one's number, total and items. */
+  orders?: { ref: string; total: number; items: number[] }[];
   /** A refund notice: the purchase it was matched to. */
   refund?: {
     order_id: string;
@@ -312,6 +314,8 @@ interface StoredResult {
   order_id?: string;
   item_ids?: string[];
   service_event_id?: string;
+  /** Every purchase saved from an email confirming several orders. */
+  order_ids?: string[];
   /** Money back from a refund notice applied to order_id. */
   refund?: number;
   refunded_item_ids?: string[];
@@ -340,6 +344,7 @@ function toImport(r: Row<"imports">): ImportRecord {
     lines: extracted.lines,
     parts: extracted.parts,
     text: extracted.text,
+    orders: extracted.orders,
     refundMatch: extracted.refund
       ? {
           orderId: extracted.refund.order_id,
@@ -356,6 +361,7 @@ function toImport(r: Row<"imports">): ImportRecord {
     result: result
       ? {
           orderId: result.order_id,
+          orderIds: result.order_ids,
           itemIds: result.item_ids,
           serviceEventId: result.service_event_id,
           refund: result.refund,

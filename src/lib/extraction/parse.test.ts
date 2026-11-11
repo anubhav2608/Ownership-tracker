@@ -391,6 +391,12 @@ describe("marketplace order email, forwarded by hand", () => {
     ]);
     // What was paid is the three orders together.
     expect(x.fields.total?.value).toBe(977);
+    // Each order with its own number, total and items, to be saved as its own purchase.
+    expect(x.orders).toEqual([
+      { ref: "402-1111111-1111111", total: 221.15, items: [0] },
+      { ref: "402-2222222-2222222", total: 505.55, items: [1] },
+      { ref: "402-3333333-3333333", total: 250.3, items: [2] },
+    ]);
   });
 
   it("names the shop from the sender when the text doesn't", () => {

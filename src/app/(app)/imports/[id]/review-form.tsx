@@ -27,7 +27,7 @@ import {
   type ServiceLineKind,
   type Tracked,
 } from "@/lib/types";
-import { createPurchase, createServiceEvent, type PurchaseInput } from "../../add/actions";
+import { createPurchase, createPurchases, createServiceEvent, type PurchaseInput } from "../../add/actions";
 import { corrections } from "@/lib/evals/feedback";
 import { recordFeedback } from "../actions";
 import { DiscardButton } from "./status-panels";
@@ -133,6 +133,9 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   }
 
   const kept = lines.filter((l) => l.target === "new");
+  // An email confirming several orders: each becomes its own purchase.
+  const orders = !isService && (record.orders?.length ?? 0) > 1 ? record.orders! : null;
+  const orderOf = (i: number) => orders?.find((o) => o.items.includes(i));
   const lineSum = kept.reduce((s, l) => s + (Number(l.price.value) || 0), 0);
   const total = Number(fields.total?.value) || 0;
   // When the PDF holds other invoices (a platform fee), the items match the first one, not the total.
@@ -177,6 +180,37 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       toast.error("Keep at least one item, and give each kept item a name.");
       return;
     }
+    const itemInput = (l: LineDraft) => ({
+      name: l.name.value,
+      category: l.category,
+      price: number(l.price),
+      returnBy: l.returnBy.value || undefined,
+      fieldMeta: meta({ name: l.name, price: l.price, return_by: l.returnBy }),
+      warranty: lineWarranty(l),
+    });
+    if (orders) {
+      const purchases = orders.flatMap((o) => {
+        const items = o.items.filter((i) => lines[i]?.target === "new").map((i) => itemInput(lines[i]));
+        return items.length
+          ? [{
+              merchant: fields.merchant!.value,
+              orderDate: fields.date!.value,
+              orderRef: o.ref,
+              invoiceRef: fields.invoiceRef?.value || undefined,
+              total: o.total,
+              fieldMeta: meta({ merchant: fields.merchant, order_date: fields.date }),
+              items,
+            }]
+          : [];
+      });
+      const saved = await createPurchases(record.id, purchases);
+      if (!saved.ok) return toast.error(saved.message);
+      await learn(
+        { merchant: fields.merchant.value, date: fields.date.value, total: fields.total?.value },
+        { read: record.lines ?? [], saved: lines.map((l) => (l.target === "skip" ? null : { name: l.name.value, price: l.price.value })) },
+      );
+      return done(`Saved as ${purchases.length} purchases, one per order`, saved.ids.length === 1 ? `/purchases/${saved.ids[0]}` : "/purchases");
+    }
     const result = await createPurchase({
       merchant: fields.merchant.value,
       orderDate: fields.date.value,
@@ -192,20 +226,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
         order_date: fields.date,
         total: fields.total,
       }),
-      items: lines.flatMap((l) =>
-        l.target === "skip"
-          ? []
-          : [
-              {
-                name: l.name.value,
-                category: l.category,
-                price: number(l.price),
-                returnBy: l.returnBy.value || undefined,
-                fieldMeta: meta({ name: l.name, price: l.price, return_by: l.returnBy }),
-                warranty: lineWarranty(l),
-              },
-            ],
-      ),
+      items: lines.flatMap((l) => (l.target === "skip" ? [] : [itemInput(l)])),
     });
     if (!result.ok) {
       // Same order or invoice number as a saved purchase: ask before overriding it.
@@ -308,10 +329,27 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
           ) : (
             <>
               <FieldInput fid={fid} label="Merchant" name="merchant" draft={fields.merchant} onChange={setField} />
-              <FieldInput fid={fid} label="Order number" name="orderRef" draft={fields.orderRef} onChange={setField} />
+              {!orders && <FieldInput fid={fid} label="Order number" name="orderRef" draft={fields.orderRef} onChange={setField} />}
               <FieldInput fid={fid} label="Invoice number" name="invoiceRef" draft={fields.invoiceRef} onChange={setField} />
               <FieldInput fid={fid} label="Order date" name="date" type="date" draft={fields.date} onChange={setField} />
-              <FieldInput fid={fid} label="Order total" name="total" type="number" draft={fields.total} onChange={setField} />
+              {orders ? (
+                <div className="grid gap-2 sm:col-span-2">
+                  <p className="text-sm font-medium">{orders.length} orders in this email</p>
+                  <ul className="divide-y rounded-lg border text-sm">
+                    {orders.map((o) => (
+                      <li key={o.ref} className="flex items-center justify-between gap-3 px-3 py-2">
+                        <span className="font-mono text-xs">{o.ref}</span>
+                        <span className="tabular-nums">{formatMoney(o.total)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-muted-foreground">
+                    Each order is saved as its own purchase, so a later refund or cancellation lines up with it.
+                  </p>
+                </div>
+              ) : (
+                <FieldInput fid={fid} label="Order total" name="total" type="number" draft={fields.total} onChange={setField} />
+              )}
             </>
           )}
         </div>
@@ -351,6 +389,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
                 <div className="flex items-center justify-between gap-3 sm:col-span-2">
                   <span className="text-xs font-medium text-muted-foreground">
                     Item {lines.slice(0, i + 1).filter((x) => x.target === "new").length} of {kept.length}
+                    {orderOf(i) && <> · Order <span className="font-mono">{orderOf(i)!.ref}</span></>}
                   </span>
                   <Button
                     type="button"

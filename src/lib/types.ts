@@ -218,6 +218,8 @@ export interface ImportRecord {
   /** The text read from the document, line by line, to show what extraction saw. */
   text?: string[];
   candidates?: MatchCandidate[];
+  /** An email confirming several orders: each one's number, total and items (indexes into lines). */
+  orders?: { ref: string; total: number; items: number[] }[];
   /** A refund notice: the purchase it seems to be for, and the items that went back. */
   refundMatch?: {
     orderId: string;
@@ -229,6 +231,8 @@ export interface ImportRecord {
   /** What the import created, once saved (or, for a refund notice, the purchase it was applied to). */
   result?: {
     orderId?: string;
+    /** Every purchase saved from an email confirming several orders. */
+    orderIds?: string[];
     itemIds?: string[];
     serviceEventId?: string;
     refund?: number;

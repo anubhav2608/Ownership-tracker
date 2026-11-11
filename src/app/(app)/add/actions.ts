@@ -164,6 +164,59 @@ function saveFailed(where: string, error: { message: string; code?: string }): S
   };
 }
 
+/** A purchase as the database functions take it. */
+function rpcPurchase(p: z.output<typeof purchaseSchema>) {
+  return {
+    merchant: p.merchant,
+    order_date: p.orderDate,
+    order_ref: p.orderRef || null,
+    invoice_ref: p.invoiceRef || null,
+    replace_order_id: p.replaceOrderId ?? null,
+    import_id: p.importId ?? null,
+    total: p.total ?? null,
+    field_meta: p.fieldMeta ?? {},
+    items: p.items.map((i) => ({
+      name: i.name,
+      category: categoryValue(i.category),
+      price: i.price ?? null,
+      return_by: i.returnBy ?? null,
+      field_meta: i.fieldMeta ?? {},
+      warranty: i.warranty ?? null,
+    })),
+  };
+}
+
+/**
+ * Saves an email that confirms several orders as one purchase per order, in
+ * one transaction, each with its own order number and total.
+ */
+export async function createPurchases(
+  importId: string,
+  input: PurchaseInput[],
+): Promise<{ ok: true; ids: string[] } | { ok: false; message: string }> {
+  const parsed = z.array(purchaseSchema).min(1).max(20).safeParse(input);
+  if (!z.uuid().safeParse(importId).success || !parsed.success) {
+    return { ok: false, message: "Please fill in the merchant, date and item names." };
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_purchases_from_import", {
+    import_id: importId,
+    purchases: parsed.data.map(rpcPurchase),
+  });
+  if (error?.code === "OT409") {
+    for (const p of parsed.data) {
+      const existing = await purchaseWithNumbers(supabase, p.orderRef, p.invoiceRef);
+      if (existing) return { ok: false, message: `Order ${p.orderRef} is already saved. Delete it first, or remove its items here.` };
+    }
+  }
+  if (error) {
+    const failed = saveFailed("create_purchases_from_import", error);
+    return { ok: false, message: failed.ok ? "" : failed.message };
+  }
+  refresh();
+  return { ok: true, ids: (data as { order_ids: string[] }).order_ids };
+}
+
 /** Saves a purchase and its items in one transaction; attaches the import's documents if given. */
 export async function createPurchase(input: PurchaseInput): Promise<SaveResult> {
   const parsed = purchaseSchema.safeParse(input);
@@ -174,26 +227,7 @@ export async function createPurchase(input: PurchaseInput): Promise<SaveResult> 
   // Files of the purchase being replaced, to clean up once it's gone.
   const replaced = p.replaceOrderId ? await purchaseDocumentIds(supabase, p.replaceOrderId) : null;
 
-  const { data, error } = await supabase.rpc("create_manual_purchase", {
-    purchase: {
-      merchant: p.merchant,
-      order_date: p.orderDate,
-      order_ref: p.orderRef || null,
-      invoice_ref: p.invoiceRef || null,
-      replace_order_id: p.replaceOrderId ?? null,
-      import_id: p.importId ?? null,
-      total: p.total ?? null,
-      field_meta: p.fieldMeta ?? {},
-      items: p.items.map((i) => ({
-        name: i.name,
-        category: categoryValue(i.category),
-        price: i.price ?? null,
-        return_by: i.returnBy ?? null,
-        field_meta: i.fieldMeta ?? {},
-        warranty: i.warranty ?? null,
-      })),
-    },
-  });
+  const { data, error } = await supabase.rpc("create_manual_purchase", { purchase: rpcPurchase(p) });
   if (error?.code === "OT409") {
     const existing = await purchaseWithNumbers(supabase, p.orderRef, p.invoiceRef);
     if (existing) {

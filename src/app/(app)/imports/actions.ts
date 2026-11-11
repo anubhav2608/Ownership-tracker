@@ -36,15 +36,16 @@ export async function deleteImport(importId: string, alsoSaved = false): Promise
 
   if (alsoSaved) {
     const { data: imp } = await supabase.from("imports").select("result").eq("id", importId).maybeSingle();
-    const result = (imp?.result ?? {}) as { order_id?: string; service_event_id?: string };
-    // Each of these deletes the import as well, once its record is gone.
-    const removed = result.service_event_id
-      ? await deleteServiceEvent(result.service_event_id)
-      : result.order_id
-        ? await deleteOrder(result.order_id)
-        : ({ ok: true } as const);
-    // Already deleted from its own page: nothing more to remove there.
-    if (!removed.ok && !/no longer exists/.test(removed.message)) return { ok: false };
+    const result = (imp?.result ?? {}) as { order_id?: string; order_ids?: string[]; service_event_id?: string };
+    // Each of these deletes the import as well, once its record is gone. An email
+    // confirming several orders saved one purchase per order: all of them go.
+    const orderIds = result.order_ids ?? (result.order_id ? [result.order_id] : []);
+    for (const removed of result.service_event_id
+      ? [await deleteServiceEvent(result.service_event_id)]
+      : await Promise.all(orderIds.map((o) => deleteOrder(o)))) {
+      // Already deleted from its own page: nothing more to remove there.
+      if (!removed.ok && !/no longer exists/.test(removed.message)) return { ok: false };
+    }
   }
 
   await removeImportFiles(supabase, [importId]);
@@ -183,10 +184,13 @@ export async function deleteImports(importIds: string[], alsoSaved = false): Pro
 
   if (alsoSaved) {
     const { data: imps } = await supabase.from("imports").select("id, result").in("id", ids.data);
-    const saved = (imps ?? []).map((imp) => ({
-      importId: imp.id,
-      ...((imp.result ?? {}) as { order_id?: string; service_event_id?: string }),
-    }));
+    const saved = (imps ?? []).flatMap((imp): { importId: string; order_id?: string; service_event_id?: string }[] => {
+      const r = (imp.result ?? {}) as { order_id?: string; order_ids?: string[]; service_event_id?: string };
+      // One entry per purchase saved from it (several for an email confirming several orders).
+      return r.service_event_id
+        ? [{ importId: imp.id, service_event_id: r.service_event_id }]
+        : (r.order_ids ?? (r.order_id ? [r.order_id] : [undefined])).map((order_id) => ({ importId: imp.id, order_id }));
+    });
     // A few at a time: each one checks and removes its own documents.
     for (let i = 0; i < saved.length; i += 5) {
       await Promise.all(

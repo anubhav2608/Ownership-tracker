@@ -327,6 +327,19 @@ export function ImportedPanel({
     <SectionCard title={record.documentKind === "refund_notice" ? "Applied from this import" : "Created from this import"}>
       {record.result?.auto && <AppliedAutomatically importId={record.id} />}
       <ul className="divide-y">
+        {(record.result?.orderIds?.length ?? 0) > 1 && (
+          <li className="px-5 py-3 text-sm">
+            Saved as {record.result!.orderIds!.length} purchases, one per order:{" "}
+            {record.result!.orderIds!.map((id, n) => (
+              <span key={id}>
+                {n > 0 && ", "}
+                <Link href={`/purchases/${id}`} className="text-primary hover:underline">
+                  purchase {n + 1}
+                </Link>
+              </span>
+            ))}
+          </li>
+        )}
         {record.result?.orderId && (
           <li className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
             {record.result.refund !== undefined ? (

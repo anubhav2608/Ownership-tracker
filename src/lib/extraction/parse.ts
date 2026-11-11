@@ -33,6 +33,14 @@ export interface Extraction {
   reviewReasons: string[];
   /** A shipping or delivery update ("Your package was shipped"), not a new order. */
   update?: boolean;
+  /** An email confirming several orders: each one's number, total and items (indexes into lines). */
+  orders?: OrderSplit[];
+}
+
+export interface OrderSplit {
+  ref: string;
+  total: number;
+  items: number[];
 }
 
 export type ParseOutcome =
@@ -268,6 +276,19 @@ function orderBlocks(lines: string[]) {
     return { start, end, total: at < 0 ? null : amountsIn(lines[at]).at(-1)! };
   });
   return blocks.every((b) => b.total !== null) ? (blocks as { start: number; end: number; total: number }[]) : null;
+}
+
+/** Which items belong to which order of a several-orders email; only when every item and order is placed. */
+function splitOrders(lines: string[], starts: number[], count: number): { orders?: OrderSplit[] } {
+  const blocks = orderBlocks(lines);
+  if (!blocks || starts.length !== count) return {};
+  const orders = blocks.map((b) => ({
+    ref: lines[b.start].match(ORDER_HEADING)![1],
+    total: b.total,
+    items: starts.flatMap((at, i) => (at >= b.start && at < b.end ? [i] : [])),
+  }));
+  const placed = orders.reduce((n, o) => n + o.items.length, 0);
+  return placed === count && orders.every((o) => o.items.length > 0) ? { orders } : {};
 }
 
 function findTotal(lines: string[]): Tracked<number> {
@@ -917,6 +938,7 @@ export function parseDocument(
       parts,
       reviewReasons,
       ...(SHIPPING_UPDATE.test(text) ? { update: true } : {}),
+      ...(lineItems.length ? splitOrders(clean, starts, lineItems.length) : {}),
     },
   };
 }

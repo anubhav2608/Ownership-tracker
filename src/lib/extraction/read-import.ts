@@ -190,7 +190,7 @@ async function review(db: Db, userId: string, x: Extraction, text: string): Prom
     stage: "matched",
     document_kind: x.documentKind === "other" ? "invoice" : x.documentKind,
     parser: x.parser,
-    extracted: { fields: x.fields, lines: x.lines, parts: x.parts } as unknown as Json,
+    extracted: { fields: x.fields, lines: x.lines, parts: x.parts, ...(x.orders ? { orders: x.orders } : {}) } as unknown as Json,
     review_reasons: reviewReasons,
     candidates,
   };
