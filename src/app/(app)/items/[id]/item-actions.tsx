@@ -26,6 +26,9 @@ const statuses: { value: ItemStatus; label: string }[] = [
   { value: "owned", label: "Owned" },
   { value: "returned", label: "Returned" },
   { value: "cancelled", label: "Cancelled" },
+];
+/** No longer offered; an item marked so earlier still shows it, and can go back to Owned. */
+const retired: { value: ItemStatus; label: string }[] = [
   { value: "sold", label: "Sold" },
   { value: "disposed", label: "Disposed" },
 ];
@@ -91,7 +94,7 @@ export function ItemActions({
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-xs text-muted-foreground">Status</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={current} onValueChange={changeStatus}>
-            {statuses.map((s) => (
+            {[...statuses, ...retired.filter((r) => r.value === current)].map((s) => (
               <DropdownMenuRadioItem key={s.value} value={s.value}>
                 {s.label}
               </DropdownMenuRadioItem>

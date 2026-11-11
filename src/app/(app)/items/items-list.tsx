@@ -30,20 +30,18 @@ export interface ItemRow {
   serviceCount: number;
 }
 
-type Scope = "owned" | "returned" | "past" | "all";
+type Scope = "owned" | "returned" | "all";
 
 const SCOPES: { value: Scope; label: string; always?: boolean }[] = [
   { value: "owned", label: "Owned", always: true },
   { value: "returned", label: "Returned & cancelled" },
-  { value: "past", label: "Sold or disposed" },
   { value: "all", label: "All", always: true },
 ];
 
 const inScope = (scope: Scope, item: Item) =>
   scope === "all" ||
   (scope === "owned" && item.status === "owned") ||
-  (scope === "returned" && notKept(item.status)) ||
-  (scope === "past" && (item.status === "sold" || item.status === "disposed"));
+  (scope === "returned" && notKept(item.status));
 
 export function ItemsList({ rows }: { rows: ItemRow[] }) {
   const [query, setQuery] = useState("");
@@ -197,7 +195,7 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
                       <div className="min-w-0 flex-1">
                         <p className="flex items-center gap-2 text-sm font-medium">
                           <span className="truncate">{item.name}</span>
-                          {/* Sold or disposed: said here. Returned or cancelled: in its column (under the name on a phone). */}
+                          {/* Marked sold or disposed before that option was removed: said here (under All). */}
                           {(item.status === "sold" || item.status === "disposed") && <ItemStatusBadge status={item.status} />}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
