@@ -79,6 +79,15 @@ export default function Landing() {
           </div>
         ))}
       </section>
+
+      <footer className="flex flex-wrap gap-x-6 gap-y-2 border-t py-6 text-sm text-muted-foreground">
+        <Link href="/privacy" className="hover:text-foreground">
+          Privacy policy
+        </Link>
+        <Link href="/terms" className="hover:text-foreground">
+          Terms of use
+        </Link>
+      </footer>
     </div>
   );
 }

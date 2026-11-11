@@ -41,6 +41,17 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
         <Suspense fallback={<LoginCardSkeleton />}>
           <LoginCard searchParams={searchParams} />
         </Suspense>
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          By continuing you agree to the{" "}
+          <Link href="/terms" className="underline hover:text-foreground">
+            terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline hover:text-foreground">
+            privacy policy
+          </Link>
+          .
+        </p>
       </div>
     </div>
   );
