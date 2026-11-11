@@ -1,3 +1,4 @@
+import { aiExtraction, canReadWithAi, crossCheck, type AiReader } from "./ai-read";
 import { bodyLines, parseRawEmail } from "./email";
 import { mergeExtractions, parseDocument, type Extraction } from "./parse";
 import { extractPdfText, PdfFileError } from "./pdf-text";
@@ -13,7 +14,7 @@ const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const MAX_SOURCES = 6;
 
 /** Why a file couldn't be read. */
-export type Problem = "PDF_UNREADABLE" | "NO_TEXT_LAYER" | "OCR_NOT_AVAILABLE" | "TOO_LARGE";
+export type Problem = "PDF_UNREADABLE" | "NO_TEXT_LAYER" | "OCR_NOT_AVAILABLE" | "AI_UNREADABLE" | "AI_FAILED" | "TOO_LARGE";
 
 export interface SourceFile {
   name: string;
@@ -37,7 +38,29 @@ export function indianDay(date: string | null): string | null {
   return Number.isNaN(t) ? null : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(t);
 }
 
-export async function extractFromFiles(files: SourceFile[]): Promise<FilesReading> {
+/**
+ * Asks Claude, if it can read the file. Never throws: "skipped" when there's no
+ * AI or it can't take the file, "unreadable" when it couldn't make it out,
+ * "failed" when the call itself failed (worth retrying).
+ */
+async function askAi(ai: AiReader | undefined, file: SourceFile, bytes: Uint8Array) {
+  if (!ai || !canReadWithAi(file.mime, bytes.byteLength)) return "skipped" as const;
+  try {
+    const doc = await ai({ name: file.name, mime: file.mime, bytes });
+    return doc ? { extraction: aiExtraction(doc) } : ("unreadable" as const);
+  } catch (e) {
+    console.error(`[extract] AI reading of ${file.name} failed:`, e instanceof Error ? e.message : e);
+    return "failed" as const;
+  }
+}
+
+const AI_PROBLEM = { skipped: "OCR_NOT_AVAILABLE", unreadable: "AI_UNREADABLE", failed: "AI_FAILED" } as const;
+
+/**
+ * Reads the files. With `ai`, photos and scanned PDFs are read by Claude, and
+ * text PDFs are read by both Claude and the template reader and cross-checked.
+ */
+export async function extractFromFiles(files: SourceFile[], options: { ai?: AiReader } = {}): Promise<FilesReading> {
   // An attached invoice is more complete than the email it came with, so PDFs go first.
   const rank = (mime: string) => (mime === "application/pdf" ? 0 : mime === EMAIL ? 1 : 2);
   const ordered = [...files].sort((a, b) => rank(a.mime) - rank(b.mime));
@@ -52,19 +75,43 @@ export async function extractFromFiles(files: SourceFile[]): Promise<FilesReadin
     let sentOn: string | null = null;
     let sender: string | null = null;
     if (file.mime.startsWith("image/")) {
-      problems.add("OCR_NOT_AVAILABLE");
+      const bytes = await file.load();
+      const byAi = await askAi(options.ai, file, bytes);
+      if (typeof byAi === "string") {
+        problems.add(AI_PROBLEM[byAi]);
+        continue;
+      }
+      seen.push(`── ${file.name} (read by AI) ──`);
+      if (byAi.extraction) read.push({ extraction: byAi.extraction, lines: [] });
       continue;
     } else if (file.mime === "application/pdf") {
       if (file.size > MAX_PDF_BYTES) {
         problems.add("TOO_LARGE");
         continue;
       }
+      const bytes = await file.load();
       try {
-        lines = (await extractPdfText(await file.load())).lines;
+        // A copy: the PDF reader takes over (empties) the buffer it's given, and the AI needs it too.
+        lines = (await extractPdfText(bytes.slice())).lines;
       } catch (e) {
         // Only a bad file is the user's to fix; anything else is our failure and can be retried.
         if (!(e instanceof PdfFileError)) throw e;
         problems.add("PDF_UNREADABLE");
+        continue;
+      }
+      const ai = await askAi(options.ai, file, bytes);
+      // A scan the AI couldn't read either; a text PDF falls back to the template reader below.
+      if (typeof ai === "string" && ai !== "skipped" && !lines.length) {
+        problems.add(AI_PROBLEM[ai]);
+        continue;
+      }
+      if (typeof ai !== "string") {
+        if (lines.length) seen.push(`── ${file.name} ──`, ...lines);
+        else seen.push(`── ${file.name} (read by AI) ──`);
+        if (ai.extraction) {
+          const rules = parseDocument(lines, {});
+          read.push({ extraction: crossCheck(ai.extraction, rules.ok ? rules.extraction : null), lines });
+        }
         continue;
       }
     } else if (file.mime === EMAIL) {

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import type { Identifier } from "@/lib/types";
 import { parseRawEmail } from "./email";
+import { aiReaderFromEnv } from "./ai-read";
 import { EMAIL, extractFromFiles, type Problem } from "./extract-files";
 import { matchItems, pickRefundedItems, type MatchableItem } from "./match";
 import type { Extraction } from "./parse";
@@ -62,10 +63,16 @@ const FAILURES: Record<Problem | "NO_FILE", readonly [string, boolean]> = {
     "Photos can't be read automatically yet. Enter the details yourself; the photo stays attached.",
     false,
   ],
+  AI_UNREADABLE: [
+    "This couldn't be read: it may be blurred, dark or cut off. Upload a clearer photo or scan of the whole receipt, or enter the details yourself.",
+    // The same file would read the same way again: only a clearer copy helps.
+    false,
+  ],
+  AI_FAILED: ["Reading this with AI failed just now. Try again in a minute, or enter the details yourself.", true],
   TOO_LARGE: ["This PDF is too large to read.", false],
 };
 /** When nothing could be read, the most useful explanation comes first. */
-const PROBLEM_ORDER: Problem[] = ["PDF_UNREADABLE", "NO_TEXT_LAYER", "OCR_NOT_AVAILABLE", "TOO_LARGE"];
+const PROBLEM_ORDER: Problem[] = ["PDF_UNREADABLE", "AI_FAILED", "AI_UNREADABLE", "NO_TEXT_LAYER", "OCR_NOT_AVAILABLE", "TOO_LARGE"];
 
 /** Whether mail from this address may be read into the user's account. */
 export async function isVerifiedSender(db: Db, userId: string, email: string | null) {
@@ -125,6 +132,8 @@ export async function readImport(db: Db, userId: string, importId: string): Prom
       size: d.size_bytes,
       load: () => download(db, d.storage_path),
     })),
+    // Photos, scans and PDFs are also read by Claude when an API key is set.
+    { ai: aiReaderFromEnv() ?? undefined },
   );
   const text = seen.slice(0, MAX_TEXT_LINES);
   if (!best) {

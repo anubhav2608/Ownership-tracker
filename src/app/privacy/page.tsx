@@ -38,7 +38,8 @@ export default function PrivacyPage() {
         <p>
           Your records and files are stored with Supabase (database and private file storage, where each account can
           only reach its own data). The app runs on Vercel. Forwarded emails and sign-in emails pass through Resend.
-          These providers process data only to run the service for us.
+          PDFs and photos of receipts are read by Anthropic&rsquo;s Claude AI to pull out their details. These
+          providers process data only to run the service for us.
         </p>
       </section>
       <section>

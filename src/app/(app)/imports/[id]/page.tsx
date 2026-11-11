@@ -24,6 +24,9 @@ import { ReviewForm } from "./review-form";
 
 export const metadata: Metadata = { title: "Import" };
 
+// Reading a PDF or photo with AI can take up to half a minute: the upload and retry actions run here.
+export const maxDuration = 60;
+
 const stages: { id: ImportStage; label: string }[] = [
   { id: "received", label: "Received" },
   { id: "verified", label: "Sender verified" },

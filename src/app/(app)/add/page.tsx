@@ -7,6 +7,9 @@ import { AddRecord, type AddTab } from "./add-record";
 
 export const metadata: Metadata = { title: "Add record" };
 
+// Reading a PDF or photo with AI can take up to half a minute: the upload and retry actions run here.
+export const maxDuration = 60;
+
 const tabs: AddTab[] = ["forward", "upload", "manual"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseRawEmail } from "@/lib/extraction/email";
 import { EMAIL, extractFromFiles, type SourceFile } from "@/lib/extraction/extract-files";
+import { aiReaderFromEnv } from "@/lib/extraction/ai-read";
 import { pickRefundedItems } from "@/lib/extraction/match";
 import { parseDocument } from "@/lib/extraction/parse";
 import { kindOf, scoreCase, summarize, type CaseScore, type Expected, type Reading, type Summary } from "@/lib/evals/score";
@@ -10,13 +11,15 @@ import { kindOf, scoreCase, summarize, type CaseScore, type Expected, type Readi
 // Runs every case in evals/cases (fictional, in the repo) and evals/private
 // (your real emails, never committed) through the same reader as the app's
 // imports, scores it against its .expected.json, and writes evals/out/report.md.
-// EVAL_SET=cases or EVAL_SET=private runs just one folder.
+// EVAL_SET=cases or EVAL_SET=private runs just one folder. EVAL_AI=1 also reads
+// PDFs and photos with Claude (needs ANTHROPIC_API_KEY; each document is a paid call).
 
 const ROOT = join(process.cwd(), "evals");
 const SETS = ["cases", "private"].filter((s) => !process.env.EVAL_SET || process.env.EVAL_SET === s);
+const ai = process.env.EVAL_AI === "1" ? (aiReaderFromEnv() ?? undefined) : undefined;
 const thresholds = JSON.parse(readFileSync(join(ROOT, "thresholds.json"), "utf8")) as Record<string, number>;
 
-const MIME: Record<string, string> = { ".eml": EMAIL, ".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg" };
+const MIME: Record<string, string> = { ".eml": EMAIL, ".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
 
 function cases() {
   return SETS.flatMap((set) => {
@@ -52,7 +55,7 @@ async function read(path: string, expected: Expected): Promise<Reading> {
         }
       }
     }
-    const { best } = await extractFromFiles(files);
+    const { best } = await extractFromFiles(files, { ai });
     reading = { kind: kindOf(best?.extraction ?? null), extraction: best?.extraction ?? null };
     text = best?.text ?? "";
   }
@@ -80,7 +83,7 @@ function report(all: CaseScore[], total: Summary) {
   const lines = [
     "# Reader evals",
     "",
-    `${total.cases} cases from ${SETS.join(" + ")}. Hard-rule breaks: **${total.violations.length}**.`,
+    `${total.cases} cases from ${SETS.join(" + ")}${ai ? ", PDFs and photos also read by AI" : ""}. Hard-rule breaks: **${total.violations.length}**.`,
     "",
     "| Shop | Cases | Kind | Order ID | Date | Total | Items found | No junk items | Item price | Right ticks |",
     "|---|---|---|---|---|---|---|---|---|---|",

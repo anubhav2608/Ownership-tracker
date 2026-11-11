@@ -12,11 +12,16 @@ every miss.
 
 Run one folder with `EVAL_SET=cases npm run eval` or `EVAL_SET=private npm run eval`.
 
+`EVAL_AI=1 npm run eval` also reads PDFs and photos with Claude, as the app does
+when `ANTHROPIC_API_KEY` is set. Each PDF or photo is a paid API call (a few
+cents), so run it when you change the reading, not on every edit.
+
 ## Adding a case
 
 Put two files side by side with the same name:
 
-1. The document: an `.eml` (in Gmail: ⋮ → Download message), a `.pdf`, or a
+1. The document: an `.eml` (in Gmail: ⋮ → Download message), a `.pdf`, a photo
+   (`.jpg`, `.png`, `.webp`), or a
    `.txt` with an email's text pasted in.
 2. `<name>.expected.json`, the right answer. Leave out anything you don't want scored:
 
