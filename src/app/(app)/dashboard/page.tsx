@@ -9,6 +9,8 @@ import { ListCardSkeleton, StatTilesSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ReturnsList } from "@/components/returns-list";
+import { monthInsights } from "@/lib/insights";
+import { MonthInShort } from "./month-in-short";
 import { amountSpent, notKept, returnsFrom } from "@/lib/refunds";
 import { formatDate, formatMoney } from "@/lib/format";
 import {
@@ -82,7 +84,9 @@ async function DashboardContent() {
   const attention = imports.filter(
     (r) => r.status === "needs_review" || r.status === "failed",
   );
-  const recentReturns = returnsFrom(orders, items).slice(0, 5);
+  const returns = returnsFrom(orders, items);
+  const recentReturns = returns.slice(0, 5);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const recentOrders = [...orders]
     .sort((a, b) => b.orderDate.localeCompare(a.orderDate))
     .slice(0, 5);
@@ -92,9 +96,10 @@ async function DashboardContent() {
 
   return (
     <>
+      <MonthInShort insights={monthInsights({ today, orders, events, items, returns })} />
 
       <ExpensesCard
-        today={new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })}
+        today={today}
         orders={orders.map((o) => ({
           id: o.id,
           merchant: o.merchant,

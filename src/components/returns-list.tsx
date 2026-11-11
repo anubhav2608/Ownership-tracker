@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ItemStatusBadge, OrderStatusBadge, Pill } from "@/components/badges";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoney, indianDay } from "@/lib/format";
 import type { ReturnEntry } from "@/lib/refunds";
 
 /** One row per purchase: when, where, what went back, and the money. */
@@ -13,7 +13,7 @@ export function ReturnsList({ entries }: { entries: ReturnEntry[] }) {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{e.order.merchant}</p>
               <p className="truncate text-xs text-muted-foreground">
-                {formatDate(e.date.slice(0, 10))} · bought {formatDate(e.order.orderDate)}
+                {formatDate(indianDay(e.date))} · bought {formatDate(e.order.orderDate)}
               </p>
               {e.items.length > 0 && (
                 <ul className="mt-1 space-y-0.5">

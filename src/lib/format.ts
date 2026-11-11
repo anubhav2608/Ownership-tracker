@@ -39,3 +39,9 @@ export function relativeDays(iso: string) {
   if (d === -1) return "yesterday";
   return d > 0 ? `in ${d} days` : `${-d} days ago`;
 }
+
+/** The day in India (YYYY-MM-DD) of a timestamp, or a date as it is. */
+export function indianDay(at: string) {
+  if (!at.includes("T")) return at.slice(0, 10);
+  return new Date(at).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
