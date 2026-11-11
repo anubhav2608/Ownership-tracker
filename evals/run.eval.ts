@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseRawEmail } from "@/lib/extraction/email";
 import { EMAIL, extractFromFiles, type SourceFile } from "@/lib/extraction/extract-files";
-import { aiReaderFromEnv } from "@/lib/extraction/ai-read";
+import { aiReaderFromEnv } from "@/lib/extraction/ai-client";
 import { pickRefundedItems } from "@/lib/extraction/match";
 import { parseDocument } from "@/lib/extraction/parse";
 import { kindOf, scoreCase, summarize, type CaseScore, type Expected, type Reading, type Summary } from "@/lib/evals/score";

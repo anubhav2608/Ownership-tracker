@@ -1,5 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { otherCharges } from "@/lib/charges";
 import type { DocumentKind, ExtractedLine, ServiceLineKind, Tracked } from "@/lib/types";
@@ -50,7 +48,7 @@ export const AiDocument = z.object({
 });
 export type AiDocument = z.infer<typeof AiDocument>;
 
-const SYSTEM = `You read Indian shopping and service documents (order emails, tax invoices, bills, refund and cancellation notices, service receipts) and return exactly what they state.
+export const SYSTEM = `You read Indian shopping and service documents (order emails, tax invoices, bills, refund and cancellation notices, service receipts) and return exactly what they state.
 
 - Amounts are in rupees. Read "₹1,29900" or "29900" with raised paise as ₹1,299.00 / ₹299.00 when the layout shows the last two digits as paise.
 - Item price is what was paid for that line, after discounts and including its tax. Ignore crossed-out MRPs, "You saved" lines, recommended products and adverts.
@@ -69,35 +67,6 @@ export type AiReader = (file: AiInput) => Promise<AiDocument | null>;
 export function canReadWithAi(mime: string, size: number) {
   if (mime === "application/pdf") return true;
   return (AI_IMAGE_TYPES as readonly string[]).includes(mime) && size <= MAX_IMAGE_BYTES;
-}
-
-/** A reader using the Claude API, or null when no API key is set (or AI_READING=off). */
-export function aiReaderFromEnv(): AiReader | null {
-  if (!process.env.ANTHROPIC_API_KEY || process.env.AI_READING === "off") return null;
-  const client = new Anthropic();
-  return async (file) => {
-    if (!canReadWithAi(file.mime, file.bytes.byteLength)) return null;
-    const data = Buffer.from(file.bytes).toString("base64");
-    const source =
-      file.mime === "application/pdf"
-        ? ({ type: "document", source: { type: "base64", media_type: "application/pdf", data } } as const)
-        : ({
-            type: "image",
-            source: { type: "base64", media_type: file.mime as (typeof AI_IMAGE_TYPES)[number], data },
-          } as const);
-    const response = await client.beta.messages.parse({
-      model: AI_MODEL,
-      max_tokens: 16000,
-      // If this model declines, the API retries on another model in the same call.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      output_config: { effort: "medium", format: betaZodOutputFormat(AiDocument) },
-      system: SYSTEM,
-      messages: [{ role: "user", content: [source, { type: "text", text: `Read this document (${file.name}).` }] }],
-    });
-    if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") return null;
-    return response.parsed_output;
-  };
 }
 
 const UNSURE = 0.6;

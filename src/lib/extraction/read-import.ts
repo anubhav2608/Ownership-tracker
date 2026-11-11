@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import type { Identifier } from "@/lib/types";
 import { parseRawEmail } from "./email";
-import { aiReaderFromEnv } from "./ai-read";
+import { aiReaderFromEnv } from "./ai-client";
 import { EMAIL, extractFromFiles, type Problem } from "./extract-files";
 import { matchItems, pickRefundedItems, type MatchableItem } from "./match";
 import type { Extraction } from "./parse";
