@@ -655,6 +655,22 @@ export type Database = {
         Args: { import_id: string; result: Json };
         Returns: undefined;
       };
+      auto_apply_refund_import: {
+        Args: {
+          import_id: string;
+          order_id: string;
+          item_ids: string[];
+          outcome: string;
+          refund: number;
+          happened_on?: string;
+          owner?: string;
+        };
+        Returns: undefined;
+      };
+      undo_refund_import: {
+        Args: { import_id: string };
+        Returns: undefined;
+      };
       apply_refund_import: {
         Args: {
           import_id: string;

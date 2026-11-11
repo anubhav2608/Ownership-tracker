@@ -23,7 +23,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { formatDate, formatMoney } from "@/lib/format";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { ImportError, ImportRecord, Item, ServiceEvent } from "@/lib/types";
-import { approveSender, deleteImport, processImport, retryImport, type ProcessResult } from "../actions";
+import { approveSender, deleteImport, processImport, retryImport, undoRefund, type ProcessResult } from "../actions";
 
 // In demo mode (no Supabase) actions only confirm with a toast.
 
@@ -325,6 +325,7 @@ export function ImportedPanel({
 
   return (
     <SectionCard title={record.documentKind === "refund_notice" ? "Applied from this import" : "Created from this import"}>
+      {record.result?.auto && <AppliedAutomatically importId={record.id} />}
       <ul className="divide-y">
         {record.result?.orderId && (
           <li className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
@@ -467,5 +468,31 @@ function RelinkDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A refund notice applied without review (its match was beyond doubt), with a way back. */
+function AppliedAutomatically({ importId }: { importId: string }) {
+  const router = useRouter();
+  const [undoing, startUndo] = useTransition();
+  function undo() {
+    startUndo(async () => {
+      if (isSupabaseConfigured) {
+        const result = await undoRefund(importId);
+        if (!result.ok) return void toast.error(result.message);
+      }
+      toast.success("Undone: the purchase is as it was, and this refund is back for review");
+      router.refresh();
+    });
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-b bg-accent/40 px-5 py-3 text-sm">
+      <p className="min-w-0 flex-1">
+        Applied automatically: the order number and the item names in the email matched this purchase.
+      </p>
+      <Button variant="outline" size="sm" onClick={undo} disabled={undoing}>
+        {undoing ? "Undoing…" : "Undo"}
+      </Button>
+    </div>
   );
 }

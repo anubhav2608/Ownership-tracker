@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import { readImport, readingCrashed, type Outcome } from "@/lib/extraction/read-import";
+import { applyIfClear, readImport, readingCrashed, type Outcome } from "@/lib/extraction/read-import";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { deleteOrder, deleteServiceEvent } from "@/lib/record-actions";
 import { createClient } from "@/lib/supabase/server";
@@ -121,8 +121,10 @@ export async function processImport(importId: string): Promise<ProcessResult> {
     console.error("[imports] recording result failed:", recordError.code, recordError.message);
     return { ok: false, message: missingFunction(recordError) ? NOT_MIGRATED : "Couldn't save what was read. Try again." };
   }
+  // A refund matched beyond doubt is applied now (Undo on the import puts it back).
+  const applied = await applyIfClear(supabase, importId, outcome);
   refresh();
-  return { ok: true, status: outcome.status };
+  return { ok: true, status: applied ? "imported" : outcome.status };
 }
 
 /** Re-queues a failed import that can be retried, then reads it again. */
@@ -211,6 +213,19 @@ export async function deleteImports(importIds: string[], alsoSaved = false): Pro
   }
   refresh();
   return { failed: [...failed] };
+}
+
+/** Puts back what an applied refund notice changed, and returns it to review. */
+export async function undoRefund(importId: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!id.safeParse(importId).success) return { ok: false, message: "Unknown import." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("undo_refund_import", { import_id: importId });
+  if (error) {
+    console.error("[imports] undo_refund_import failed:", error.code, error.message);
+    return { ok: false, message: missingFunction(error) ? NOT_MIGRATED : "Couldn't undo it. Refresh and try again." };
+  }
+  refresh();
+  return { ok: true };
 }
 
 const refundSchema = z.object({

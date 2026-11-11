@@ -283,7 +283,9 @@ function summary(r: ImportRecord) {
     case "queued":
       return "Working on it. This usually takes under a minute.";
     case "imported":
-      if (r.result?.refund !== undefined) return `Refund of ${formatMoney(r.result.refund)} applied to a purchase.`;
+      if (r.result?.refund !== undefined) {
+        return `Refund of ${formatMoney(r.result.refund)} applied to a purchase${r.result.auto ? " automatically" : ""}.`;
+      }
       return r.result?.serviceEventId
         ? "Added as a service event."
         : `Saved${r.result?.itemIds ? ` with ${r.result.itemIds.length} item${r.result.itemIds.length > 1 ? "s" : ""}` : ""}.`;

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Resend } from "resend";
 import { bodyOnlyEmail, emailAddress, forwardedBy, gmailForwardingConfirmation, parseRawEmail } from "@/lib/extraction/email";
 import {
+  applyIfClear,
   failure,
   isVerifiedSender,
   readImport,
@@ -238,7 +239,7 @@ async function confirmPendingSender(db: Db, userId: string, email: string) {
 }
 
 /** Reads a stored email now; the outcome is written straight onto the import. */
-export async function readStoredEmail(db: Db, userId: string, importId: string): Promise<Outcome["status"]> {
+export async function readStoredEmail(db: Db, userId: string, importId: string): Promise<Outcome["status"] | "imported"> {
   await db
     .from("imports")
     .update({ status: "processing", stage: "received", error: null })
@@ -254,6 +255,8 @@ export async function readStoredEmail(db: Db, userId: string, importId: string):
     outcome = readingCrashed(e, "email");
   }
   await recordOutcome(db, userId, importId, outcome);
+  // A refund matched beyond doubt is applied now, for this account.
+  if (await applyIfClear(db, importId, outcome, userId)) return "imported";
   return outcome.status;
 }
 

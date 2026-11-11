@@ -233,5 +233,7 @@ export interface ImportRecord {
     serviceEventId?: string;
     refund?: number;
     refundedItemIds?: string[];
+    /** A refund notice applied without review (it can be undone). */
+    auto?: boolean;
   };
 }

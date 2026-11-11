@@ -315,6 +315,8 @@ interface StoredResult {
   /** Money back from a refund notice applied to order_id. */
   refund?: number;
   refunded_item_ids?: string[];
+  /** Applied without review: the match was beyond doubt. */
+  auto?: boolean;
 }
 
 function toImport(r: Row<"imports">): ImportRecord {
@@ -358,6 +360,7 @@ function toImport(r: Row<"imports">): ImportRecord {
           serviceEventId: result.service_event_id,
           refund: result.refund,
           refundedItemIds: result.refunded_item_ids,
+          auto: result.auto,
         }
       : undefined,
   };

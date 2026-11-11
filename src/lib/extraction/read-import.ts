@@ -7,6 +7,7 @@ import { aiReaderFromEnv } from "./ai-read";
 import { EMAIL, extractFromFiles, type Problem } from "./extract-files";
 import { matchItems, pickRefundedItems, type MatchableItem } from "./match";
 import type { Extraction } from "./parse";
+import { LOW_CONFIDENCE } from "@/lib/confidence";
 import { keptAttachments, storeDocument } from "@/lib/stored-documents";
 
 // Reads an import's documents: an uploaded file, or a forwarded email and its
@@ -200,6 +201,7 @@ async function refundReview(db: Db, userId: string, x: Extraction, text: string)
   const reviewReasons = [...x.reviewReasons];
   const target = await refundedPurchase(db, userId, x.fields.orderRef?.value);
   let picked: ReturnType<typeof pickRefundedItems> = { itemIds: [], by: null };
+  let auto = false;
   if (target) {
     const { data: items } = await db
       .from("items")
@@ -217,6 +219,11 @@ async function refundReview(db: Db, userId: string, x: Extraction, text: string)
     if ((items ?? []).length > 0 && picked.itemIds.length === 0) {
       reviewReasons.push("Couldn't tell which items went back: tick them below.");
     }
+    // Beyond doubt: found by order number, every item it names found by name, and a
+    // clearly read amount. Applied without waiting for review (and can be undone).
+    const names = x.lines.filter((l) => l.name.value).length;
+    const clear = (t?: { confidence?: number; value: unknown }) => t?.value != null && (t.confidence ?? 0) >= LOW_CONFIDENCE;
+    auto = picked.by === "name" && names > 0 && picked.itemIds.length >= names && clear(x.fields.total) && clear(x.fields.orderRef);
   } else if (x.fields.orderRef?.value) {
     reviewReasons.push(
       `No purchase with order number ${x.fields.orderRef.value} yet: choose the purchase it's for, or save the order first.`,
@@ -232,7 +239,7 @@ async function refundReview(db: Db, userId: string, x: Extraction, text: string)
       lines: x.lines,
       parts: [],
       refund: target
-        ? { order_id: target.orderId, item_ids: picked.itemIds, matched_on: target.on, items_by: picked.by }
+        ? { order_id: target.orderId, item_ids: picked.itemIds, matched_on: target.on, items_by: picked.by, auto }
         : null,
     } as unknown as Json,
     review_reasons: reviewReasons,
@@ -308,4 +315,29 @@ async function serviceCandidates(db: Db, userId: string, text: string, provider?
     providers: (events ?? []).filter((e) => e.item_id === i.id && e.provider).map((e) => e.provider!),
   }));
   return matchItems(text, matchable, provider);
+}
+
+/**
+ * After a refund notice's reading is recorded: applies it if the match was
+ * beyond doubt. `owner` is given when acting for the account (the webhook);
+ * a signed-in user's own client leaves it out. Never throws: if it fails, the
+ * notice simply waits for review.
+ */
+export async function applyIfClear(db: Db, importId: string, outcome: Outcome, owner?: string): Promise<boolean> {
+  const x = outcome.extracted as
+    | { fields?: { total?: { value: number | null }; date?: { value: string | null }; outcome?: { value: string } }; refund?: { order_id: string; item_ids: string[]; auto?: boolean } | null }
+    | undefined;
+  const r = x?.refund;
+  if (outcome.status !== "needs_review" || !r?.auto || x?.fields?.total?.value == null) return false;
+  const { error } = await db.rpc("auto_apply_refund_import", {
+    import_id: importId,
+    order_id: r.order_id,
+    item_ids: r.item_ids,
+    outcome: x.fields.outcome?.value === "cancelled" ? "cancelled" : "returned",
+    refund: x.fields.total.value,
+    happened_on: x.fields.date?.value ?? undefined,
+    owner,
+  });
+  if (error) console.error("[imports] applying a refund automatically failed:", error.code, error.message);
+  return !error;
 }
