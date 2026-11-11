@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate, formatMoney } from "@/lib/format";
 import { ItemReturnStatus } from "@/components/return-status";
 import { notKept } from "@/lib/refunds";
@@ -32,6 +31,19 @@ export interface ItemRow {
 }
 
 type Scope = "owned" | "returned" | "past" | "all";
+
+const SCOPES: { value: Scope; label: string; always?: boolean }[] = [
+  { value: "owned", label: "Owned", always: true },
+  { value: "returned", label: "Returned & cancelled" },
+  { value: "past", label: "Sold or disposed" },
+  { value: "all", label: "All", always: true },
+];
+
+const inScope = (scope: Scope, item: Item) =>
+  scope === "all" ||
+  (scope === "owned" && item.status === "owned") ||
+  (scope === "returned" && notKept(item.status)) ||
+  (scope === "past" && (item.status === "sold" || item.status === "disposed"));
 
 export function ItemsList({ rows }: { rows: ItemRow[] }) {
   const [query, setQuery] = useState("");
@@ -49,14 +61,13 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
     );
   }
 
+  const scopeCount = (sc: Scope) => rows.filter((r) => inScope(sc, r.item)).length;
   const categories = [...new Set(rows.map((r) => r.item.category))].sort();
   const merchants = [...new Set(rows.map((r) => r.merchant).filter(Boolean))].sort() as string[];
 
   const q = query.trim().toLowerCase();
   const visible = rows.filter(({ item, merchant: m }) => {
-    if (scope === "owned" && item.status !== "owned") return false;
-    if (scope === "returned" && !notKept(item.status)) return false;
-    if (scope === "past" && item.status !== "sold" && item.status !== "disposed") return false;
+    if (!inScope(scope, item)) return false;
     if (category !== "all" && item.category !== category) return false;
     if (merchant !== "all" && m !== merchant) return false;
     if (!q) return true;
@@ -87,27 +98,37 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
 
   return (
     <>
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="relative flex-1">
+      {/* What to show, as on Purchases: one choice per kind, with how many there are. */}
+      <nav aria-label="Show" className="mb-3 inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1 text-sm">
+        {SCOPES.filter((sc) => sc.always || scopeCount(sc.value) > 0).map((sc) => (
+          <button
+            key={sc.value}
+            type="button"
+            onClick={() => setScope(sc.value)}
+            aria-pressed={scope === sc.value}
+            className={
+              scope === sc.value
+                ? "rounded-md bg-card px-3 py-1 font-medium whitespace-nowrap shadow-xs"
+                : "rounded-md px-3 py-1 whitespace-nowrap text-muted-foreground hover:text-foreground"
+            }
+          >
+            {sc.label} <span className="text-xs text-muted-foreground tabular-nums">{scopeCount(sc.value)}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name, brand, merchant, serial or registration"
+            placeholder="Search name, brand, shop, serial or registration"
             className="pl-9"
             aria-label="Search items"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
-          {/* Four tabs are wider than a phone: they scroll inside their row instead of the page. */}
-          <Tabs value={scope} onValueChange={(v) => setScope(v as Scope)} className="max-w-full overflow-x-auto">
-            <TabsList>
-              <TabsTrigger value="owned">Owned</TabsTrigger>
-              <TabsTrigger value="returned">Returned &amp; cancelled</TabsTrigger>
-              <TabsTrigger value="past">Sold or disposed</TabsTrigger>
-              <TabsTrigger value="all">All</TabsTrigger>
-            </TabsList>
-          </Tabs>
+        <div className="grid grid-cols-2 gap-2 sm:flex">
           <NativeSelect
             value={category}
             onChange={(e) => setCategory(e.target.value)}
@@ -125,7 +146,7 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
             onChange={(e) => setMerchant(e.target.value)}
             aria-label="Merchant"
           >
-            <NativeSelectOption value="all">All merchants</NativeSelectOption>
+            <NativeSelectOption value="all">All shops</NativeSelectOption>
             {merchants.map((m) => (
               <NativeSelectOption key={m} value={m}>
                 {m}
