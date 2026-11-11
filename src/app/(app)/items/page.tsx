@@ -18,6 +18,7 @@ async function ItemsContent() {
 
   const rows: ItemRow[] = items.map((item) => ({
     item,
+    order: orders.find((o) => o.id === item.orderId),
     merchant: orders.find((o) => o.id === item.orderId)?.merchant,
     serviceCount: events.filter((e) => e.itemId === item.id).length,
   }));

@@ -18,16 +18,20 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate, formatMoney } from "@/lib/format";
-import type { Item } from "@/lib/types";
+import { ItemReturnStatus } from "@/components/return-status";
+import { notKept } from "@/lib/refunds";
+import type { Item, Order } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export interface ItemRow {
   item: Item;
+  /** Its purchase: whether money came back after a return. */
+  order?: Order;
   merchant?: string;
   serviceCount: number;
 }
 
-type Scope = "owned" | "past" | "all";
+type Scope = "owned" | "returned" | "past" | "all";
 
 export function ItemsList({ rows }: { rows: ItemRow[] }) {
   const [query, setQuery] = useState("");
@@ -51,7 +55,8 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
   const q = query.trim().toLowerCase();
   const visible = rows.filter(({ item, merchant: m }) => {
     if (scope === "owned" && item.status !== "owned") return false;
-    if (scope === "past" && item.status === "owned") return false;
+    if (scope === "returned" && !notKept(item.status)) return false;
+    if (scope === "past" && item.status !== "sold" && item.status !== "disposed") return false;
     if (category !== "all" && item.category !== category) return false;
     if (merchant !== "all" && m !== merchant) return false;
     if (!q) return true;
@@ -66,6 +71,11 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
   });
 
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  // What happened after buying: an empty column while only owned items are shown.
+  const showStatus = scope !== "owned";
+  const grid = showStatus
+    ? "md:grid-cols-[minmax(0,1fr)_7.5rem_8.5rem_9rem_9.5rem_6.5rem]"
+    : "md:grid-cols-[minmax(0,1fr)_7.5rem_8.5rem_9rem_6.5rem]";
   const sorted = [...visible].sort((a, b) => {
     const av = sortValue(a.item, sort.column, today);
     const bv = sortValue(b.item, sort.column, today);
@@ -89,10 +99,12 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          <Tabs value={scope} onValueChange={(v) => setScope(v as Scope)}>
+          {/* Four tabs are wider than a phone: they scroll inside their row instead of the page. */}
+          <Tabs value={scope} onValueChange={(v) => setScope(v as Scope)} className="max-w-full overflow-x-auto">
             <TabsList>
               <TabsTrigger value="owned">Owned</TabsTrigger>
-              <TabsTrigger value="past">Past</TabsTrigger>
+              <TabsTrigger value="returned">Returned &amp; cancelled</TabsTrigger>
+              <TabsTrigger value="past">Sold or disposed</TabsTrigger>
               <TabsTrigger value="all">All</TabsTrigger>
             </TabsList>
           </Tabs>
@@ -143,27 +155,29 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
         ) : (
           <>
             <div
-              className="hidden border-b bg-muted/40 px-5 py-2.5 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[minmax(0,1fr)_7.5rem_8.5rem_9rem_6.5rem] md:gap-4"
+              className={cn("hidden border-b bg-muted/40 px-5 py-2.5 text-xs font-medium text-muted-foreground md:grid md:gap-4", grid)}
             >
               <span>Item</span>
               <SortHeader label="Purchased" column="purchased" sort={sort} onSort={toggleSort} />
               <SortHeader label="Return by" column="returnBy" sort={sort} onSort={toggleSort} />
               <SortHeader label="Warranty expires" column="warranty" sort={sort} onSort={toggleSort} />
+              {showStatus && <span>Returns &amp; cancellations</span>}
               <SortHeader label="Price" column="price" sort={sort} onSort={toggleSort} align="right" />
             </div>
             <ul className="divide-y">
-              {sorted.map(({ item, merchant: m, serviceCount }) => (
+              {sorted.map(({ item, order, merchant: m, serviceCount }) => (
                 <li key={item.id}>
                   <Link
                     href={`/items/${item.id}`}
-                    className="flex items-center gap-3 px-5 py-3.5 hover:bg-accent md:grid md:grid-cols-[minmax(0,1fr)_7.5rem_8.5rem_9rem_6.5rem] md:gap-4"
+                    className={cn("flex items-center gap-3 px-5 py-3.5 hover:bg-accent md:grid md:gap-4", grid)}
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                       <CategoryIcon category={item.category} />
                       <div className="min-w-0 flex-1">
                         <p className="flex items-center gap-2 text-sm font-medium">
                           <span className="truncate">{item.name}</span>
-                          {item.status !== "owned" && <ItemStatusBadge status={item.status} />}
+                          {/* Sold or disposed: said here. Returned or cancelled: in its column (under the name on a phone). */}
+                          {(item.status === "sold" || item.status === "disposed") && <ItemStatusBadge status={item.status} />}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
                           {[
@@ -178,6 +192,11 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
                             {formatDate(item.purchaseDate)}
                           </span>
                         </p>
+                        {notKept(item.status) && (
+                          <div className="mt-1 md:hidden">
+                            <ItemReturnStatus item={item} order={order} />
+                          </div>
+                        )}
                         {/* On phones the two dates sit under the name instead of in columns. */}
                         {(item.returnBy || item.warranty) && (
                           <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs md:hidden">
@@ -215,6 +234,15 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
                         </span>
                       )}
                     </span>
+                    {showStatus && (
+                      <span className="hidden text-sm md:block">
+                        {notKept(item.status) ? (
+                          <ItemReturnStatus item={item} order={order} />
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </span>
+                    )}
                     <p className="w-24 shrink-0 text-right text-sm tabular-nums md:w-auto">
                       {item.price.value !== null ? formatMoney(item.price.value) : "—"}
                     </p>

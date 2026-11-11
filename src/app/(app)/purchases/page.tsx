@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Receipt, Wrench } from "lucide-react";
 import { Suspense } from "react";
-import { OrderStatusBadge, SourceLabel } from "@/components/badges";
+import { SourceLabel } from "@/components/badges";
 import { Deadline, RETURN_SOON_DAYS, WARRANTY_SOON_DAYS } from "@/components/deadline";
 import { EmptyCta } from "@/components/empty-cta";
 import { PageHeader } from "@/components/layout-bits";
@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { OrderReturnStatus } from "@/components/return-status";
 import { ReturnsList } from "@/components/returns-list";
 import { amountSpent, returnsFrom } from "@/lib/refunds";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -97,6 +98,7 @@ async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, 
                 <TableHead className="hidden lg:table-cell">Return by</TableHead>
                 <TableHead className="hidden lg:table-cell">Warranty expires</TableHead>
                 <TableHead className="hidden xl:table-cell">Source</TableHead>
+                <TableHead className="hidden md:table-cell">Returns &amp; cancellations</TableHead>
                 <TableHead className="pr-5 text-right">Total</TableHead>
               </TableRow>
             </TableHeader>
@@ -122,6 +124,10 @@ async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, 
                       <div className="text-xs text-muted-foreground sm:hidden">
                         {formatDate(o.orderDate)} · {orderItems.length} item
                         {orderItems.length === 1 ? "" : "s"}
+                      </div>
+                      {/* On a phone the column is hidden: what happened goes under the shop. */}
+                      <div className="mt-1 md:hidden">
+                        <OrderReturnStatus order={o} items={orderItems} />
                       </div>
                       {(returnBy || warrantyEnds) && (
                         <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs lg:hidden">
@@ -167,6 +173,9 @@ async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, 
                     <TableCell className="hidden xl:table-cell">
                       <SourceLabel source={o.source} />
                     </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <OrderReturnStatus order={o} items={orderItems} />
+                    </TableCell>
                     <TableCell className="pr-5 text-right">
                       <div className="flex flex-col items-end gap-1">
                         <span className="tabular-nums">{formatMoney(amountSpent(o))}</span>
@@ -175,7 +184,6 @@ async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, 
                             {formatMoney(o.total)}
                           </span>
                         )}
-                        <OrderStatusBadge status={o.status} />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -216,6 +224,7 @@ function ServiceRow({ event: e, items }: { event: ServiceEvent; items: Item[] })
       <TableCell className="hidden text-muted-foreground lg:table-cell">—</TableCell>
       <TableCell className="hidden text-muted-foreground lg:table-cell">—</TableCell>
       <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">Service</TableCell>
+      <TableCell className="hidden text-muted-foreground md:table-cell">—</TableCell>
       <TableCell className="pr-5 text-right tabular-nums">{formatMoney(e.totalCost)}</TableCell>
     </TableRow>
   );
