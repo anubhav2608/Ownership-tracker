@@ -1,0 +1,19 @@
+{
+  "kind": "purchase",
+  "shop": "Flipkart",
+  "orderRef": "OD330011112222333000",
+  "date": "2026-11-02",
+  "total": 897,
+  "items": [
+    {
+      "name": "Example Ultra 64 GB MicroSDXC Card",
+      "qty": 1,
+      "price": 499
+    },
+    {
+      "name": "Example Clear Back Cover for Phone X",
+      "qty": 2,
+      "price": 398
+    }
+  ]
+}

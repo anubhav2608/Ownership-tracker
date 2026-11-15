@@ -1,0 +1,12 @@
+PAYMENT RECEIPT
+Guest Name: Asha  Date: 01/11/2026
+Hotel Details  Check In  Check Out  Rooms
+OYO 0000 Example Residency,  01/11/2026  02/11/2026  1
+1 Example Street, Example City
+Booking ID  Payment Mode
+EXMP1234  Cash at Hotel
+DESCRIPTION  RATE  AMOUNT
+Room Charges  Rs 1499 x 1 Night x 1 Room  Rs 1499
+Grand Total  Rs 1499
+Payment received by OYO  Paid through Cash At Hotel (Rs 1499)  Rs 1499
+Balance ( if any )  Rs 0

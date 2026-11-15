@@ -72,6 +72,7 @@ const MERCHANTS: KnownMerchant[] = [
   { id: "vijay-sales", name: "Vijay Sales", pattern: /\bvijay sales\b/i },
   { id: "apple", name: "Apple Store", pattern: /\bapple (store|india)\b/i, orderRef: /\b(W\d{9,12})\b/ },
   { id: "myntra", name: "Myntra", pattern: /\bmyntra\b/i },
+  { id: "oyo", name: "OYO", pattern: /\boyo\b/i },
   { id: "urban-company", name: "Urban Company", pattern: /\burban ?(company|clap)\b/i, service: true },
 ];
 
@@ -200,7 +201,10 @@ function findMerchant(lines: string[], text: string, sender?: string | null) {
   // A shop's own email: its display name ("Example Shoes <orders@shoes.example>").
   const shopName = sender && !PERSONAL_MAIL.test(sender) ? sender.match(/^\s*"?([^"<]{2,60}?)"?\s*</)?.[1] : undefined;
   if (shopName && /[a-z]{2}/i.test(shopName)) return { field: extracted(cleanName(shopName), 0.7) };
-  const first = lines.find((l) => /[a-z]{3}/i.test(l) && !/invoice|receipt|order|page \d/i.test(l) && !isTableHeader(l));
+  // The first line that could be a name: not a heading, and not a labelled value ("Guest Name: Asha").
+  const first = lines.find(
+    (l) => /[a-z]{3}/i.test(l) && !/invoice|receipt|order|page \d/i.test(l) && !isTableHeader(l) && !/^[^:]{1,25}:\s*\S/.test(l),
+  );
   return { field: first ? extracted(cleanName(first), 0.5) : missing<string>() };
 }
 
@@ -212,10 +216,15 @@ function labelledRef(lines: string[], words: string): string | null {
   for (const [i, line] of lines.entries()) {
     const m = line.match(labelled);
     if (!m) continue;
-    // "Your order ID", with the number on the line below.
-    const rest = line.slice((m.index ?? 0) + m[0].length).trim() || (lines[i + 1] ?? "").trim();
-    const ref = rest.match(/^([A-Z0-9][A-Z0-9\-/]{3,30})/i);
-    if (ref && /\d/.test(ref[1]) && !parseDate(ref[1])) return ref[1];
+    const isRef = (r?: string) => (r && /\d/.test(r) && !parseDate(r) ? r : null);
+    // "Invoice No : # BLR_123": the number may follow a "#".
+    const rest = line.slice((m.index ?? 0) + m[0].length).replace(/^#\s*/, "").trim();
+    const ref = isRef(rest.match(/^([A-Z0-9][A-Z0-9\-/_]{3,30})/i)?.[1]);
+    if (ref) return ref;
+    // "Your order ID" with the number on the line below, or a table: "Booking ID  Payment Mode"
+    // over "IBZY2087  Cash at Hotel" (the label starts its line, the number starts the next).
+    const below = (lines[i + 1] ?? "").trim().split(/\s{2,}/)[0];
+    if ((rest === "" || (m.index ?? 0) === 0) && /^[A-Z0-9][A-Z0-9\-/_]{3,30}$/i.test(below) && isRef(below)) return below;
   }
   return null;
 }
@@ -223,13 +232,16 @@ function labelledRef(lines: string[], words: string): string | null {
 /** The order number and the invoice (or bill / receipt) number: either identifies the purchase. */
 function findRefs(lines: string[], text: string, merchant?: KnownMerchant) {
   const known = merchant?.orderRef && text.match(merchant.orderRef);
-  const order = known ? known[1] : labelledRef(lines, "order");
+  const order = known ? known[1] : labelledRef(lines, "order|booking");
   const invoice = labelledRef(lines, "invoice|bill|receipt|job card|ro");
   return {
     orderRef: order ? extracted(order, known ? 0.98 : 0.85) : missing<string>(),
     invoiceRef: invoice && invoice !== order ? extracted(invoice, 0.85) : missing<string>(),
   };
 }
+
+/** Nothing was bought tomorrow: a date past today (with a day's slack for time zones) was misread. */
+const inFuture = (date: string) => date > new Date(Date.now() + 864e5).toISOString().slice(0, 10);
 
 function findDate(lines: string[]): Tracked<string> {
   // The order date is when it was bought; an invoice can be dated a day later.
@@ -240,12 +252,12 @@ function findDate(lines: string[]): Tracked<string> {
     for (const line of lines) {
       if (!labelled.test(line)) continue;
       const date = parseDate(line.slice(line.search(labelled)));
-      if (date) return extracted(date, 0.92);
+      if (date && !inFuture(date)) return extracted(date, 0.92);
     }
   }
   for (const line of lines) {
     const date = parseDate(line);
-    if (date) return extracted(date, 0.6);
+    if (date && !inFuture(date)) return extracted(date, 0.6);
   }
   return missing();
 }
@@ -519,10 +531,13 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
   // the declarations after the items hold no items at all.
   let inAddress = false;
   let skipSection = false;
+  // Flipkart's table: "Product" is the kind of thing ("Memory cards"), "Title" what was bought.
+  let titleColumn = false;
   // Where the last item ended: "Sold by" just after it is about that item, not an address.
   let lastItemAt = -10;
 
   for (const [i, raw] of lines.entries()) {
+    if (/^\s*product\s{2,}title\b/i.test(raw)) titleColumn = true;
     if (/^(tax invoice|invoice|bill of supply)\b/i.test(raw)) {
       skipSection = /^bill of supply\b/i.test(raw);
       inAddress = false;
@@ -621,7 +636,9 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
     pending = null;
 
     const columns = raw.split(/\s{2,}/).map((c) => c.trim());
-    const descIndex = columns.findIndex((c) => /[a-z]{3}/i.test(c) && moneyIn(c).length === 0);
+    const isText = (c?: string) => !!c && /[a-z]{3}/i.test(c) && moneyIn(c).length === 0;
+    let descIndex = columns.findIndex((c) => isText(c));
+    if (titleColumn && descIndex >= 0 && isText(columns[descIndex + 1])) descIndex++;
     const description = cleanDescription(descIndex >= 0 ? columns[descIndex] : raw.replace(/[₹\d.,\s]+$/, ""));
     if (!/[a-z]{3}/i.test(description) || description.length > 160) continue;
 

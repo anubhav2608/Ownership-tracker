@@ -32,8 +32,10 @@ export function moneyIn(line: string): number[] {
 
 const NUMERIC_DATE = /\b(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})\b/g;
 const ISO_DATE = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
-const DAY_MONTH_NAME = /\b(\d{1,2})(?:st|nd|rd|th)?[\s-]+([a-z]{3,9})\.?,?[\s-]+(\d{2,4})\b/gi;
-const MONTH_NAME_DAY = /\b([a-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b/gi;
+// "1 - July 31 , 2014" is a period, not 1 July 2031: a two-digit number followed by a year is a day.
+const DAY_MONTH_NAME = /\b(\d{1,2})(?:st|nd|rd|th)?[\s-]+([a-z]{3,9})\.?,?[\s-]+(\d{4}|\d{2}(?!\s*,?\s*\d{4}))\b/gi;
+// "August 3 , 2014": some invoices put a space before the comma.
+const MONTH_NAME_DAY = /\b([a-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+(\d{4})\b/gi;
 
 function monthNumber(name: string): number | undefined {
   const k = name.toLowerCase();

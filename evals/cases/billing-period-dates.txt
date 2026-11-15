@@ -1,0 +1,7 @@
+Example Cloud Invoice
+Invoice Number:  42000001
+Invoice Date:  August 3 , 2026
+TOTAL AMOUNT DUE ON August 3 , 2026  Rs 411.00
+This invoice is for the billing period July 1 - July 31 , 2026
+Example Storage  Rs 411.00
+Total for this invoice  Rs 411.00

@@ -1,0 +1,17 @@
+Tax Invoice
+Invoice No : # FAEX2600012345
+Sold By : Example Retail Private Limited,
+Order ID: OD330011112222333000  Billing Address  Shipping Address
+Asha Example  Asha Example
+Order Date: 02-11-2026
+Invoice Date: 03-11-2026  1 Example Street  1 Example Street
+Example City 100001  Example City 100001
+Product  Title  Qty  Gross Amount  Discount  Taxable Value  IGST  Total
+Memory cards  Example Ultra 64 GB MicroSDXC Card  1  549.00  -50.00  422.88  76.12  499.00
+FSN: EXAMPLEFSN0001  HSN/SAC: 85235100
+Mobile cases  Example Clear Back Cover for Phone X  2  398.00  0.00  337.29  60.71  398.00
+FSN: EXAMPLEFSN0002  HSN/SAC: 39269099
+Total  3  947.00  -50.00  760.17  136.83  897.00
+Grand Total  897.00
+Ordered Through :
+Flipkart.com Customer Care : www.flipkart.com/support
