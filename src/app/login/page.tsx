@@ -27,7 +27,9 @@ const errors: Record<string, string> = {
     "Email sign-in is turned off for this project. Enable it under Authentication → Sign In / Providers → Email.",
   rate: "Supabase's built-in email sends only a few sign-in emails per hour. Wait about an hour, or use Continue with Google.",
   link: "That sign-in link has expired or was already used. Request a new one.",
-  oauth: "Google sign-in didn't complete. Please try again.",
+  oauth: "Sign-in didn't complete. Please try again, or request a new sign-in link.",
+  browser:
+    "That link was opened in a different browser or app than the one you asked for it in. Request a new link and open it in this same browser (not inside your email app's built-in viewer), or use Continue with Google.",
   "demo-signin":
     "The demo needs \"Allow anonymous sign-ins\" turned on in Supabase (Authentication → Sign In / Providers). Until then, sign up below.",
   demo: "The demo isn't available right now. Please try again in a minute, or sign up below.",

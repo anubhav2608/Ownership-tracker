@@ -16,7 +16,12 @@ export async function GET(request: NextRequest) {
     const { data } = await supabase.auth.getClaims();
     if (data?.claims) return NextResponse.redirect(new URL(next, request.url));
     // Logged to the terminal or Vercel logs, to diagnose sign-in problems.
-    console.error("[auth/callback] Google sign-in failed:", error.code ?? error.status, error.message);
+    console.error("[auth/callback] sign-in failed:", error.name, error.code ?? error.status, error.message);
+    // A sign-in link opened in another browser or app (an email app's built-in browser) has no
+    // PKCE verifier: it only works in the browser that asked for it.
+    if (/code verifier|flow state/i.test(`${error.name} ${error.code ?? ""} ${error.message}`)) {
+      return NextResponse.redirect(new URL("/login?error=browser", request.url));
+    }
   }
 
   return NextResponse.redirect(new URL("/login?error=oauth", request.url));
