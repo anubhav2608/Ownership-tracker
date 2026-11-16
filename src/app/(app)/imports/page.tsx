@@ -6,13 +6,13 @@ import { PageHeader } from "@/components/layout-bits";
 import { ListCardSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getImports } from "@/lib/data";
+import { getCurrentUser, getImports } from "@/lib/data";
 import { ImportsList } from "./imports-list";
 
 export const metadata: Metadata = { title: "Imports" };
 
 async function ImportsContent() {
-  const imports = await getImports();
+  const [user, imports] = await Promise.all([getCurrentUser(), getImports()]);
   const sorted = [...imports].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
 
   return (
@@ -21,8 +21,9 @@ async function ImportsContent() {
         <div>
           <p className="text-sm font-medium">Upload a service invoice</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            A PDF, a photo, or an email saved as .eml. If we read it accurately and it matches your car, it&rsquo;s saved
-            on its own; otherwise it waits here for you.
+            {user.demo ? "A PDF or an email saved as .eml." : "A PDF, a photo, or an email saved as .eml."} If we read it
+            accurately and it matches your car, it&rsquo;s saved on its own; otherwise it waits here for you.
+            {user.demo && " Photos (JPEG, PNG) are available with the paid version of the app only."}
           </p>
           <Button asChild className="mt-3">
             <Link href="/add?tab=upload">
