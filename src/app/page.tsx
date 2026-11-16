@@ -37,7 +37,7 @@ const steps = [
   {
     icon: Mail,
     title: "Upload the invoice",
-    body: "Upload the service centre's PDF, a photo of the bill, or the email saved as a file.",
+    body: "Upload the service centre's PDF, or the email saved as a file (.eml).",
   },
   {
     icon: ClipboardCheck,

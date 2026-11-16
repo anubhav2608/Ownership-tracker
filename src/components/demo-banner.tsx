@@ -16,7 +16,7 @@ export function DemoBanner() {
           <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
           <span>
             <span className="font-medium">You&rsquo;re in a demo</span> with a car owner&rsquo;s sample records. Try the
-            journey: upload a service invoice (a PDF, photo or saved email), see what we read, and watch it join the car&rsquo;s timeline.
+            journey: upload a service invoice (a PDF or saved email), see what we read, and watch it join the car&rsquo;s timeline.
           </span>
         </p>
         <div className="flex flex-wrap items-center gap-2">
