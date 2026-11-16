@@ -11,8 +11,7 @@ async function DemoGuide() {
   const db = await createClient();
   const { data } = await db.auth.getClaims();
   if (!data?.claims?.is_anonymous) return null;
-  const { data: car } = await db.from("items").select("id").eq("category", "vehicle").limit(1).maybeSingle();
-  return <DemoBanner carHref={car ? `/items/${car.id}` : undefined} />;
+  return <DemoBanner />;
 }
 
 /** Settings are for real accounts: a demo visitor (an anonymous account) doesn't see them. */
