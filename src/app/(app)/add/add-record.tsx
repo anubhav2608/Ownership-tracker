@@ -23,7 +23,7 @@ import { ReplacePurchaseDialog } from "@/components/replace-purchase-dialog";
 import type { ExistingPurchase } from "@/lib/purchases";
 import { createPurchase, createServiceEvent, type PurchaseInput } from "./actions";
 import { attachDocuments } from "@/lib/record-actions";
-import { ACCEPTED_FILES, storeFile, uploadFile } from "./upload-file";
+import { ACCEPTED_FILES, DEMO_ACCEPTED_FILES, demoAllows, PHOTOS_PAID, storeFile, uploadFile } from "./upload-file";
 
 type Target = { orderId: string } | { serviceEventId: string };
 
@@ -34,12 +34,15 @@ const MAX_MB = 10;
 export function AddRecord({
   initialTab,
   userId,
+  demo,
   forwardingAddress,
   items,
   fromImport,
 }: {
   initialTab: AddTab;
   userId: string;
+  /** A demo visitor: PDFs and emails only. */
+  demo: boolean;
   forwardingAddress: string;
   items: { id: string; name: string; isVehicle: boolean }[];
   fromImport?: FromImport;
@@ -61,7 +64,7 @@ export function AddRecord({
         <ForwardTab address={forwardingAddress} />
       </TabsContent>
       <TabsContent value="upload">
-        <UploadTab userId={userId} />
+        <UploadTab userId={userId} demo={demo} />
       </TabsContent>
       <TabsContent value="manual">
         <ManualTab items={items} userId={userId} fromImport={fromImport} />
@@ -99,7 +102,7 @@ function ForwardTab({ address }: { address: string }) {
   );
 }
 
-function UploadTab({ userId }: { userId: string }) {
+function UploadTab({ userId, demo }: { userId: string; demo: boolean }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -167,8 +170,14 @@ function UploadTab({ userId }: { userId: string }) {
 
   function addFiles(list: FileList | null) {
     if (!list) return;
-    const ok = Array.from(list).filter((f) => f.size <= MAX_MB * 1024 * 1024);
-    if (ok.length < list.length) toast.error(`Files over ${MAX_MB} MB were skipped`);
+    let chosen = Array.from(list);
+    if (demo) {
+      const allowed = chosen.filter((f) => demoAllows(f.name));
+      if (allowed.length < chosen.length) toast.error(`Only PDF and .eml files. ${PHOTOS_PAID}`);
+      chosen = allowed;
+    }
+    const ok = chosen.filter((f) => f.size <= MAX_MB * 1024 * 1024);
+    if (ok.length < chosen.length) toast.error(`Files over ${MAX_MB} MB were skipped`);
     setFiles((prev) => [...prev, ...ok]);
   }
 
@@ -197,15 +206,16 @@ function UploadTab({ userId }: { userId: string }) {
         <FileUp className="size-8 text-muted-foreground" strokeWidth={1.5} />
         <span className="mt-3 text-sm font-medium">Drop invoices or receipts, or click to choose</span>
         <span className="mt-1 text-xs text-muted-foreground">
-          PDF, photos, or saved emails (.eml) with their attachments, up to {MAX_MB} MB each.
-          Stored privately.
+          {demo ? "PDF or saved email (.eml)" : "PDF, photos, or saved emails (.eml) with their attachments"}, up to{" "}
+          {MAX_MB} MB each. Stored privately.
         </span>
+        {demo && <span className="mt-1 text-xs text-muted-foreground">{PHOTOS_PAID}</span>}
       </button>
       <input
         ref={inputRef}
         type="file"
         multiple
-        accept={ACCEPTED_FILES}
+        accept={demo ? DEMO_ACCEPTED_FILES : ACCEPTED_FILES}
         className="hidden"
         onChange={(e) => addFiles(e.target.files)}
       />

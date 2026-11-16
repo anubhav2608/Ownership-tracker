@@ -89,6 +89,8 @@ export const getCurrentUser = cache(async () => {
   const email = typeof claims.email === "string" ? claims.email : "";
   return {
     id: claims.sub,
+    /** A demo visitor (an anonymous account): PDFs and emails only. */
+    demo: claims.is_anonymous === true,
     name: profile?.display_name || email.split("@")[0] || "there",
     email,
     forwardingAddress: profile ? `${profile.forwarding_token}@${INBOUND_DOMAIN}` : "",

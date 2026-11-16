@@ -12,6 +12,7 @@ import type {
 
 const currentUser = {
   id: "demo-user",
+  demo: false,
   name: "Anubhav",
   email: "anubhav2608@gmail.com",
   forwardingAddress: "u_7f3k9q@in.ownership.app",

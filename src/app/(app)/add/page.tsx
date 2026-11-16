@@ -45,6 +45,7 @@ async function AddContent({ searchParams }: Pick<PageProps<"/add">, "searchParam
       initialTab={initial}
       fromImport={fromImport}
       userId={user.id}
+      demo={user.demo}
       forwardingAddress={user.forwardingAddress}
       items={items
         .filter((i) => i.status === "owned")

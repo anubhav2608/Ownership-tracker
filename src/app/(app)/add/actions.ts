@@ -43,6 +43,12 @@ export async function registerUpload(input: z.input<typeof uploadSchema>): Promi
     return { ok: false, reason: "invalid", message: "Please sign in again." };
   }
 
+  // The demo takes PDFs and saved emails only (photos are for the paid version).
+  if (auth?.claims.is_anonymous && !(mimeType === "application/pdf" || mimeType === "message/rfc822")) {
+    await supabase.storage.from("documents").remove([path]);
+    return { ok: false, reason: "invalid", message: "Photos (JPEG, PNG) are available with the paid version of the app only." };
+  }
+
   const removeUpload = () => supabase.storage.from("documents").remove([path]);
 
   const { data: existing } = await supabase

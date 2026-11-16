@@ -15,6 +15,12 @@ const typesByExtension: Record<string, string> = {
 
 /** What the file picker accepts: PDFs, photos and saved emails. */
 export const ACCEPTED_FILES = ".pdf,.eml,message/rfc822,image/*";
+/** The demo takes PDFs and saved emails only; photos are for the paid version. */
+export const DEMO_ACCEPTED_FILES = ".pdf,.eml,message/rfc822";
+export const PHOTOS_PAID = "Photos (JPEG, PNG) are available with the paid version of the app only.";
+
+/** Whether a demo visitor may upload this file (a PDF or a saved email). */
+export const demoAllows = (fileName: string) => /\.(pdf|eml)$/i.test(fileName);
 
 async function sha256Hex(file: File) {
   const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
