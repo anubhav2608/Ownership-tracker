@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { AppShell } from "@/components/app-shell";
+import { AppShell, SettingsSidebarLink, SettingsTopBarLink } from "@/components/app-shell";
 import { DemoBanner } from "@/components/demo-banner";
 import { getImports } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -13,6 +13,16 @@ async function DemoGuide() {
   if (!data?.claims?.is_anonymous) return null;
   const { data: car } = await db.from("items").select("id").eq("category", "vehicle").limit(1).maybeSingle();
   return <DemoBanner carHref={car ? `/items/${car.id}` : undefined} />;
+}
+
+/** Settings are for real accounts: a demo visitor (an anonymous account) doesn't see them. */
+async function SettingsLink({ variant }: { variant: "sidebar" | "topBar" }) {
+  if (isSupabaseConfigured) {
+    const db = await createClient();
+    const { data } = await db.auth.getClaims();
+    if (data?.claims?.is_anonymous) return null;
+  }
+  return variant === "sidebar" ? <SettingsSidebarLink /> : <SettingsTopBarLink />;
 }
 
 async function InboxCount({ variant }: { variant: "badge" | "dot" }) {
@@ -36,6 +46,18 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           <InboxCount variant="badge" />
         </Suspense>
       }
+      settings={{
+        sidebar: (
+          <Suspense>
+            <SettingsLink variant="sidebar" />
+          </Suspense>
+        ),
+        topBar: (
+          <Suspense>
+            <SettingsLink variant="topBar" />
+          </Suspense>
+        ),
+      }}
       banner={
         <Suspense>
           <DemoGuide />

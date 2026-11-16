@@ -47,7 +47,6 @@ const nav: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/services", label: "Services", icon: Wrench },
   { href: "/returns", label: "Returns & cancellations", icon: RotateCcw },
   { href: "/imports", label: "Imports", icon: Inbox },
-  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Logo() {
@@ -65,10 +64,13 @@ export function AppShell({
   inboxBadge,
   inboxDot,
   banner,
+  settings,
   children,
 }: {
   inboxBadge: ReactNode;
   inboxDot: ReactNode;
+  /** The Settings links (sidebar, top bar): left out for a demo visitor. */
+  settings?: { sidebar: ReactNode; topBar: ReactNode };
   /** Across the top of the page content, e.g. the demo's guide. */
   banner?: ReactNode;
   children: ReactNode;
@@ -107,6 +109,7 @@ export function AppShell({
               {href === "/imports" && inboxBadge}
             </Link>
           ))}
+          {settings?.sidebar}
         </nav>
         <div className="mt-auto border-t pt-3">
           <LogOutButton />
@@ -123,17 +126,7 @@ export function AppShell({
                 <Plus className="size-5" />
               </Link>
             </Button>
-            <Button
-              asChild
-              variant="ghost"
-              size="icon"
-              aria-label="Settings"
-              className={cn(isActive("/settings") && "text-primary")}
-            >
-              <Link href="/settings">
-                <Settings className="size-5" />
-              </Link>
-            </Button>
+            {settings?.topBar}
             <LogOutButton compact />
           </div>
         </header>
@@ -146,7 +139,7 @@ export function AppShell({
         {/* Mobile bottom nav: five tabs fit a phone. Settings is in the top bar; Returns is a
             filter under Purchases and a card on the dashboard. */}
         <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden">
-          {nav.filter(({ href }) => href !== "/settings" && href !== "/returns").map(({ href, label, icon: Icon }) => (
+          {nav.filter(({ href }) => href !== "/returns").map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
@@ -163,5 +156,34 @@ export function AppShell({
         </nav>
       </div>
     </div>
+  );
+}
+
+/** The Settings link in the desktop sidebar. */
+export function SettingsSidebarLink() {
+  const active = usePathname().startsWith("/settings");
+  return (
+    <Link
+      href="/settings"
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm",
+        active ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+      )}
+    >
+      <Settings className={cn("size-4", active && "text-primary")} />
+      Settings
+    </Link>
+  );
+}
+
+/** The Settings icon in the phone's top bar. */
+export function SettingsTopBarLink() {
+  const active = usePathname().startsWith("/settings");
+  return (
+    <Button asChild variant="ghost" size="icon" aria-label="Settings" className={cn(active && "text-primary")}>
+      <Link href="/settings">
+        <Settings className="size-5" />
+      </Link>
+    </Button>
   );
 }

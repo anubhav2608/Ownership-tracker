@@ -83,5 +83,8 @@ export async function updateSession(request: NextRequest) {
   // Signed in, the front page and the login page lead to the dashboard.
   if (signedIn && !demo && (pathname === "/login" || pathname === "/")) return redirectTo("/dashboard");
 
+  // The demo has no settings (no account, address or data to manage).
+  if (demo && (pathname === "/settings" || pathname.startsWith("/settings/"))) return redirectTo("/dashboard");
+
   return response;
 }
