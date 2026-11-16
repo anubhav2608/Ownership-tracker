@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     console.error("[auth/callback] sign-in failed:", error.name, error.code ?? error.status, error.message);
     // A sign-in link opened in another browser or app (an email app's built-in browser) has no
     // PKCE verifier: it only works in the browser that asked for it.
-    if (/code verifier|flow state/i.test(`${error.name} ${error.code ?? ""} ${error.message}`)) {
+    if (/code verifier/i.test(`${error.name} ${error.code ?? ""} ${error.message}`)) {
       return NextResponse.redirect(new URL("/login?error=browser", request.url));
     }
   }
