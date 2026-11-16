@@ -1,3 +1,5 @@
+import { startDemo } from "@/app/demo/actions";
+import { DemoButton } from "@/components/demo-button";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { MailCheck } from "lucide-react";
@@ -146,6 +148,14 @@ async function LoginCard({ searchParams }: Pick<PageProps<"/login">, "searchPara
           </>
         )}
       </div>
+      {!sent && isSupabaseConfigured && (
+        <div className="mt-6 rounded-xl border border-dashed bg-card/60 p-4 text-center">
+          <p className="text-sm text-muted-foreground">Just looking? No sign-up needed.</p>
+          <form action={startDemo} className="mt-3">
+            <DemoButton size="default" variant="outline" />
+          </form>
+        </div>
+      )}
       {!sent && (
         <p className="mt-6 text-center text-sm text-muted-foreground">
           {signup ? "Already have an account? " : "New here? "}
