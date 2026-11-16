@@ -39,8 +39,8 @@ describe("this month in short", () => {
     ];
     const x = monthInsights({ today, orders, events: [], items, returns: returnsFrom(orders, items) });
     expect(x.slice(2)).toEqual([
-      { text: "₹503 refund still to come from Amazon, 14 days since the return.", href: "/returns", attention: true },
-      { text: "Last day to return Example Desk Lamp is in 2 days.", href: "/items/lamp", attention: true },
+      { kind: "refund", text: "₹503 refund still to come from Amazon, 14 days since the return.", href: "/returns", attention: true },
+      { kind: "deadline", text: "Last day to return Example Desk Lamp is in 2 days.", href: "/items/lamp", attention: true },
     ]);
   });
 

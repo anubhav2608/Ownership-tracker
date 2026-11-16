@@ -29,6 +29,7 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader
+        hero
         title={
           <Suspense fallback="Welcome back">
             <Greeting />

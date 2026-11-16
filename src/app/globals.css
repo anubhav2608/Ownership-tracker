@@ -3,31 +3,32 @@
 
 @custom-variant dark (@media (prefers-color-scheme: dark));
 
-/* shadcn/ui theme tokens (neutral base, teal primary) plus status colours
-   used for import states, confidence and warranty badges. */
+/* shadcn/ui theme tokens: a teal primary on a faintly teal-tinted base, plus
+   status colours for import states, confidence and warranty badges. */
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.985 0.002 100);
+  --background: oklch(0.982 0.006 190);
   --foreground: oklch(0.205 0.005 100);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.205 0.005 100);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.205 0.005 100);
-  --primary: oklch(0.51 0.09 186);
+  --primary: oklch(0.51 0.105 186);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.96 0.003 100);
+  --secondary: oklch(0.958 0.008 190);
   --secondary-foreground: oklch(0.205 0.005 100);
-  --muted: oklch(0.96 0.003 100);
-  --muted-foreground: oklch(0.5 0.008 100);
-  --accent: oklch(0.955 0.004 100);
-  --accent-foreground: oklch(0.205 0.005 100);
+  --muted: oklch(0.958 0.008 190);
+  --muted-foreground: oklch(0.48 0.012 200);
+  --accent: oklch(0.95 0.022 186);
+  --accent-foreground: oklch(0.3 0.06 186);
   --destructive: oklch(0.55 0.2 27);
-  --border: oklch(0.91 0.004 100);
-  --input: oklch(0.91 0.004 100);
-  --ring: oklch(0.51 0.09 186);
+  --border: oklch(0.905 0.01 190);
+  --input: oklch(0.905 0.01 190);
+  --ring: oklch(0.51 0.105 186);
 
-  --success: oklch(0.51 0.09 186);
-  --success-soft: oklch(0.95 0.03 186);
+  /* Green for money back and things confirmed: apart from the brand teal. */
+  --success: oklch(0.5 0.13 152);
+  --success-soft: oklch(0.95 0.045 152);
   --warning: oklch(0.55 0.13 65);
   --warning-soft: oklch(0.96 0.045 85);
   --danger: oklch(0.55 0.2 27);
@@ -55,15 +56,15 @@
     --secondary-foreground: oklch(0.94 0.003 100);
     --muted: oklch(0.26 0.003 100);
     --muted-foreground: oklch(0.68 0.008 100);
-    --accent: oklch(0.27 0.004 100);
-    --accent-foreground: oklch(0.94 0.003 100);
+    --accent: oklch(0.29 0.03 186);
+    --accent-foreground: oklch(0.92 0.04 186);
     --destructive: oklch(0.7 0.17 25);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.78 0.12 182);
 
-    --success: oklch(0.78 0.12 182);
-    --success-soft: oklch(0.3 0.05 186);
+    --success: oklch(0.78 0.14 152);
+    --success-soft: oklch(0.3 0.06 152);
     --warning: oklch(0.8 0.13 75);
     --warning-soft: oklch(0.3 0.05 70);
     --danger: oklch(0.72 0.16 25);
@@ -116,5 +117,16 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* A tinted tile with its icon or text in the same hue: set --h (an oklch hue)
+   on the element. Used for category icons, stat boxes and feature icons. */
+@utility hue-tile {
+  background-color: oklch(0.95 0.045 var(--h, 186));
+  color: oklch(0.47 0.13 var(--h, 186));
+  @media (prefers-color-scheme: dark) {
+    background-color: oklch(0.3 0.06 var(--h, 186));
+    color: oklch(0.82 0.11 var(--h, 186));
   }
 }

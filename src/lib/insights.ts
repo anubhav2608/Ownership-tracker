@@ -6,6 +6,8 @@ import type { Item, Order, ServiceEvent } from "@/lib/types";
 // far, worked out from what's saved. Each links to where the detail is.
 
 export interface Insight {
+  /** What it's about, for its icon. */
+  kind: "spend" | "biggest" | "refund" | "deadline";
   text: string;
   href?: string;
   /** Something to act on (money still to come, a deadline). */
@@ -62,9 +64,9 @@ export function monthInsights({
       // Too little history to compare with: say what it's made of.
       text += ` on ${[bought && plural(bought, "purchase"), serviced && plural(serviced, "service")].filter(Boolean).join(" and ")}.`;
     }
-    out.push({ text, href: "/purchases" });
+    out.push({ kind: "spend", text, href: "/purchases" });
   } else if (usual !== null) {
-    out.push({ text: `Nothing spent yet this month. Your usual month is ${formatMoney(usual)}.` });
+    out.push({ kind: "spend", text: `Nothing spent yet this month. Your usual month is ${formatMoney(usual)}.` });
   }
 
   // 2. The biggest purchase this month.
@@ -74,7 +76,7 @@ export function monthInsights({
   if (biggest) {
     const first = items.find((i) => i.orderId === biggest.id);
     const what = first ? `${first.name.replace(/(\.\.\.|…)$/, "")} from ${biggest.merchant}` : biggest.merchant;
-    out.push({ text: `Biggest purchase: ${what}, ${formatMoney(amountSpent(biggest))}.`, href: `/purchases/${biggest.id}` });
+    out.push({ kind: "biggest", text: `Biggest purchase: ${what}, ${formatMoney(amountSpent(biggest))}.`, href: `/purchases/${biggest.id}` });
   }
 
   // 3. Money still to come: items returned with no refund yet.
@@ -84,6 +86,7 @@ export function monthInsights({
     const oldest = pending.reduce((a, b) => (a.date < b.date ? a : b));
     const days = Math.max(0, daysBetween(oldest.date, today));
     out.push({
+      kind: "refund",
       text:
         pending.length === 1
           ? `${formatMoney(amount)} refund still to come from ${oldest.order.merchant}, ${days} day${days === 1 ? "" : "s"} since the return.`
@@ -93,7 +96,7 @@ export function monthInsights({
     });
   } else {
     const back = returns.filter((r) => month(indianDay(r.date)) === now).reduce((s, r) => s + r.refunded, 0);
-    if (back > 0) out.push({ text: `${formatMoney(back)} came back this month from returns and refunds.`, href: "/returns" });
+    if (back > 0) out.push({ kind: "refund", text: `${formatMoney(back)} came back this month from returns and refunds.`, href: "/returns" });
   }
 
   // 4. Return windows closing in the next 7 days.
@@ -105,6 +108,7 @@ export function monthInsights({
     const days = daysBetween(today, first.returnBy!);
     const when = days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
     out.push({
+      kind: "deadline",
       text:
         closing.length === 1
           ? `Last day to return ${first.name.replace(/(\.\.\.|…)$/, "")} is ${when}.`

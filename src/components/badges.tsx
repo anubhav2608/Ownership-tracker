@@ -70,6 +70,19 @@ const categoryIcons: Record<Category, LucideIcon> = {
   Miscellaneous: Package,
 };
 
+/** Each category's own hue (oklch), so a list can be scanned by colour. */
+const categoryHue: Record<Category, number> = {
+  Electronics: 255,
+  Appliances: 205,
+  Vehicle: 25,
+  Furniture: 70,
+  Clothing: 345,
+  Accessories: 300,
+  Home: 160,
+  Toys: 45,
+  Miscellaneous: 230,
+};
+
 export function CategoryIcon({
   category,
   size = "md",
@@ -81,9 +94,10 @@ export function CategoryIcon({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center bg-muted text-muted-foreground",
+        "hue-tile flex shrink-0 items-center justify-center",
         size === "lg" ? "size-14 rounded-xl" : "size-10 rounded-lg",
       )}
+      style={{ "--h": categoryHue[category] } as React.CSSProperties}
     >
       <Icon className={size === "lg" ? "size-7" : "size-5"} strokeWidth={1.75} />
     </div>

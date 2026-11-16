@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { RotateCcw } from "lucide-react";
+import { Boxes, FileText, Receipt, RotateCcw, Undo2, Wrench } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { SectionCard } from "@/components/layout-bits";
 import { Button } from "@/components/ui/button";
@@ -296,30 +296,39 @@ export function ExpensesCard({
       {/* What the filters above cover, at a glance. */}
       <div className="grid grid-cols-2 gap-3 border-b px-5 py-4 sm:grid-cols-3 lg:grid-cols-5">
         {[
-          { label: "Items owned", value: result.owned, href: "/items" },
-          { label: "Purchases", value: result.orderCount, href: "/purchases" },
+          { label: "Items owned", value: result.owned, href: "/items", icon: Boxes, hue: 186 },
+          { label: "Purchases", value: result.orderCount, href: "/purchases", icon: Receipt, hue: 255 },
           {
+            icon: Undo2,
+            hue: 152,
             label: "Returns & cancellations",
             value: formatMoney(result.backAmount),
             note: `${result.itemsBack} item${result.itemsBack === 1 ? "" : "s"} back`,
             href: "/returns",
           },
-          { label: "Documents stored", value: result.documents },
-          { label: "Maintenance recorded", value: formatMoney(result.maintenance), href: "/services" },
+          { label: "Documents stored", value: result.documents, icon: FileText, hue: 300 },
+          { label: "Maintenance recorded", value: formatMoney(result.maintenance), href: "/services", icon: Wrench, hue: 45 },
         ].map((s) => {
           const body = (
             <>
+              <span
+                className="hue-tile mb-2 flex size-8 items-center justify-center rounded-lg"
+                style={{ "--h": s.hue } as React.CSSProperties}
+                aria-hidden
+              >
+                <s.icon className="size-4" />
+              </span>
               <p className="text-xs text-muted-foreground">{s.label}</p>
-              <p className="mt-1 text-xl font-semibold tabular-nums">{s.value}</p>
+              <p className="mt-0.5 text-xl font-semibold tabular-nums">{s.value}</p>
               {s.note && <p className="text-xs text-muted-foreground">{s.note}</p>}
             </>
           );
           return s.href ? (
-            <Link key={s.label} href={s.href} className="rounded-lg border p-3 hover:bg-accent">
+            <Link key={s.label} href={s.href} className="rounded-xl border p-3 transition-colors hover:border-primary/40 hover:bg-accent/50">
               {body}
             </Link>
           ) : (
-            <div key={s.label} className="rounded-lg border p-3">
+            <div key={s.label} className="rounded-xl border p-3">
               {body}
             </div>
           );

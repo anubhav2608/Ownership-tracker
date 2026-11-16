@@ -7,13 +7,21 @@ export function PageHeader({
   title,
   description,
   action,
+  hero = false,
 }: {
   title: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
+  /** A tinted banner, for the dashboard's greeting. */
+  hero?: boolean;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div
+      className={cn(
+        "mb-6 flex flex-wrap items-end justify-between gap-4",
+        hero && "rounded-2xl border bg-linear-to-br from-accent via-card to-info-soft px-5 py-5 shadow-sm md:px-6",
+      )}
+    >
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         {description && (
@@ -43,7 +51,7 @@ export function SectionCard({
 }) {
   return (
     <Card className={cn("min-w-0 gap-0 overflow-hidden py-0", className)}>
-      <div className="flex min-h-13 items-center justify-between gap-3 border-b px-5 py-2.5">
+      <div className="flex min-h-13 items-center justify-between gap-3 border-b bg-muted/40 px-5 py-2.5">
         <h2 className="text-sm font-semibold">{title}</h2>
         {action}
       </div>

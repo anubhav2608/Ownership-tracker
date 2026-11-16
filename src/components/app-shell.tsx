@@ -53,7 +53,7 @@ const nav: { href: string; label: string; icon: LucideIcon }[] = [
 export function Logo() {
   return (
     <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-      <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-sm text-primary-foreground">
+      <span className="flex size-7 items-center justify-center rounded-lg bg-linear-to-br from-primary to-[oklch(0.5_0.13_240)] text-sm text-primary-foreground shadow-sm">
         O
       </span>
       Ownership
@@ -96,10 +96,10 @@ export function AppShell({
                 "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm",
                 isActive(href)
                   ? "bg-accent font-medium text-accent-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
               )}
             >
-              <Icon className="size-4" />
+              <Icon className={cn("size-4", isActive(href) && "text-primary")} />
               {label}
               {href === "/imports" && inboxBadge}
             </Link>
