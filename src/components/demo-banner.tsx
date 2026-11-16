@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Loader2, Mail, Sparkles } from "lucide-react";
+import { ArrowRight, Loader2, Mail, Sparkles, Upload } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { sendSampleInvoice } from "@/app/demo/actions";
@@ -40,6 +40,11 @@ export function DemoBanner({ carHref }: { carHref?: string }) {
           <Button size="sm" onClick={forward} disabled={busy}>
             {busy ? <Loader2 className="animate-spin" /> : <Mail />}
             {busy ? "Reading it…" : "Forward a sample service invoice"}
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/add?tab=upload">
+              <Upload /> Upload your own invoice
+            </Link>
           </Button>
           {carHref && (
             <Button asChild size="sm" variant="outline">
