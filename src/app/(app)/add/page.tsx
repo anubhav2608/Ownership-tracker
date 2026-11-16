@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Add record" };
 // Reading a PDF or photo with AI can take up to half a minute: the upload and retry actions run here.
 export const maxDuration = 60;
 
-const tabs: AddTab[] = ["forward", "upload", "manual"];
+const tabs: AddTab[] = ["upload", "manual"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function AddPage({ searchParams }: PageProps<"/add">) {
@@ -37,7 +37,7 @@ async function AddContent({ searchParams }: Pick<PageProps<"/add">, "searchParam
   ]);
   const fromImport =
     source && source.status !== "imported" ? { id: source.id, title: source.title } : undefined;
-  const initial = fromImport ? "manual" : tabs.includes(tab as AddTab) ? (tab as AddTab) : "forward";
+  const initial = fromImport ? "manual" : tabs.includes(tab as AddTab) ? (tab as AddTab) : "upload";
 
   return (
     <AddRecord
@@ -46,7 +46,6 @@ async function AddContent({ searchParams }: Pick<PageProps<"/add">, "searchParam
       fromImport={fromImport}
       userId={user.id}
       demo={user.demo}
-      forwardingAddress={user.forwardingAddress}
       items={items
         .filter((i) => i.status === "owned")
         .map((i) => ({ id: i.id, name: i.name, isVehicle: i.category === "Vehicle" }))}

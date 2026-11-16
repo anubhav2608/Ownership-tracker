@@ -1,10 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FileUp, Mail, Paperclip, PencilLine, Plus, X } from "lucide-react";
+import { FileUp, Paperclip, PencilLine, Plus, X } from "lucide-react";
 import { type DragEvent, type FormEvent, useId, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ForwardingAddress } from "@/components/copy-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,7 +26,7 @@ import { ACCEPTED_FILES, DEMO_ACCEPTED_FILES, demoAllows, PHOTOS_PAID, storeFile
 
 type Target = { orderId: string } | { serviceEventId: string };
 
-export type AddTab = "forward" | "upload" | "manual";
+export type AddTab = "upload" | "manual";
 
 const MAX_MB = 10;
 
@@ -35,7 +34,6 @@ export function AddRecord({
   initialTab,
   userId,
   demo,
-  forwardingAddress,
   items,
   fromImport,
 }: {
@@ -43,16 +41,12 @@ export function AddRecord({
   userId: string;
   /** A demo visitor: PDFs and emails only. */
   demo: boolean;
-  forwardingAddress: string;
   items: { id: string; name: string; isVehicle: boolean }[];
   fromImport?: FromImport;
 }) {
   return (
     <Tabs defaultValue={initialTab} className="max-w-3xl gap-6">
-      <TabsList className="grid h-auto w-full grid-cols-3">
-        <TabsTrigger value="forward" className="flex-col gap-1 py-2 sm:flex-row sm:gap-2">
-          <Mail /> Forward email
-        </TabsTrigger>
+      <TabsList className="grid h-auto w-full grid-cols-2">
         <TabsTrigger value="upload" className="flex-col gap-1 py-2 sm:flex-row sm:gap-2">
           <FileUp /> Upload
         </TabsTrigger>
@@ -60,9 +54,6 @@ export function AddRecord({
           <PencilLine /> Enter manually
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="forward">
-        <ForwardTab address={forwardingAddress} />
-      </TabsContent>
       <TabsContent value="upload">
         <UploadTab userId={userId} demo={demo} />
       </TabsContent>
@@ -70,35 +61,6 @@ export function AddRecord({
         <ManualTab items={items} userId={userId} fromImport={fromImport} />
       </TabsContent>
     </Tabs>
-  );
-}
-
-function ForwardTab({ address }: { address: string }) {
-  return (
-    <Card className="gap-0 p-6">
-      <h2 className="font-medium">Forward only what you choose</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        We never connect to your mailbox. Forward an order confirmation, invoice, refund
-        notice or service receipt to your private address. PDF and image attachments are
-        read too.
-      </p>
-      <div className="mt-5">
-        <ForwardingAddress address={address} />
-      </div>
-      <ul className="mt-6 list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
-        <li>Send from a verified address (Settings → Verified senders). Others are held, unread.</li>
-        <li>Forwarding the same email twice is safe; we detect duplicates.</li>
-        <li>Track progress under Imports. Anything uncertain waits for your review.</li>
-        <li>
-          Use Gmail? A script in your own Google account can send emails you label{" "}
-          <span className="font-medium text-foreground">Ownership</span> (Settings → Gmail).
-        </li>
-        <li>
-          Prefer not to forward? Save the email as a file (in Gmail: ⋮ → Download message) and
-          upload the .eml. Its body and attached invoice are read together.
-        </li>
-      </ul>
-    </Card>
   );
 }
 
