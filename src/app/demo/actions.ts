@@ -33,7 +33,7 @@ export async function startDemo() {
   const { error } = await db.auth.signInAnonymously();
   if (error) {
     console.error("[demo] anonymous sign-in failed:", error.status, error.code, error.message);
-    redirect("/login?error=demo");
+    redirect("/login?error=demo-signin");
   }
   let destination: string;
   try {
