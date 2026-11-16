@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Upload } from "lucide-react";
 import { Suspense } from "react";
 import { ForwardingAddress } from "@/components/copy-button";
 import { PageHeader } from "@/components/layout-bits";
@@ -17,9 +18,24 @@ async function ImportsContent() {
 
   return (
     <>
-      <div className="mb-6 rounded-xl border bg-card p-4">
-        <p className="mb-2 text-sm text-muted-foreground">Forward receipts to</p>
-        <ForwardingAddress address={user.forwardingAddress} />
+      <div className="mb-6 grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2 md:gap-6">
+        <div>
+          <p className="text-sm font-medium">Upload a service invoice</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A PDF, a photo, or an email saved as .eml. If we read it accurately and it matches your car, it&rsquo;s saved
+            on its own; otherwise it waits here for you.
+          </p>
+          <Button asChild className="mt-3">
+            <Link href="/add?tab=upload">
+              <Upload /> Upload an invoice
+            </Link>
+          </Button>
+        </div>
+        <div>
+          <p className="text-sm font-medium">Or forward it by email</p>
+          <p className="mb-2 mt-1 text-sm text-muted-foreground">Send the service centre&rsquo;s email to your private address.</p>
+          <ForwardingAddress address={user.forwardingAddress} />
+        </div>
       </div>
       <ImportsList imports={sorted} />
     </>
@@ -31,12 +47,7 @@ export default function ImportsPage() {
     <>
       <PageHeader
         title="Imports"
-        description="Every forwarded email and upload, what we did with it, and anything that needs you."
-        action={
-          <Button asChild variant="outline">
-            <Link href="/add?tab=upload">Upload</Link>
-          </Button>
-        }
+        description="Every uploaded invoice and forwarded email, what we did with it, and anything that needs you."
       />
       <Suspense fallback={<ImportsSkeleton />}>
         <ImportsContent />
