@@ -12,14 +12,7 @@ async function DemoGuide() {
   const { data } = await db.auth.getClaims();
   if (!data?.claims?.is_anonymous) return null;
   const { data: car } = await db.from("items").select("id").eq("category", "vehicle").limit(1).maybeSingle();
-  // Their own forwarding address, once Resend receiving is set up, so real mail can be forwarded to the demo.
-  const domain = process.env.INBOUND_EMAIL_DOMAIN?.trim();
-  const ready = Boolean(domain && process.env.RESEND_WEBHOOK_SECRET);
-  const { data: profile } = ready
-    ? await db.from("profiles").select("forwarding_token").maybeSingle()
-    : { data: null };
-  const address = profile?.forwarding_token ? `${profile.forwarding_token}@${domain}` : undefined;
-  return <DemoBanner carHref={car ? `/items/${car.id}` : undefined} forwardingAddress={address} />;
+  return <DemoBanner carHref={car ? `/items/${car.id}` : undefined} />;
 }
 
 async function InboxCount({ variant }: { variant: "badge" | "dot" }) {

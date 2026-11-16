@@ -1,13 +1,13 @@
 # Roadmap: the later list
 
 **The product right now is one journey for one person: a car owner.**
-Forward a service invoice, review it, see it on the car's timeline.
+Upload a service invoice, review it, see it on the car's timeline.
 Try it with the demo on the front page. Everything below is real and mostly
 built, but it is not what we are polishing or selling first.
 
 ## In focus: the car owner's journey
 
-1. Forward a service invoice (email or upload).
+1. Upload a service invoice (PDF, photo or saved email).
 2. Review: high-confidence fields arrive confirmed; the rest are highlighted.
 3. See it on the car's timeline (odometer, parts, labour, cost).
 4. A bill that couldn't be read shows as failed, with a Retry button.
@@ -34,5 +34,5 @@ resale; more garages' invoice layouts in `evals/cases`.
 - Settings: "How well emails are read" feedback view.
 - Terms and privacy pages for a public launch.
 - Photo, scan and PDF reading with AI (needs `ANTHROPIC_API_KEY`).
-- Optional per-user forwarding addresses beyond the demo.
+- Forwarding invoices by email (built; needs a domain with Resend receiving set up, so it's hidden for now).
 - Gmail connection is deliberately not planned (no inbox scanning).

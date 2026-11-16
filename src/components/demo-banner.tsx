@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { ArrowRight, Download, Sparkles, Upload } from "lucide-react";
-import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 
 /**
  * Shown while someone is in the demo: what this is, the journey to try
- * (forward a service invoice, review it, see the timeline) and a way to sign up.
+ * (upload a service invoice, review it, see the timeline) and a way to sign up.
  */
-export function DemoBanner({ carHref, forwardingAddress }: { carHref?: string; forwardingAddress?: string }) {
+export function DemoBanner({ carHref }: { carHref?: string }) {
   return (
     <div className="border-b bg-linear-to-r from-accent via-card to-info-soft px-4 py-3 md:px-8" role="region" aria-label="Demo">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-3">
@@ -42,16 +41,6 @@ export function DemoBanner({ carHref, forwardingAddress }: { carHref?: string; f
             <Link href="/login?mode=signup">Create your account</Link>
           </Button>
         </div>
-        {forwardingAddress && (
-          <div className="flex w-full flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Or forward the invoice email to your demo address:</span>
-            <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs">{forwardingAddress}</code>
-            <CopyButton value={forwardingAddress} label="Copy" />
-            <span className="text-xs text-muted-foreground">
-              The first email from a new sender waits under Imports until you press &ldquo;Trust this sender&rdquo;.
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );

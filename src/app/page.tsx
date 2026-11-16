@@ -36,8 +36,8 @@ async function Timeline() {
 const steps = [
   {
     icon: Mail,
-    title: "Forward the invoice",
-    body: "Each account gets a private address. Forward the service centre's email or upload its PDF.",
+    title: "Upload the invoice",
+    body: "Upload the service centre's PDF, a photo of the bill, or the email saved as a file.",
   },
   {
     icon: ClipboardCheck,
@@ -74,7 +74,7 @@ export default function Landing() {
             already get.
           </h1>
           <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-            Forward a service invoice. We read it, you check it in seconds, and
+            Upload a service invoice. We read it, you check it in seconds, and
             every visit lands on one timeline: date, kilometres, parts and cost.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">

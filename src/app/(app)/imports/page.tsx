@@ -2,23 +2,22 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Upload } from "lucide-react";
 import { Suspense } from "react";
-import { ForwardingAddress } from "@/components/copy-button";
 import { PageHeader } from "@/components/layout-bits";
 import { ListCardSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCurrentUser, getImports } from "@/lib/data";
+import { getImports } from "@/lib/data";
 import { ImportsList } from "./imports-list";
 
 export const metadata: Metadata = { title: "Imports" };
 
 async function ImportsContent() {
-  const [user, imports] = await Promise.all([getCurrentUser(), getImports()]);
+  const imports = await getImports();
   const sorted = [...imports].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
 
   return (
     <>
-      <div className="mb-6 grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2 md:gap-6">
+      <div className="mb-6 rounded-xl border bg-card p-4">
         <div>
           <p className="text-sm font-medium">Upload a service invoice</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -31,11 +30,6 @@ async function ImportsContent() {
             </Link>
           </Button>
         </div>
-        <div>
-          <p className="text-sm font-medium">Or forward it by email</p>
-          <p className="mb-2 mt-1 text-sm text-muted-foreground">Send the service centre&rsquo;s email to your private address.</p>
-          <ForwardingAddress address={user.forwardingAddress} />
-        </div>
       </div>
       <ImportsList imports={sorted} />
     </>
@@ -47,7 +41,7 @@ export default function ImportsPage() {
     <>
       <PageHeader
         title="Imports"
-        description="Every uploaded invoice and forwarded email, what we did with it, and anything that needs you."
+        description="Every uploaded invoice, what we did with it, and anything that needs you."
       />
       <Suspense fallback={<ImportsSkeleton />}>
         <ImportsContent />
