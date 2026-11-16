@@ -1,10 +1,37 @@
 import Link from "next/link";
+import { connection } from "next/server";
+import { Suspense } from "react";
 import { ClipboardCheck, Lock, Mail, Route } from "lucide-react";
 import { startDemo } from "@/app/demo/actions";
 import { DemoButton } from "@/components/demo-button";
 import { Button } from "@/components/ui/button";
 import { CAR, daysAgo, SERVICES } from "@/lib/demo/sample-data";
 import { formatDate, formatMoney } from "@/lib/format";
+
+/** Dates are worked out from today, so it's read at request time, not at build. */
+async function Timeline() {
+  await connection();
+  return (
+    <ol className="mt-4 space-y-4">
+      {[...SERVICES].reverse().map((s) => (
+        <li key={s.daysAgo} className="flex gap-3">
+          <span
+            className="mt-1.5 size-2.5 shrink-0 rounded-full bg-chart-services"
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">{s.work}</p>
+            <p className="text-xs text-muted-foreground">
+              {formatDate(daysAgo(s.daysAgo))} ·{" "}
+              {s.odometerKm.toLocaleString("en-IN")} km · {s.provider}
+            </p>
+          </div>
+          <span className="text-sm tabular-nums">{formatMoney(s.total)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 const steps = [
   {
@@ -43,11 +70,12 @@ export default function Landing() {
         <div>
           <p className="text-sm font-medium text-primary">For car owners</p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight md:text-5xl">
-            Your car&rsquo;s full service history, built from the invoices you already get.
+            Your car&rsquo;s full service history, built from the invoices you
+            already get.
           </h1>
           <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-            Forward a service invoice. We read it, you check it in seconds, and every visit lands on one timeline: date,
-            kilometres, parts and cost.
+            Forward a service invoice. We read it, you check it in seconds, and
+            every visit lands on one timeline: date, kilometres, parts and cost.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <form action={startDemo}>
@@ -59,15 +87,31 @@ export default function Landing() {
           </div>
           <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
             <Lock className="size-4 shrink-0" aria-hidden />
-            No sign-up for the demo. Sample records, and we never ask for access to your inbox.
+            No sign-up for the demo. Sample records, and we never ask for access
+            to your inbox.
           </p>
         </div>
 
         {/* What you get: the car and its timeline, from the demo's own records. */}
-        <div className="rounded-2xl border bg-card p-5 shadow-sm" aria-label="Example: a car's service timeline">
+        <div
+          className="rounded-2xl border bg-card p-5 shadow-sm"
+          aria-label="Example: a car's service timeline"
+        >
           <div className="flex items-center gap-3 border-b pb-4">
-            <span className="hue-tile flex size-11 items-center justify-center rounded-xl" style={{ "--h": 25 } as React.CSSProperties}>
-              <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <span
+              className="hue-tile flex size-11 items-center justify-center rounded-xl"
+              style={{ "--h": 25 } as React.CSSProperties}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="size-6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
                 <path d="M5 16V11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11v5M3 16h18M7 16v2M17 16v2" />
                 <circle cx="7.5" cy="13" r="0.6" />
                 <circle cx="16.5" cy="13" r="0.6" />
@@ -75,32 +119,26 @@ export default function Landing() {
             </span>
             <div className="min-w-0">
               <p className="truncate font-medium">{CAR.name}</p>
-              <p className="text-xs text-muted-foreground">{CAR.registration} · under warranty</p>
+              <p className="text-xs text-muted-foreground">
+                {CAR.registration} · under warranty
+              </p>
             </div>
           </div>
-          <ol className="mt-4 space-y-4">
-            {[...SERVICES].reverse().map((s) => (
-              <li key={s.daysAgo} className="flex gap-3">
-                <span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-chart-services" aria-hidden />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{s.work}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDate(daysAgo(s.daysAgo))} · {s.odometerKm.toLocaleString("en-IN")} km · {s.provider}
-                  </p>
-                </div>
-                <span className="text-sm tabular-nums">{formatMoney(s.total)}</span>
-              </li>
-            ))}
-          </ol>
+          <Suspense fallback={<div className="mt-4 h-40" aria-hidden />}>
+            <Timeline />
+          </Suspense>
           <p className="mt-5 border-t pt-3 text-xs text-muted-foreground">
             Sample records from the demo.{" "}
-            {formatMoney(SERVICES.reduce((t, s) => t + s.total, 0))} spent on servicing so far.
+            {formatMoney(SERVICES.reduce((t, s) => t + s.total, 0))} spent on
+            servicing so far.
           </p>
         </div>
       </section>
 
       <section className="pb-14">
-        <h2 className="text-sm font-medium text-muted-foreground">How it works</h2>
+        <h2 className="text-sm font-medium text-muted-foreground">
+          How it works
+        </h2>
         <ol className="mt-4 grid gap-4 md:grid-cols-3">
           {steps.map(({ icon: Icon, title, body }, i) => (
             <li key={title} className="rounded-xl border bg-card p-5">
