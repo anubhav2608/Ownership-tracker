@@ -2,7 +2,7 @@ import { RetryImportButton } from "@/components/retry-import-button";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowRight, CheckCircle2, Receipt, Wrench } from "lucide-react";
+import { ArrowRight, CheckCircle2, FileWarning, Receipt, Wrench } from "lucide-react";
 import { ImportStatusBadge, OrderStatusBadge } from "@/components/badges";
 import { EmptyCta } from "@/components/empty-cta";
 import { PageHeader, SectionCard } from "@/components/layout-bits";
@@ -96,8 +96,29 @@ async function DashboardContent() {
   const itemName = (id?: string) => items.find((i) => i.id === id)?.name;
   const orderItems = (orderId: string) => items.filter((i) => i.orderId === orderId);
 
+  const toSave = imports.filter((r) => r.status === "needs_review").length;
+  const failedCount = imports.filter((r) => r.status === "failed").length;
+
   return (
     <>
+      {toSave + failedCount > 0 && (
+        <Link
+          href="/imports"
+          data-testid="unsaved-invoices"
+          className="mb-6 flex items-center gap-3 rounded-xl border border-warning/40 bg-warning-soft px-5 py-3.5 text-sm hover:bg-warning-soft/70"
+        >
+          <FileWarning className="size-5 shrink-0 text-warning" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="font-medium">
+              {toSave > 0 && `${toSave} invoice${toSave === 1 ? " is" : "s are"} yet to be saved`}
+              {toSave > 0 && failedCount > 0 && " · "}
+              {failedCount > 0 && `${failedCount} couldn't be read`}
+            </span>
+            <span className="text-muted-foreground"> They need a quick check from you.</span>
+          </span>
+          <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
+      )}
       <MonthInShort insights={monthInsights({ today, orders, events, items, returns })} />
 
       <ExpensesCard

@@ -1,3 +1,4 @@
+import { serviceAutoSave } from "./auto-save";
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/database.types";
@@ -324,6 +325,13 @@ async function serviceCandidates(db: Db, userId: string, text: string, provider?
  * notice simply waits for review.
  */
 export async function applyIfClear(db: Db, importId: string, outcome: Outcome, owner?: string): Promise<boolean> {
+  // A service invoice read accurately and matched to one car: saved now.
+  const service = serviceAutoSave(outcome);
+  if (service) {
+    const { error } = await db.rpc("auto_save_service_import", { import_id: importId, event: service.event, owner });
+    if (error) console.error("[imports] saving a service automatically failed:", error.code, error.message);
+    return !error;
+  }
   const x = outcome.extracted as
     | { fields?: { total?: { value: number | null }; date?: { value: string | null }; outcome?: { value: string } }; refund?: { order_id: string; item_ids: string[]; auto?: boolean } | null }
     | undefined;

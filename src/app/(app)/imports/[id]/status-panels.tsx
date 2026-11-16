@@ -1,5 +1,6 @@
 "use client";
 
+import { readingAccuracy } from "@/lib/extraction/auto-save";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Ban, Clock, Copy, FileSearch, Link2, Loader2, RotateCw } from "lucide-react";
@@ -97,6 +98,7 @@ function useReader(importId: string) {
       const result = await action(importId);
       if (!result.ok) toast.error(result.message);
       else if (result.status === "needs_review") toast.success("Read. Check the details and save.");
+      else if (result.status === "imported") toast.success("Read and saved automatically.");
       else if (result.status === "failed") toast.error("We couldn't read this file.");
       else toast("This doesn't look like a receipt or invoice.");
       router.refresh();
@@ -325,7 +327,12 @@ export function ImportedPanel({
 
   return (
     <SectionCard title={record.documentKind === "refund_notice" ? "Applied from this import" : "Created from this import"}>
-      {record.result?.auto && <AppliedAutomatically importId={record.id} />}
+      {record.result?.auto &&
+        (record.documentKind === "service_receipt" ? (
+          <SavedAutomatically record={record} />
+        ) : (
+          <AppliedAutomatically importId={record.id} />
+        ))}
       <ul className="divide-y">
         {(record.result?.orderIds?.length ?? 0) > 1 && (
           <li className="px-5 py-3 text-sm">
@@ -485,6 +492,17 @@ function RelinkDialog({
 }
 
 /** A refund notice applied without review (its match was beyond doubt), with a way back. */
+/** A service invoice saved without a check: how sure we were, and how to fix it if wrong. */
+function SavedAutomatically({ record }: { record: ImportRecord }) {
+  const accuracy = readingAccuracy((record.fields ?? {}) as Parameters<typeof readingAccuracy>[0], record.parts ?? []);
+  return (
+    <div className="border-b bg-accent/40 px-5 py-3 text-sm" data-testid="saved-automatically">
+      Saved automatically{accuracy !== null ? `: read with ${Math.round(accuracy * 100)}% accuracy` : ""} and matched to
+      your car beyond doubt. Not right? Move it to another item or delete it below.
+    </div>
+  );
+}
+
 function AppliedAutomatically({ importId }: { importId: string }) {
   const router = useRouter();
   const [undoing, startUndo] = useTransition();

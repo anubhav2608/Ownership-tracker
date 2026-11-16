@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Trash2, Undo2 } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 import { toast } from "sonner";
+import { AUTO_SAVE_ACCURACY, readingAccuracy } from "@/lib/extraction/auto-save";
 import { FieldStateBadge, LOW_CONFIDENCE } from "@/components/badges";
 import { SectionCard } from "@/components/layout-bits";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -162,6 +163,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   const shown = [...Object.values(fields), ...lines.filter((l) => l.target === "new").flatMap((l) => [l.name, l.price])].filter(
     (d) => d.state !== "missing",
   );
+  const accuracy = readingAccuracy(record.fields ?? {}, record.parts ?? []);
   const autoConfirmed = shown.filter((d) => d.auto).length;
   const toCheck = shown.filter((d) => d.state === "extracted" && (d.confidence ?? 1) < LOW_CONFIDENCE).length;
 
@@ -315,6 +317,16 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <ReplacePurchaseDialog existing={existing} onCancel={() => setExisting(null)} onReplace={replaceExisting} />
+      {accuracy !== null && (
+        <p className="text-sm font-medium" data-testid="accuracy">
+          Read with {Math.round(accuracy * 100)}% accuracy
+          {accuracy < AUTO_SAVE_ACCURACY
+            ? `: below ${Math.round(AUTO_SAVE_ACCURACY * 100)}%, so please check it and confirm.`
+            : isService
+              ? ": it couldn't be saved on its own, so please choose the car and confirm."
+              : "."}
+        </p>
+      )}
       {autoConfirmed > 0 && (
         <p className="text-sm text-muted-foreground" data-testid="auto-summary">
           {autoConfirmed} {autoConfirmed === 1 ? "field was" : "fields were"} read with high confidence and confirmed for you

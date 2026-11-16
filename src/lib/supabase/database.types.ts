@@ -671,6 +671,10 @@ export type Database = {
         };
         Returns: undefined;
       };
+      auto_save_service_import: {
+        Args: { import_id: string; event: Json; owner?: string };
+        Returns: Json;
+      };
       undo_refund_import: {
         Args: { import_id: string };
         Returns: undefined;
