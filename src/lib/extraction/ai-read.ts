@@ -32,6 +32,7 @@ export const AiDocument = z.object({
   ),
   warranty_evidence: nullable(z.string()).describe("The document's own words stating that whole-order warranty."),
   work_performed: nullable(z.string()).describe("For a service bill: the work done."),
+  odometer_km: nullable(z.number().int()).describe("For a vehicle service bill: the odometer reading in km."),
   items: z.array(
     z.object({
       name: z.string(),
@@ -104,6 +105,7 @@ export function aiExtraction(doc: AiDocument): Extraction | null {
           invoiceRef: tracked(doc.invoice_ref, isUnsure("invoice_ref")),
         }),
   };
+  if (service && doc.odometer_km) fields.odometerKm = tracked(doc.odometer_km, isUnsure("odometer_km"));
   if (doc.return_by) fields.returnBy = tracked(doc.return_by, isUnsure("return_by"));
   if (doc.warranty_months) {
     fields.warrantyMonths = tracked(doc.warranty_months, isUnsure("warranty_months"));

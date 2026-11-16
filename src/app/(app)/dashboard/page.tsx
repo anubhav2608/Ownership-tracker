@@ -1,3 +1,4 @@
+import { RetryImportButton } from "@/components/retry-import-button";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -155,10 +156,10 @@ async function DashboardContent() {
         ) : (
           <ul className="divide-y">
             {attention.map((r) => (
-              <li key={r.id}>
+              <li key={r.id} className="flex items-center hover:bg-accent">
                 <Link
                   href={`/imports/${r.id}`}
-                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-accent"
+                  className="flex min-w-0 flex-1 items-center gap-3 px-5 py-3.5"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{r.title}</p>
@@ -169,6 +170,7 @@ async function DashboardContent() {
                   <ImportStatusBadge status={r.status} />
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
                 </Link>
+                {r.status === "failed" && r.error?.retryable && <RetryImportButton importId={r.id} className="mr-4" />}
               </li>
             ))}
           </ul>

@@ -19,6 +19,7 @@ const doc = (over: Partial<AiDocument> = {}): AiDocument => ({
   warranty_months: null,
   warranty_evidence: null,
   work_performed: null,
+  odometer_km: null,
   items: [
     { name: "Philips Mixer Grinder HL7756", quantity: 1, price: 4299, kind: null, warranty_months: null, return_by: null },
     { name: "Extension board 4-way", quantity: 1, price: 499, kind: null, warranty_months: null, return_by: null },

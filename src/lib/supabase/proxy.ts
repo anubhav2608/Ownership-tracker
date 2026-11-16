@@ -64,6 +64,8 @@ export async function updateSession(request: NextRequest) {
   // validates the JWT and refreshes an expired session.
   const { data } = await supabase.auth.getClaims();
   const signedIn = Boolean(data?.claims);
+  // A demo visitor (an anonymous account) can still see the front page and log in for real.
+  const demo = Boolean(data?.claims?.is_anonymous);
   const { pathname, search } = request.nextUrl;
 
   const redirectTo = (path: string) => {
@@ -79,7 +81,7 @@ export async function updateSession(request: NextRequest) {
 
   if (!signedIn && isProtected(pathname)) return redirectTo("/login");
   // Signed in, the front page and the login page lead to the dashboard.
-  if (signedIn && (pathname === "/login" || pathname === "/")) return redirectTo("/dashboard");
+  if (signedIn && !demo && (pathname === "/login" || pathname === "/")) return redirectTo("/dashboard");
 
   return response;
 }

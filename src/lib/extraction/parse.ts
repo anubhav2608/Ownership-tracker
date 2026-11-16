@@ -19,6 +19,8 @@ export interface ExtractedFields {
   provider?: Tracked<string>;
   workPerformed?: Tracked<string>;
   labourCost?: Tracked<number>;
+  /** A vehicle's odometer reading at the service, in km. */
+  odometerKm?: Tracked<number>;
   /** A refund, return or cancellation notice: what happened to the items. */
   outcome?: Tracked<"returned" | "cancelled">;
 }
@@ -200,7 +202,10 @@ function findMerchant(lines: string[], text: string, sender?: string | null) {
   }
   // A shop's own email: its display name ("Example Shoes <orders@shoes.example>").
   const shopName = sender && !PERSONAL_MAIL.test(sender) ? sender.match(/^\s*"?([^"<]{2,60}?)"?\s*</)?.[1] : undefined;
-  if (shopName && /[a-z]{2}/i.test(shopName)) return { field: extracted(cleanName(shopName), 0.7) };
+  // Surer when the document itself repeats the name.
+  if (shopName && /[a-z]{2}/i.test(shopName)) {
+    return { field: extracted(cleanName(shopName), text.toLowerCase().includes(cleanName(shopName).toLowerCase()) ? 0.9 : 0.7) };
+  }
   // The first line that could be a name: not a heading, and not a labelled value ("Guest Name: Asha").
   const first = lines.find(
     (l) => /[a-z]{3}/i.test(l) && !/invoice|receipt|order|page \d/i.test(l) && !isTableHeader(l) && !/^[^:]{1,25}:\s*\S/.test(l),
@@ -238,6 +243,17 @@ function findRefs(lines: string[], text: string, merchant?: KnownMerchant) {
     orderRef: order ? extracted(order, known ? 0.98 : 0.85) : missing<string>(),
     invoiceRef: invoice && invoice !== order ? extracted(invoice, 0.85) : missing<string>(),
   };
+}
+
+/** "Odometer: 24,310 km", "Kms run 24310", "KM reading: 18,740": a vehicle's reading at a service. */
+const ODOMETER = /\b(?:odo(?:meter)?(?:\s+reading)?|kms?\s+(?:run|reading|driven|covered)|mileage|km\s+reading)\b\s*[:\-]?\s*([\d,]{3,9})(?!\d)/i;
+function findOdometer(lines: string[]): number | null {
+  for (const line of lines) {
+    const m = line.match(ODOMETER);
+    const km = m ? Number(m[1].replace(/,/g, "")) : NaN;
+    if (km > 0 && km < 2_000_000) return km;
+  }
+  return null;
 }
 
 /** Nothing was bought tomorrow: a date past today (with a day's slack for time zones) was misread. */
@@ -380,7 +396,7 @@ function findWarranty(lines: string[]) {
 // ── Line items ──────────────────────────────────────────────────────────
 
 const NOT_AN_ITEM =
-  /\b(sub ?total|total|tax|taxable|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|charges?|freight|transport(ation)?|handling|packing|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|gstin|qty|quantity|description|unit price|saved|you save|refund(ed)?|charged|items?(\(s\))? in (this|your) order|(order|shipment) (details|summary)|your items)\b|\b(pan|phone|mobile|e-?mail|address|rate)\s*(no\.?|number)?\s*[:#]|\bpage\s+\d/i;
+  /\b(sub ?total|total|tax|taxable|gst|cgst|sgst|igst|cess|discount|shipping|delivery|convenience|fees?|charges?|freight|transport(ation)?|handling|packing|round(ing)? off|amount in words|payment|paid|balance|invoice|order (no|number|id|date)|date|gstin|qty|quantity|description|unit price|saved|you save|refund(ed)?|charged|odo(meter)?|kms? (run|reading|driven|covered)|mileage|items?(\(s\))? in (this|your) order|(order|shipment) (details|summary)|your items)\b|\b(pan|phone|mobile|e-?mail|address|rate)\s*(no\.?|number)?\s*[:#]|\bpage\s+\d/i;
 // Labels like "PAN:", "Phone:", "Rate:" only count as labels: a "Non-stick Pan" or a
 // "Heart Rate Monitor" is an item.
 const LABOUR = /\b(labou?r|service|servicing|visit charge|inspection|installation)\b/i;
@@ -601,7 +617,9 @@ function findLines(lines: string[]): { items: ExtractedLine[]; starts: number[] 
     const prices = moneyIn(raw);
     // Only amounts, perhaps labelled: "₹ 7,999.00", "Price: ₹7,999.00", "INR 7,999.00".
     const amountsOnly = prices.length > 0 && !/[a-z]{3}/i.test(raw.replace(PRICE_WORDS, " "));
-    if (!tableRow && !(amountsOnly && pending) && NOT_AN_ITEM.test(raw)) {
+    // A labour row ("Labour charges  Rs 900") is a line of a service bill, whatever "charges" says.
+    const labourRow = /^\s*(labou?r|workmanship|service)\b/i.test(raw) && !/\b(sub ?total|total|tax|gst|discount|fee)\b/i.test(raw);
+    if (!tableRow && !labourRow && !(amountsOnly && pending) && NOT_AN_ITEM.test(raw)) {
       pending = null;
       continue;
     }
@@ -908,8 +926,13 @@ export function parseDocument(
     parts = found.filter((l) => !labour.includes(l));
     const labourTotal = labour.reduce((s, l) => s + (l.price.value ?? 0), 0);
     if (labour.length) fields.labourCost = extracted(labourTotal, 0.7);
-    const work = labour[0]?.name.value ?? found[0]?.name.value;
-    fields.workPerformed = work ? extracted(work, 0.6) : missing();
+    // "Labour charges" says nothing about the work: name it after what was done (the parts).
+    const generic = (n?: string | null) => !n || /^(labou?r|workmanship|service)( charges?)?$/i.test(n.trim());
+    const named = labour.find((l) => !generic(l.name.value))?.name.value;
+    const work = named ?? (parts.length ? parts.slice(0, 4).map((l) => l.name.value).join(", ") : labour[0]?.name.value);
+    fields.workPerformed = work ? extracted(work, named ? 0.7 : 0.6) : missing();
+    const odometer = findOdometer(clean);
+    if (odometer !== null) fields.odometerKm = extracted(odometer, 0.9);
   } else {
     fields.merchant = merchant;
     Object.assign(fields, findRefs(clean, text, known));

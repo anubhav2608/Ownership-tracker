@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Inbox, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
+import { RetryImportButton } from "@/components/retry-import-button";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -145,6 +146,7 @@ export function ImportsList({ imports: all }: { imports: ImportRecord[] }) {
                   <ImportStatusBadge status={r.status} />
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
                 </Link>
+                {r.status === "failed" && r.error?.retryable && <RetryImportButton importId={r.id} className="mr-1" />}
                 <DeleteImportButton record={r} rows={rows} />
               </li>
             ))}

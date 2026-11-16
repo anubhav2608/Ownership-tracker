@@ -42,21 +42,32 @@ interface Draft {
   value: string;
   state: FieldState;
   confidence?: number;
+  /** Confirmed for the user because it was read with high confidence. */
+  auto?: boolean;
 }
 
-const toDraft = (t?: Tracked<string | number>): Draft =>
-  t
-    ? { value: t.value === null ? "" : String(t.value), state: t.state, confidence: t.confidence }
-    : { value: "", state: "missing" };
+/** Read at least this surely and a value needs no check: it arrives confirmed. */
+const AUTO_CONFIRM = 0.9;
+
+const toDraft = (t?: Tracked<string | number>): Draft => {
+  if (!t) return { value: "", state: "missing" };
+  const value = t.value === null ? "" : String(t.value);
+  return t.state === "extracted" && value !== "" && (t.confidence ?? 0) >= AUTO_CONFIRM
+    ? { value, state: "confirmed", confidence: t.confidence, auto: true }
+    : { value, state: t.state, confidence: t.confidence };
+};
 
 const confirmed = (value: string): Draft => ({ value, state: value ? "confirmed" : "missing" });
 const number = (d?: Draft) => (d && d.value !== "" ? Number(d.value) : undefined);
 
-/** Only values the user hasn't checked are recorded; the rest count as confirmed. */
+/**
+ * Only values the user hasn't checked are recorded; the rest count as confirmed.
+ * An auto-confirmed value is still the app's reading, not the user's check, so it's recorded as read.
+ */
 function meta(drafts: Record<string, Draft | undefined>) {
   const out: NonNullable<PurchaseInput["fieldMeta"]> = {};
   for (const [column, d] of Object.entries(drafts)) {
-    if (d?.state === "extracted") out[column] = { state: "extracted", confidence: d.confidence };
+    if (d?.state === "extracted" || d?.auto) out[column] = { state: "extracted", confidence: d.confidence };
   }
   return out;
 }
@@ -146,6 +157,13 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   // The rest of the total (taxes, delivery, fees, or a discount), shown as its own line.
   const charges = isService || kept.length === 0 ? null : otherCharges(total, kept.map((l) => Number(l.price.value) || 0));
   const totalMismatch = Boolean(charges?.suspicious) && !explainedByFees;
+
+  // How much of what was read needed no check: confirmed for the user, and what's left to look at.
+  const shown = [...Object.values(fields), ...lines.filter((l) => l.target === "new").flatMap((l) => [l.name, l.price])].filter(
+    (d) => d.state !== "missing",
+  );
+  const autoConfirmed = shown.filter((d) => d.auto).length;
+  const toCheck = shown.filter((d) => d.state === "extracted" && (d.confidence ?? 1) < LOW_CONFIDENCE).length;
 
   const assetResolved = !isService || serviceItem !== "";
   const lowConfidenceLeft = [...Object.values(fields), ...lines.flatMap((l) => [l.name, l.price])].some(
@@ -268,6 +286,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       provider: fields.provider?.value || undefined,
       totalCost,
       labourCost: number(fields.labourCost),
+      odometerKm: number(fields.odometerKm) === undefined ? undefined : Math.round(number(fields.odometerKm)!),
       parts: parts.map((p) => ({ name: p.name.value, cost: number(p.price), kind: p.kind })),
       importId: record.id,
     });
@@ -296,6 +315,12 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <ReplacePurchaseDialog existing={existing} onCancel={() => setExisting(null)} onReplace={replaceExisting} />
+      {autoConfirmed > 0 && (
+        <p className="text-sm text-muted-foreground" data-testid="auto-summary">
+          {autoConfirmed} {autoConfirmed === 1 ? "field was" : "fields were"} read with high confidence and confirmed for you
+          {toCheck > 0 ? `; ${toCheck} to check.` : ". Nothing else needs a look."} You can still change any of them.
+        </p>
+      )}
       {record.reviewReasons && (
         <Alert>
           <AlertTriangle className="text-warning" />
@@ -321,6 +346,9 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
               <FieldInput fid={fid} label="Date" name="date" type="date" draft={fields.date} onChange={setField} />
               <FieldInput fid={fid} label="Work performed" name="workPerformed" draft={fields.workPerformed} onChange={setField} className="sm:col-span-2" />
               <FieldInput fid={fid} label="Total paid" name="total" type="number" draft={fields.total} onChange={setField} />
+              {record.fields?.odometerKm && (
+                <FieldInput fid={fid} label="Odometer (km)" name="odometerKm" type="number" draft={fields.odometerKm} onChange={setField} />
+              )}
               {/* A bill broken into services already lists the work: no separate labour field. */}
               {!parts.some((p) => p.kind === "service") && (
                 <FieldInput fid={fid} label="Labour" name="labourCost" type="number" draft={fields.labourCost} onChange={setField} />
@@ -484,7 +512,7 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
                 <span className="flex flex-wrap items-center gap-2">
                   {p.name.value}
                   {p.kind && <ServiceLineBadge kind={p.kind} />}
-                  <FieldStateBadge state={p.name.state} confidence={p.name.confidence} />
+                  <FieldStateBadge state={p.name.state} confidence={p.name.confidence} auto={p.name.auto} />
                 </span>
                 <span className="tabular-nums">{p.price.value ? formatMoney(Number(p.price.value)) : "—"}</span>
               </li>
@@ -665,7 +693,7 @@ function DraftInput({
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-2">
         <Label htmlFor={id}>{label}</Label>
-        <FieldStateBadge state={draft.state} confidence={draft.confidence} />
+        <FieldStateBadge state={draft.state} confidence={draft.confidence} auto={draft.auto} />
       </div>
       <Input
         id={id}

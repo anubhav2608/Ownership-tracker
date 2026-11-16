@@ -212,12 +212,15 @@ export { LOW_CONFIDENCE };
 export function FieldStateBadge({
   state,
   confidence,
+  auto = false,
 }: {
   state: FieldState;
   confidence?: number;
+  /** Confirmed by the app, not the user: it was read with high confidence. */
+  auto?: boolean;
 }) {
   if (state === "missing") return <Pill tone="neutral">Missing</Pill>;
-  if (state === "confirmed") return <Pill tone="success">Confirmed</Pill>;
+  if (state === "confirmed") return <Pill tone="success">{auto ? "Auto-confirmed" : "Confirmed"}</Pill>;
   const low = confidence !== undefined && confidence < LOW_CONFIDENCE;
   return (
     <Pill tone={low ? "warning" : "info"}>

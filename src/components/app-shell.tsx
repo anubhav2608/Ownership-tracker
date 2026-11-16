@@ -64,10 +64,13 @@ export function Logo() {
 export function AppShell({
   inboxBadge,
   inboxDot,
+  banner,
   children,
 }: {
   inboxBadge: ReactNode;
   inboxDot: ReactNode;
+  /** Across the top of the page content, e.g. the demo's guide. */
+  banner?: ReactNode;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -135,6 +138,7 @@ export function AppShell({
           </div>
         </header>
 
+        {banner}
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-24 md:px-8 md:py-8">
           {children}
         </main>

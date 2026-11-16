@@ -1,6 +1,19 @@
 import { Suspense } from "react";
 import { AppShell } from "@/components/app-shell";
+import { DemoBanner } from "@/components/demo-banner";
 import { getImports } from "@/lib/data";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
+
+/** The demo's guide, only for a demo visitor (an anonymous account). */
+async function DemoGuide() {
+  if (!isSupabaseConfigured) return null;
+  const db = await createClient();
+  const { data } = await db.auth.getClaims();
+  if (!data?.claims?.is_anonymous) return null;
+  const { data: car } = await db.from("items").select("id").eq("category", "vehicle").limit(1).maybeSingle();
+  return <DemoBanner carHref={car ? `/items/${car.id}` : undefined} />;
+}
 
 async function InboxCount({ variant }: { variant: "badge" | "dot" }) {
   const imports = await getImports();
@@ -21,6 +34,11 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       inboxBadge={
         <Suspense>
           <InboxCount variant="badge" />
+        </Suspense>
+      }
+      banner={
+        <Suspense>
+          <DemoGuide />
         </Suspense>
       }
       inboxDot={

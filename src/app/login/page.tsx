@@ -26,6 +26,7 @@ const errors: Record<string, string> = {
   rate: "Supabase's built-in email sends only a few sign-in emails per hour. Wait about an hour, or use Continue with Google.",
   link: "That sign-in link has expired or was already used. Request a new one.",
   oauth: "Google sign-in didn't complete. Please try again.",
+  demo: "The demo isn't available right now. Please try again in a minute, or sign up below.",
 };
 
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
