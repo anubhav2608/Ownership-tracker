@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import * as demo from "./mock-data";
+import { saveReadyImports } from "./extraction/apply";
 import type { RefundMatch } from "./extraction/match";
 import type { Database } from "./supabase/database.types";
 import { isSupabaseConfigured } from "./supabase/env";
@@ -374,8 +375,25 @@ function toImport(r: Row<"imports">): ImportRecord {
   };
 }
 
+/**
+ * Once per request, before imports are read: saves those waiting for review that
+ * need none (see saveReadyImports), so the list, the badge and the import's
+ * own page all show them saved. Never throws.
+ */
+const saveReady = cache(async () => {
+  if (!isSupabaseConfigured) return;
+  try {
+    const supabase = await db();
+    const { data } = await supabase.auth.getClaims();
+    if (data?.claims) await saveReadyImports(supabase);
+  } catch (e) {
+    console.error("[imports] saving ready imports failed:", e);
+  }
+});
+
 export const getImports = cache(async (): Promise<ImportRecord[]> => {
   if (!isSupabaseConfigured) return demo.getImports();
+  await saveReady();
   const supabase = await db();
   const rows = await query<Row<"imports">[]>(
     supabase.from("imports").select("*").order("received_at", { ascending: false }),
@@ -385,6 +403,7 @@ export const getImports = cache(async (): Promise<ImportRecord[]> => {
 
 export async function getImport(id: string): Promise<ImportRecord | undefined> {
   if (!isSupabaseConfigured) return demo.getImport(id);
+  await saveReady();
   const supabase = await db();
   const row = await query<Row<"imports"> | null>(
     supabase.from("imports").select("*").eq("id", id).maybeSingle(),

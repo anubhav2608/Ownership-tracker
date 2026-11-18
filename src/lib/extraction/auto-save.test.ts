@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { sampleInvoiceEml, CAR } from "@/lib/demo/sample-data";
 import { bodyLines, parseRawEmail } from "./email";
 import { parseDocument, type Extraction } from "./parse";
-import { AUTO_SAVE_ACCURACY, purchaseAutoSave, readingAccuracy, serviceAutoSave } from "./auto-save";
+import { AUTO_SAVE_ACCURACY, autoSaveHold, purchaseAutoSave, readingAccuracy, serviceAutoSave } from "./auto-save";
 
 async function sampleOutcome(candidates: { item_id: string; score: number }[], tweak?: (x: Extraction) => void) {
   const email = await parseRawEmail(new TextEncoder().encode(sampleInvoiceEml()));
@@ -144,5 +144,18 @@ describe("saving a purchase without a check", () => {
     delete o.extracted.fields.warrantyEvidence;
     const [p] = purchaseAutoSave(o as never)!.purchases as unknown as { items: { warranty: unknown }[] }[];
     expect(p.items[0].warranty).toBeNull();
+  });
+});
+
+describe("why an accurate reading still waits", () => {
+  it("names nothing when it can be saved", () => {
+    expect(autoSaveHold(purchaseOutcome({ reasons: ["Some values were hard to read. Check the highlighted fields."] }))).toBeNull();
+  });
+  it("says what's missing or needs a person", () => {
+    expect(autoSaveHold(purchaseOutcome({ lines: [] }))).toBe("no items were found");
+    expect(autoSaveHold(purchaseOutcome({ reasons: ["Items don't add up to the total."] }))).toBe("one of the notes below needs you");
+    const o = purchaseOutcome() as unknown as { extracted: { fields: Record<string, unknown> } };
+    delete o.extracted.fields.merchant;
+    expect(autoSaveHold(o as never)).toBe("the shop's name wasn't found");
   });
 });

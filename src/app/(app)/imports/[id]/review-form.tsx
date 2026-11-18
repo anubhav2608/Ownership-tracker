@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Trash2, Undo2 } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { AUTO_SAVE_ACCURACY, readingAccuracy } from "@/lib/extraction/auto-save";
+import { AUTO_SAVE_ACCURACY, autoSaveHold, readingAccuracy } from "@/lib/extraction/auto-save";
 import { FieldStateBadge, LOW_CONFIDENCE } from "@/components/badges";
 import { SectionCard } from "@/components/layout-bits";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -163,7 +163,15 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
   const shown = [...Object.values(fields), ...lines.filter((l) => l.target === "new").flatMap((l) => [l.name, l.price])].filter(
     (d) => d.state !== "missing",
   );
-  const accuracy = readingAccuracy(record.fields ?? {}, record.parts ?? []);
+  const accuracy = readingAccuracy(record.fields ?? {}, isService ? (record.parts ?? []) : (record.lines ?? []));
+  // Above the threshold, what still keeps this reading from being saved on its own.
+  const hold = autoSaveHold({
+    status: record.status,
+    document_kind: record.documentKind,
+    review_reasons: record.reviewReasons,
+    extracted: { fields: record.fields, lines: record.lines, parts: record.parts } as never,
+    candidates: (record.candidates ?? []).map((c) => ({ item_id: c.itemId, score: c.score })) as never,
+  });
   const autoConfirmed = shown.filter((d) => d.auto).length;
   const toCheck = shown.filter((d) => d.state === "extracted" && (d.confidence ?? 1) < LOW_CONFIDENCE).length;
 
@@ -322,9 +330,9 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
           Read with {Math.round(accuracy * 100)}% accuracy
           {accuracy <= AUTO_SAVE_ACCURACY
             ? `: ${Math.round(AUTO_SAVE_ACCURACY * 100)}% or less, so please check it and confirm.`
-            : isService
-              ? ": it couldn't be saved on its own, so please choose the car and confirm."
-              : ": it couldn't be saved on its own (see the notes below), so please check it and confirm."}
+            : hold
+              ? `, but ${hold}. Please check it and confirm.`
+              : ": saving it automatically didn't work, so please check it and confirm."}
         </p>
       )}
       {autoConfirmed > 0 && (
