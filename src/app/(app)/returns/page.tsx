@@ -8,6 +8,8 @@ import { ListCardSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getItems, getOrders } from "@/lib/data";
+import { FilterBanner } from "@/components/filter-banner";
+import { inPeriod, isFiltered, isMerchant, parseViewFilter } from "@/lib/view-filter";
 import { ReturnsList } from "@/components/returns-list";
 import { formatMoney } from "@/lib/format";
 import { returnsFrom } from "@/lib/refunds";
@@ -16,15 +18,23 @@ export const metadata: Metadata = { title: "Returns & cancellations" };
 
 // Everything that went back: returned and cancelled items, and refunds, with
 // what came back and what is still to come.
-async function ReturnsContent() {
+async function ReturnsContent({ searchParams }: Pick<PageProps<"/returns">, "searchParams">) {
+  // From a dashboard box: returns that happened in its period, for its merchant and category.
+  const filter = parseViewFilter(await searchParams);
   const [orders, items] = await Promise.all([getOrders(), getItems()]);
-  const entries = returnsFrom(orders, items);
+  const entries = returnsFrom(orders, items).filter(
+    (r) =>
+      inPeriod(filter, r.date) &&
+      isMerchant(filter, r.order.merchant) &&
+      (!filter.category || r.items.some((i) => i.category === filter.category)),
+  );
   const back = entries.reduce((s, e) => s + e.refunded, 0);
   const itemCount = entries.reduce((s, e) => s + e.items.length, 0);
   const waiting = entries.filter((e) => e.pending).length;
 
   return (
     <>
+      <FilterBanner filter={filter} clearHref="/returns" what="returns and cancellations" />
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
         {[
           { label: "Money back", value: formatMoney(back) },
@@ -41,7 +51,7 @@ async function ReturnsContent() {
         {entries.length === 0 ? (
           <EmptyCta
             icon={<RotateCcw />}
-            title="No returns or cancellations"
+            title={isFiltered(filter) ? "None for these filters" : "No returns or cancellations"}
             description="Mark items returned or cancelled from their purchase, or upload or forward the refund email."
           />
         ) : (
@@ -52,7 +62,7 @@ async function ReturnsContent() {
   );
 }
 
-export default function ReturnsPage() {
+export default function ReturnsPage({ searchParams }: PageProps<"/returns">) {
   return (
     <>
       <PageHeader
@@ -65,7 +75,7 @@ export default function ReturnsPage() {
         }
       />
       <Suspense fallback={<ListCardSkeleton rows={4} />}>
-        <ReturnsContent />
+        <ReturnsContent searchParams={searchParams} />
       </Suspense>
     </>
   );

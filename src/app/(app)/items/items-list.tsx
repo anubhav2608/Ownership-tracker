@@ -43,11 +43,20 @@ const inScope = (scope: Scope, item: Item) =>
   (scope === "owned" && item.status === "owned") ||
   (scope === "returned" && notKept(item.status));
 
-export function ItemsList({ rows }: { rows: ItemRow[] }) {
+export function ItemsList({
+  rows,
+  initialCategory = "all",
+  initialMerchant = "all",
+}: {
+  rows: ItemRow[];
+  /** From a dashboard link: the filters it was showing. */
+  initialCategory?: string;
+  initialMerchant?: string;
+}) {
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<Scope>("owned");
-  const [category, setCategory] = useState("all");
-  const [merchant, setMerchant] = useState("all");
+  const [category, setCategory] = useState(initialCategory);
+  const [merchant, setMerchant] = useState(initialMerchant);
   const [sort, setSort] = useState<Sort>({ column: "purchased", direction: "desc" });
 
   function toggleSort(column: SortColumn) {
@@ -60,8 +69,11 @@ export function ItemsList({ rows }: { rows: ItemRow[] }) {
   }
 
   const scopeCount = (sc: Scope) => rows.filter((r) => inScope(sc, r.item)).length;
-  const categories = [...new Set(rows.map((r) => r.item.category))].sort();
-  const merchants = [...new Set(rows.map((r) => r.merchant).filter(Boolean))].sort() as string[];
+  // A filter from the dashboard stays choosable even when nothing matches it.
+  const categories = [...new Set([...rows.map((r) => r.item.category), ...(initialCategory === "all" ? [] : [initialCategory])])].sort();
+  const merchants = [
+    ...new Set([...rows.map((r) => r.merchant), initialMerchant === "all" ? undefined : initialMerchant].filter(Boolean)),
+  ].sort() as string[];
 
   const q = query.trim().toLowerCase();
   const visible = rows.filter(({ item, merchant: m }) => {

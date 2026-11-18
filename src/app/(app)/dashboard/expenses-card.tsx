@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { filteredHref, type ViewFilter } from "@/lib/view-filter";
 import { Boxes, FileText, Receipt, RotateCcw, Undo2, Wrench } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { SectionCard } from "@/components/layout-bits";
@@ -219,6 +220,13 @@ export function ExpensesCard({
   }, [orders, items, events, category, merchant, today]);
 
   const total = result.purchases + result.maintenance;
+  // The boxes open their pages showing just what they counted.
+  const view: ViewFilter = {
+    merchant: merchant === "all" ? undefined : merchant,
+    category: category === "all" ? undefined : category,
+    from: range.from || undefined,
+    to: range.to || undefined,
+  };
   const periodLabel =
     preset === "custom"
       ? range.from || range.to
@@ -296,18 +304,18 @@ export function ExpensesCard({
       {/* What the filters above cover, at a glance. */}
       <div className="grid grid-cols-2 gap-3 border-b px-5 py-4 sm:grid-cols-3 lg:grid-cols-5">
         {[
-          { label: "Items owned", value: result.owned, href: "/items", icon: Boxes, hue: 186 },
-          { label: "Purchases", value: result.orderCount, href: "/purchases", icon: Receipt, hue: 255 },
+          { label: "Items owned", value: result.owned, href: filteredHref("/items", view), icon: Boxes, hue: 186 },
+          { label: "Purchases", value: result.orderCount, href: filteredHref("/purchases", view, { type: "items" }), icon: Receipt, hue: 255 },
           {
             icon: Undo2,
             hue: 152,
             label: "Returns & cancellations",
             value: formatMoney(result.backAmount),
             note: `${result.itemsBack} item${result.itemsBack === 1 ? "" : "s"} back`,
-            href: "/returns",
+            href: filteredHref("/returns", view),
           },
           { label: "Documents stored", value: result.documents, icon: FileText, hue: 300 },
-          { label: "Maintenance recorded", value: formatMoney(result.maintenance), href: "/services", icon: Wrench, hue: 45 },
+          { label: "Maintenance recorded", value: formatMoney(result.maintenance), href: filteredHref("/services", view), icon: Wrench, hue: 45 },
         ].map((s) => {
           const body = (
             <>
