@@ -103,7 +103,7 @@ function UploadTab({ userId, demo }: { userId: string; demo: boolean }) {
       return;
     }
 
-    // Read each file now; whatever it finds waits for review, nothing is saved yet.
+    // Read each file now: one read accurately is saved, the rest wait for review.
     // Earlier imports that were already read or saved are left as they are.
     setBusy("reading");
     const read = await Promise.all(all.map((id) => processImport(id).catch(() => null)));
@@ -116,15 +116,21 @@ function UploadTab({ userId, demo }: { userId: string; demo: boolean }) {
 
     const readNow = read.filter((r) => r?.ok);
     const toReview = readNow.filter((r) => r?.ok && r.status === "needs_review").length;
-    const notRead = readNow.length - toReview;
+    const saved = readNow.filter((r) => r?.ok && r.status === "imported").length;
+    const notRead = readNow.length - toReview - saved;
     if (earlier.length) {
       toast(`You uploaded ${earlier.length > 1 ? "these files" : "this file"} before, so we opened the earlier import.`);
     }
     if (readNow.length) {
+      const plural = (n: number) => `${n} file${n > 1 ? "s" : ""}`;
       toast.success(
-        notRead === 0
-          ? `${toReview} file${toReview > 1 ? "s" : ""} read. Check the details and save.`
-          : `${notRead} file${notRead > 1 ? "s" : ""} couldn't be read automatically.${toReview ? ` ${toReview} read and ready to check.` : ""}`,
+        [
+          saved && `${plural(saved)} read and saved automatically.`,
+          toReview && `${plural(toReview)} read and ready to check.`,
+          notRead && `${plural(notRead)} couldn't be read automatically.`,
+        ]
+          .filter(Boolean)
+          .join(" "),
       );
     }
     router.push(all.length === 1 ? `/imports/${all[0]}` : "/imports");

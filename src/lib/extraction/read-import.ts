@@ -1,4 +1,4 @@
-import { serviceAutoSave } from "./auto-save";
+import { purchaseAutoSave, serviceAutoSave } from "./auto-save";
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/database.types";
@@ -319,8 +319,8 @@ async function serviceCandidates(db: Db, userId: string, text: string, provider?
 }
 
 /**
- * After a refund notice's reading is recorded: applies it if the match was
- * beyond doubt. `owner` is given when acting for the account (the webhook);
+ * After a reading is recorded: saves the service or purchase, or applies the
+ * refund, when nothing needs the user (see ./auto-save.ts). `owner` is given when acting for the account (the webhook);
  * a signed-in user's own client leaves it out. Never throws: if it fails, the
  * notice simply waits for review.
  */
@@ -330,6 +330,18 @@ export async function applyIfClear(db: Db, importId: string, outcome: Outcome, o
   if (service) {
     const { error } = await db.rpc("auto_save_service_import", { import_id: importId, event: service.event, owner });
     if (error) console.error("[imports] saving a service automatically failed:", error.code, error.message);
+    return !error;
+  }
+  // An order or invoice read accurately, with nothing to resolve: saved now. A
+  // purchase already saved (same order or invoice number) is refused, so it waits.
+  const purchase = purchaseAutoSave(outcome);
+  if (purchase) {
+    const { error } = await db.rpc("auto_save_purchase_import", {
+      import_id: importId,
+      purchases: purchase.purchases,
+      owner,
+    });
+    if (error) console.error("[imports] saving a purchase automatically failed:", error.code, error.message);
     return !error;
   }
   const x = outcome.extracted as
