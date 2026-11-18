@@ -320,11 +320,11 @@ export function ReviewForm({ record, items }: { record: ImportRecord; items: Ite
       {accuracy !== null && (
         <p className="text-sm font-medium" data-testid="accuracy">
           Read with {Math.round(accuracy * 100)}% accuracy
-          {accuracy < AUTO_SAVE_ACCURACY
-            ? `: below ${Math.round(AUTO_SAVE_ACCURACY * 100)}%, so please check it and confirm.`
+          {accuracy <= AUTO_SAVE_ACCURACY
+            ? `: ${Math.round(AUTO_SAVE_ACCURACY * 100)}% or less, so please check it and confirm.`
             : isService
               ? ": it couldn't be saved on its own, so please choose the car and confirm."
-              : "."}
+              : ": it couldn't be saved on its own (see the notes below), so please check it and confirm."}
         </p>
       )}
       {autoConfirmed > 0 && (

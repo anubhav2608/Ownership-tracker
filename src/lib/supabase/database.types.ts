@@ -675,6 +675,10 @@ export type Database = {
         Args: { import_id: string; event: Json; owner?: string };
         Returns: Json;
       };
+      auto_save_purchase_import: {
+        Args: { import_id: string; purchases: Json; owner?: string };
+        Returns: Json;
+      };
       undo_refund_import: {
         Args: { import_id: string };
         Returns: undefined;

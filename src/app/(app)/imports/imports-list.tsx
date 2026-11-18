@@ -289,7 +289,7 @@ function summary(r: ImportRecord) {
         return `Refund of ${formatMoney(r.result.refund)} applied to a purchase${r.result.auto ? " automatically" : ""}.`;
       }
       return r.result?.serviceEventId
-        ? "Added as a service event."
-        : `Saved${r.result?.itemIds ? ` with ${r.result.itemIds.length} item${r.result.itemIds.length > 1 ? "s" : ""}` : ""}.`;
+        ? `Added as a service event${r.result.auto ? " automatically" : ""}.`
+        : `Saved${r.result?.itemIds ? ` with ${r.result.itemIds.length} item${r.result.itemIds.length > 1 ? "s" : ""}` : ""}${r.result?.auto ? " automatically" : ""}.`;
   }
 }
