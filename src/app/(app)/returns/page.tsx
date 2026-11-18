@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { RotateCcw } from "lucide-react";
 import { PageHeader, SectionCard } from "@/components/layout-bits";
+import { EmptyCta } from "@/components/empty-cta";
 import { ListCardSkeleton } from "@/components/skeletons";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { getItems, getOrders } from "@/lib/data";
 import { ReturnsList } from "@/components/returns-list";
 import { formatMoney } from "@/lib/format";
@@ -37,17 +39,11 @@ async function ReturnsContent() {
       </div>
       <SectionCard title="All returns and cancellations">
         {entries.length === 0 ? (
-          <Empty className="py-12">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <RotateCcw />
-              </EmptyMedia>
-              <EmptyTitle>No returns or cancellations</EmptyTitle>
-              <EmptyDescription>
-                Mark items returned or cancelled from their purchase, or forward the refund email.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          <EmptyCta
+            icon={<RotateCcw />}
+            title="No returns or cancellations"
+            description="Mark items returned or cancelled from their purchase, or upload or forward the refund email."
+          />
         ) : (
           <ReturnsList entries={entries} />
         )}
@@ -62,6 +58,11 @@ export default function ReturnsPage() {
       <PageHeader
         title="Returns & cancellations"
         description="Returned and cancelled items, and the money that came back."
+        action={
+          <Button asChild>
+            <Link href="/add">Add record</Link>
+          </Button>
+        }
       />
       <Suspense fallback={<ListCardSkeleton rows={4} />}>
         <ReturnsContent />
