@@ -171,3 +171,27 @@ export function purchaseAutoSave(outcome: Outcome) {
   if (purchases.length === 0) return null;
   return { accuracy, purchases: purchases as unknown as Json };
 }
+
+/**
+ * Why a reading above the threshold still waits for the user, in words for the
+ * review screen; null when nothing holds it back (then only saving it failed).
+ */
+export function autoSaveHold(outcome: Outcome): string | null {
+  const isService = outcome.document_kind === "service_receipt";
+  const reasons = outcome.review_reasons ?? [];
+  if (!onlyNotes(reasons)) return "one of the notes below needs you";
+  const x = outcome.extracted as { fields?: PurchaseFields & Record<string, Field>; lines?: ExtractedLine[] } | undefined;
+  const f = x?.fields ?? {};
+  if (isService) {
+    if (!f.date?.value) return "no service date was found";
+    if (!f.workPerformed?.value) return "the work done wasn't found";
+    if (f.total?.value == null) return "no total was found";
+    return serviceAutoSave(outcome) ? null : "it matches more than one of your items, so choose the right one";
+  }
+  if (!f.merchant?.value) return "the shop's name wasn't found";
+  if (!f.date?.value) return "no order date was found";
+  const lines = x?.lines ?? [];
+  if (lines.length === 0) return "no items were found";
+  if (lines.some((l) => !String(l.name.value ?? "").trim())) return "an item has no name";
+  return null;
+}
