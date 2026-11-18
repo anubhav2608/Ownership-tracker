@@ -19,10 +19,12 @@ import {
 } from "@/components/ui/table";
 import { OrderReturnStatus } from "@/components/return-status";
 import { ReturnsList } from "@/components/returns-list";
-import { amountSpent, returnsFrom } from "@/lib/refunds";
+import { amountSpent, notKept, returnsFrom } from "@/lib/refunds";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Item, ServiceEvent } from "@/lib/types";
 import { getItems, getOrders, getServiceEvents } from "@/lib/data";
+import { FilterBanner } from "@/components/filter-banner";
+import { filteredHref, inPeriod, isCategory, isFiltered, isMerchant, parseViewFilter } from "@/lib/view-filter";
 
 export const metadata: Metadata = { title: "Purchases" };
 
@@ -35,26 +37,51 @@ const TYPES = [
 type PurchaseType = (typeof TYPES)[number]["value"];
 
 async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, "searchParams">) {
-  const requested = (await searchParams).type;
+  const params = await searchParams;
+  const requested = params.type;
   const type: PurchaseType = TYPES.some((t) => t.value === requested) ? (requested as PurchaseType) : "all";
-  const [orders, items, events] = await Promise.all([getOrders(), getItems(), getServiceEvents()]);
+  // From a dashboard box: the same period, merchant and category it counted.
+  const filter = parseViewFilter(params);
+  const [allOrders, items, allEvents] = await Promise.all([getOrders(), getItems(), getServiceEvents()]);
+  const orders = allOrders.filter(
+    (o) =>
+      inPeriod(filter, o.orderDate) &&
+      isMerchant(filter, o.merchant) &&
+      // As the dashboard counts it: an order with a kept item of that category.
+      (!filter.category ||
+        items.some((i) => i.orderId === o.id && i.category === filter.category && !notKept(i.status) && i.price.value !== null)),
+  );
+  // A service on no item (a home service booking) counts as Miscellaneous, as on the dashboard.
+  const events = allEvents.filter(
+    (e) =>
+      inPeriod(filter, e.date) &&
+      isMerchant(filter, e.provider || undefined) &&
+      isCategory(filter, items.find((i) => i.id === e.itemId)?.category ?? "Miscellaneous"),
+  );
   // Everything paid for: orders of items, and services (whose records live under Services).
   const all = [
     ...orders.map((o) => ({ kind: "order" as const, date: o.orderDate, order: o })),
     ...events.map((e) => ({ kind: "service" as const, date: e.date, event: e })),
   ].sort((a, b) => b.date.localeCompare(a.date));
-  const returns = returnsFrom(orders, items);
+  // Returns count by when they happened, as on the dashboard.
+  const returns = returnsFrom(allOrders, items).filter(
+    (r) =>
+      inPeriod(filter, r.date) &&
+      isMerchant(filter, r.order.merchant) &&
+      (!filter.category || r.items.some((i) => i.category === filter.category)),
+  );
   const count = { all: all.length, items: orders.length, services: events.length, returns: returns.length };
   const sorted = all.filter((r) => type === "all" || (type === "items" ? r.kind === "order" : r.kind === "service"));
 
   return (
     <>
-      {all.length > 0 && (
+      <FilterBanner filter={filter} clearHref={type === "all" ? "/purchases" : `/purchases?type=${type}`} what="purchases" />
+      {(all.length > 0 || isFiltered(filter)) && (
         <nav aria-label="Show" className="mb-4 inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1 text-sm">
           {TYPES.map((t) => (
             <Link
               key={t.value}
-              href={t.value === "all" ? "/purchases" : `/purchases?type=${t.value}`}
+              href={filteredHref("/purchases", filter, t.value === "all" ? {} : { type: t.value })}
               aria-current={type === t.value ? "page" : undefined}
               className={
                 type === t.value
@@ -83,7 +110,13 @@ async function PurchasesContent({ searchParams }: Pick<PageProps<"/purchases">, 
         <Card className="gap-0 py-0">
           <EmptyCta
             icon={<Receipt />}
-            title={all.length ? `No ${type === "items" ? "item orders" : "services"} yet` : "No purchases yet"}
+            title={
+              isFiltered(filter)
+                ? "Nothing here for these filters"
+                : all.length
+                  ? `No ${type === "items" ? "item orders" : "services"} yet`
+                  : "No purchases yet"
+            }
             description="Upload an invoice or service bill, forward an order email or enter a purchase manually."
           />
         </Card>
