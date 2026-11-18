@@ -158,10 +158,10 @@ async function DashboardContent() {
 
       <SectionCard
         className="mt-6"
-        title={`Imports needing you${attention.length ? ` (${attention.length})` : ""}`}
+        title={`Invoices needing you${attention.length ? ` (${attention.length})` : ""}`}
         action={
           <Link href="/imports" className="text-xs font-medium text-primary">
-            All imports
+            All invoices
           </Link>
         }
       >

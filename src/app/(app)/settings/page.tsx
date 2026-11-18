@@ -62,7 +62,7 @@ async function AccountSettings() {
         <div className="p-5">
           <p className="text-sm text-muted-foreground">
             We only import mail forwarded from these addresses. Anything else is held
-            under Imports without being read.
+            under Add an Invoice without being read.
           </p>
           <Senders
             verified={user.verifiedSenders}

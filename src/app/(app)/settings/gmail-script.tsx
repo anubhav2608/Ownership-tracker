@@ -238,7 +238,7 @@ export function GmailScript({
           <li>
             {senders.length > 0 ? "Emails from your senders arrive by themselves. For any other email, " : "In Gmail, "}
             add the <span className="font-medium text-foreground">Ownership</span> label to an
-            order or invoice email. It shows up under Imports within 15 minutes, then moves to
+            order or invoice email. It shows up under Add an Invoice within 15 minutes, then moves to
             Ownership/Sent.
           </li>
         </ol>

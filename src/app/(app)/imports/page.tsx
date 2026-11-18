@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getCurrentUser, getImports } from "@/lib/data";
 import { ImportsList } from "./imports-list";
 
-export const metadata: Metadata = { title: "Imports" };
+export const metadata: Metadata = { title: "Add an Invoice" };
 
 async function ImportsContent() {
   const [user, imports] = await Promise.all([getCurrentUser(), getImports()]);
@@ -41,7 +41,7 @@ export default function ImportsPage() {
   return (
     <>
       <PageHeader
-        title="Imports"
+        title="Add an Invoice"
         description="Every uploaded invoice, what we did with it, and anything that needs you."
       />
       <Suspense fallback={<ImportsSkeleton />}>

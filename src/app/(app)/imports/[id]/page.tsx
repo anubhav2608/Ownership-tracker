@@ -219,7 +219,7 @@ export default function ImportPage({ params }: PageProps<"/imports/[id]">) {
         href="/imports"
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> Imports
+        <ArrowLeft className="size-4" /> Add an Invoice
       </Link>
       <Suspense fallback={<DetailSkeleton />}>
         <ImportDetail params={params} />

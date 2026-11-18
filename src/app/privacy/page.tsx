@@ -45,7 +45,7 @@ export default function PrivacyPage() {
       <section>
         <h2>How long, and deleting it</h2>
         <ul>
-          <li>We keep your data until you delete it. Emails that turn out not to be receipts can be deleted from Imports.</li>
+          <li>We keep your data until you delete it. Emails that turn out not to be receipts can be deleted from Add an Invoice.</li>
           <li>Settings → Export all data downloads everything as a ZIP.</li>
           <li>Settings → Delete account permanently deletes your account, records and files.</li>
         </ul>

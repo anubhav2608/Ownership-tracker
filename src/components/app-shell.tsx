@@ -46,7 +46,7 @@ const nav: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/purchases", label: "Purchases", icon: Receipt },
   { href: "/services", label: "Services", icon: Wrench },
   { href: "/returns", label: "Returns & cancellations", icon: RotateCcw },
-  { href: "/imports", label: "Imports", icon: Inbox },
+  { href: "/imports", label: "Add an Invoice", icon: Inbox },
 ];
 
 export function Logo() {
@@ -144,7 +144,7 @@ export function AppShell({
               key={href}
               href={href}
               className={cn(
-                "relative flex flex-col items-center gap-1 py-2.5 text-[11px]",
+                "relative flex flex-col items-center gap-1 px-1 py-2.5 text-center text-[11px] leading-tight",
                 isActive(href) ? "text-primary" : "text-muted-foreground",
               )}
             >
